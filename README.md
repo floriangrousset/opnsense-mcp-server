@@ -1,6 +1,10 @@
+<p align="center">
+  <img src="opnsense-mcp-server-logo.png" alt="" width="600">
+</p>
+
 # OPNsense MCP Server
 
-A Python-based Model Context Protocol (MCP) server that allows Claude Desktop and other MCP-compatible clients to manage OPNsense firewalls through their API.
+OPNsense® is a powerful open-source firewall and routing platform built on FreeBSD. Managing OPNsense typically involves using its web interface or interacting directly with its comprehensive API. This project offers a way to manage your OPNsense firewall using natural language through AI clients like Claude Desktop. It does this by providing a Python server that implements Anthropic's Model Context Protocol (MCP), a standard allowing AI models to securely connect to and utilize external tools. This server listens for requests from MCP clients, translates them into the appropriate OPNsense API calls, and returns the results.
 
 ## Features
 
@@ -214,6 +218,13 @@ If you encounter issues:
 3. Ensure the API is enabled in OPNsense
 4. Check the permissions of the API user
 5. Look for any error messages in the Claude Desktop logs
+
+## References and Acknowledgements
+
+- **OPNsense®:** This project interacts with OPNsense firewalls. OPNsense is an open source, FreeBSD-based firewall and routing software. More information can be found on the [OPNsense Website](https://opnsense.org/) and their [API Documentation](https://docs.opnsense.org/development/how-tos/api.html).
+    - [OPNsense Development Guidelines](https://docs.opnsense.org/development/guidelines/basics.html)
+- **Anthropic & Model Context Protocol (MCP):** This server implements MCP to allow clients like Claude Desktop to interact with OPNsense. Learn more about how Claude uses tools via the [Anthropic Tool Use Documentation](https://docs.anthropic.com/claude/docs/tool-use).
+- **Project Logo:** The logo `opnsense-mcp-server-logo.png` was generated with the assistance of AI.
 
 ## Contributing
 
