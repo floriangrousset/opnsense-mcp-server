@@ -23,54 +23,58 @@ A Python-based Model Context Protocol (MCP) server that allows Claude Desktop an
 
 ## Prerequisites
 
+- `git` (for cloning the repository)
 - `uv` for Python package management (see installation below).
 - `jq` (command-line JSON processor) if you plan to use the `setup-claude.sh` script for automated Claude Desktop configuration.
 
 ## Installation
 
-1. Install [uv](https://github.com/astral-sh/uv), a fast Python package installer and environment manager:
+1. **Clone the Repository:**
 
-```bash
-# For macOS/Linux
-curl -LsSf https://astral.sh/uv/install.sh | sh
+   ```bash
+   git clone https://github.com/floriangrousset/opnsense-mcp-server
+   cd opnsense-mcp-server
+   ```
 
-# For Windows (PowerShell)
-curl -LsSf https://astral.sh/uv/install.ps1 | powershell -c -
-```
+2. **Install `uv` (if not already installed):**
 
-2. Create a new directory for the project:
+   `uv` is a fast Python package installer and environment manager. Install it using the official instructions:
+   
+   ```bash
+   # For macOS/Linux
+   curl -LsSf https://astral.sh/uv/install.sh | sh
+   
+   # For Windows (PowerShell)
+   curl -LsSf https://astral.sh/uv/install.ps1 | powershell -c -
+   ```
 
-```bash
-mkdir opnsense-mcp
-cd opnsense-mcp
-```
+3. **Create and Activate Virtual Environment:**
 
-3. Create and activate a virtual environment:
+   It's highly recommended to use a virtual environment.
 
-```bash
-# Create a virtual environment
-uv venv
+   ```bash
+   # Create a virtual environment
+   uv venv
+   
+   # Activate it (Linux/macOS)
+   source .venv/bin/activate
+   
+   # Activate it (Windows)
+   .venv\Scripts\activate
+   ```
 
-# Activate it (Linux/macOS)
-source .venv/bin/activate
+4. **Install Dependencies:**
 
-# Activate it (Windows)
-.venv\Scripts\activate
-```
+   ```bash
+   uv pip install -r requirements.txt
+   ```
 
-4. Install the required packages:
+5. **Make Scripts Executable (Linux/macOS):**
 
-```bash
-uv pip install -r requirements.txt
-```
-
-5. Save the server code to a file named `opnsense_mcp_server.py`
-
-6. Make the file executable (Linux/macOS):
-
-```bash
-chmod +x opnsense_mcp_server.py
-```
+   ```bash
+   chmod +x opnsense_mcp_server.py
+   chmod +x setup-claude.sh
+   ```
 
 ## Setup OPNsense API Access
 
@@ -213,7 +217,7 @@ If you encounter issues:
 
 ## Contributing
 
-Feel free to contribute to this project by submitting issues or pull requests.
+Contributions are welcome! Please see the `CONTRIBUTING.md` file for guidelines on how to submit issues or pull requests.
 
 ## License
 
