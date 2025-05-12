@@ -907,6 +907,246 @@ async def get_vpn_connections(ctx: Context, vpn_type: str = "OpenVPN") -> str:
         return f"Error: {str(e)}"
 
 
+# --- Firewall Audit Feature ---
+
+async def _get_all_rules(client: OPNsenseClient) -> List[Dict[str, Any]]:
+    """Helper to fetch all firewall rules using pagination."""
+    all_rules = []
+    current_page = 1
+    rows_per_page = 500  # Fetch in larger batches
+    while True:
+        try:
+            response = await client.request(
+                "POST",
+                API_FIREWALL_FILTER_SEARCH_RULE,
+                data={
+                    "current": current_page,
+                    "rowCount": rows_per_page,
+                    "searchPhrase": ""
+                }
+            )
+            rules = response.get("rows", [])
+            if not rules:
+                break
+            all_rules.extend(rules)
+            if len(rules) < rows_per_page:
+                break # Last page
+            current_page += 1
+        except Exception as e:
+            logger.error(f"Error fetching page {current_page} of firewall rules: {e}", exc_info=True)
+            # Return what we have so far, audit can proceed with partial data
+            break 
+    return all_rules
+
+async def _get_wan_interfaces(client: OPNsenseClient) -> List[str]:
+    """Helper to identify WAN interfaces."""
+    wan_interfaces = []
+    try:
+        interfaces_info = await client.request("GET", API_INTERFACES_OVERVIEW_INFO)
+        for if_name, if_data in interfaces_info.items():
+            # Heuristic: Interface is likely WAN if it has a gateway and isn't loopback/internal
+            # OPNsense often names the default WAN 'wan' but users can rename it.
+            # Checking for a non-empty gateway field is a common indicator.
+            if if_data.get("gateway") and if_data.get("gateway") != "none":
+                 wan_interfaces.append(if_name)
+            # Fallback: Explicitly check for common WAN names if gateway check fails 
+            elif if_name.lower() == 'wan' and not wan_interfaces: 
+                 wan_interfaces.append(if_name)
+    except Exception as e:
+        logger.error(f"Error fetching interfaces info for audit: {e}", exc_info=True)
+    
+    # If still no WAN identified, maybe return a default guess? For now, return empty. 
+    if not wan_interfaces:
+        logger.warning("Could not reliably identify WAN interfaces for audit.")
+        
+    return wan_interfaces
+
+@mcp.tool(name="perform_firewall_audit", description="Performs a basic security audit of the OPNsense configuration.")
+async def perform_firewall_audit(ctx: Context) -> str:
+    """Performs a basic security audit of the OPNsense configuration.
+
+    Checks for common potential security issues like outdated firmware/plugins, 
+    management access from WAN, overly permissive rules, etc.
+
+    Args:
+        ctx: MCP context
+
+    Returns:
+        JSON string containing a list of audit findings.
+    """
+    if not opnsense_client:
+        return "OPNsense client not initialized. Please configure the server first."
+
+    findings = []
+    await ctx.info("Starting OPNsense firewall audit...")
+
+    try:
+        # --- Fetch Data --- 
+        await ctx.info("Fetching required data (firmware, rules, interfaces, services)...")
+        firmware_status = await opnsense_client.request("GET", API_CORE_FIRMWARE_STATUS)
+        all_rules = await _get_all_rules(opnsense_client)
+        wan_interfaces = await _get_wan_interfaces(opnsense_client)
+        services_response = await opnsense_client.request(
+            "POST", 
+            API_CORE_SERVICE_SEARCH,
+            data={"current": 1, "rowCount": -1, "searchPhrase": ""} # Fetch all services
+        )
+        running_services = {svc['name']: svc for svc in services_response.get("rows", []) if svc.get('running') == 1}
+
+        await ctx.info(f"Identified WAN interfaces: {wan_interfaces or 'None'}")
+        await ctx.info(f"Fetched {len(all_rules)} firewall rules.")
+
+        # --- Perform Checks --- 
+
+        # 1. Firmware Update Check
+        if firmware_status.get("status") == "update_available":
+            findings.append({
+                "check": "Firmware Update",
+                "severity": "Medium",
+                "description": f"Firmware update available. Current: {firmware_status.get('product_version', 'N/A')}, New: {firmware_status.get('product_new_version', 'N/A')}",
+                "recommendation": "Consider updating OPNsense firmware via the GUI (System -> Firmware -> Updates)."
+            })
+        else:
+            findings.append({
+                "check": "Firmware Update",
+                "severity": "Info",
+                "description": "Firmware appears to be up-to-date.",
+                "recommendation": None
+            })
+
+        # 2. Plugin Update Check
+        plugin_updates = firmware_status.get("upgrade_packages", [])
+        if plugin_updates:
+            plugin_names = [p.get('name', 'N/A') for p in plugin_updates]
+            findings.append({
+                "check": "Plugin Updates",
+                "severity": "Medium",
+                "description": f"Updates available for {len(plugin_updates)} plugins: {', '.join(plugin_names)}",
+                "recommendation": "Consider updating plugins via the GUI (System -> Firmware -> Updates)."
+            })
+        else:
+             findings.append({
+                "check": "Plugin Updates",
+                "severity": "Info",
+                "description": "Installed plugins appear to be up-to-date.",
+                "recommendation": None
+            })
+
+        # 3. WAN Management Access Check
+        management_ports = {'80', '443', '22'} # HTTP, HTTPS, SSH
+        insecure_protocols = {'21', '23'} # FTP, Telnet
+        wan_mgmt_rules = []
+        wan_insecure_proto_rules = []
+        wan_any_any_rules = []
+        block_rules_no_log = []
+
+        for rule in all_rules:
+            # Skip disabled rules
+            if not rule.get('enabled', '0') == '1': 
+                continue
+
+            interface = rule.get('interface')
+            is_wan_rule = interface in wan_interfaces
+
+            # Check logging on block/reject rules
+            if rule.get('action') in ['block', 'reject'] and not rule.get('log', '0') == '1':
+                 block_rules_no_log.append(rule.get("descr", rule.get("uuid", "N/A")))
+
+            if not is_wan_rule:
+                continue # Only check WAN rules for the following
+                
+            # Basic parsing - assumes 'any' if specific fields are missing/empty
+            src_net = rule.get("source_net", "any")
+            dst_net = rule.get("destination_net", "any")
+            dst_port = rule.get("destination_port", "any")
+            protocol = rule.get("protocol", "any").lower()
+            action = rule.get('action')
+
+            # Check Any-Any rule
+            if action == 'pass' and src_net == 'any' and dst_net == 'any' and dst_port == 'any':
+                wan_any_any_rules.append(rule.get("descr", rule.get("uuid", "N/A")))
+
+            # Check Management Access
+            # Simplified: Checks if dest port is one of the management ports
+            # Doesn't check destination address (assumes firewall itself)
+            if action == 'pass' and dst_port in management_ports:
+                wan_mgmt_rules.append(rule.get("descr", rule.get("uuid", "N/A")))
+
+            # Check Insecure Protocols
+            if action == 'pass' and dst_port in insecure_protocols:
+                 wan_insecure_proto_rules.append(rule.get("descr", rule.get("uuid", "N/A")))
+
+        if wan_mgmt_rules:
+            findings.append({
+                "check": "WAN Management Access",
+                "severity": "High",
+                "description": f"Potential firewall rules allowing management access (HTTP/HTTPS/SSH) from WAN found: {', '.join(wan_mgmt_rules)}",
+                "recommendation": "Review these rules. Exposing management interfaces to the WAN is highly discouraged. Use VPNs for remote access."
+            })
+        
+        if wan_any_any_rules:
+            findings.append({
+                "check": "WAN Allow Any-Any",
+                "severity": "High",
+                "description": f"Potential 'allow any source to any destination' rules found on WAN interface(s): {', '.join(wan_any_any_rules)}",
+                "recommendation": "Review these rules. 'Allow any-any' rules on WAN are extremely dangerous and likely misconfigured."
+            })
+            
+        if wan_insecure_proto_rules:
+            findings.append({
+                "check": "WAN Insecure Protocols",
+                "severity": "High",
+                "description": f"Potential rules allowing insecure protocols (e.g., Telnet, FTP) from WAN found: {', '.join(wan_insecure_proto_rules)}",
+                "recommendation": "Review these rules. Avoid using insecure protocols, especially over the WAN."
+            })
+        
+        if block_rules_no_log:
+            findings.append({
+                "check": "Firewall Log Settings",
+                "severity": "Low",
+                "description": f"{len(block_rules_no_log)} firewall rule(s) that block or reject traffic do not have logging enabled (Examples: {', '.join(block_rules_no_log[:3])}{'...' if len(block_rules_no_log) > 3 else ''}).",
+                "recommendation": "Consider enabling logging on block/reject rules (especially the default deny, if applicable) to monitor potential malicious activity."
+            })
+        else:
+             findings.append({
+                "check": "Firewall Log Settings",
+                "severity": "Info",
+                "description": "Block/reject rules checked appear to have logging enabled.",
+                "recommendation": None
+            })
+
+        # 4. Check for enabled UPnP service
+        if "miniupnpd" in running_services:
+             findings.append({
+                "check": "UPnP Service",
+                "severity": "Low",
+                "description": "The UPnP (Universal Plug and Play) service is enabled and running.",
+                "recommendation": "Ensure UPnP is intentionally enabled and configured securely if needed. Disable it if unused, as it can potentially open ports automatically."
+            })
+
+        await ctx.info("Firewall audit checks complete.")
+
+    except Exception as e:
+        logger.error(f"Error during firewall audit: {str(e)}", exc_info=True)
+        await ctx.error(f"Error performing firewall audit: {str(e)}")
+        # Return partial findings if any were collected before the error
+        if findings:
+             findings.append({
+                "check": "Audit Error",
+                "severity": "Critical",
+                "description": f"An error occurred during the audit: {str(e)}. Results may be incomplete.",
+                "recommendation": "Check server logs for details."
+            })
+             return json.dumps({"audit_findings": findings}, indent=2)
+        else:
+             return json.dumps({"error": f"Failed to perform audit: {str(e)}"}, indent=2)
+
+    return json.dumps({"audit_findings": findings}, indent=2)
+
+
+# --- End Firewall Audit Feature ---
+
+
 # Entry point
 if __name__ == "__main__":
     mcp.run()

@@ -18,6 +18,7 @@ OPNsense® is a powerful open-source firewall and routing platform built on Free
 - VPN connection monitoring
 - Plugin management
 - Custom API calls for any OPNsense endpoint
+- **Basic Firewall Security Audit**
 
 ## Requirements
 
@@ -200,6 +201,12 @@ Show me all active OpenVPN connections.
 
 ```
 Execute a GET request to the endpoint "/interfaces/overview/interfacesInfo".
+```
+
+10. Perform a basic security audit:
+
+```
+Perform a security audit of my OPNsense firewall configuration.
 ```
 
 ## Security Considerations
