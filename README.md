@@ -21,6 +21,11 @@ A Python-based Model Context Protocol (MCP) server that allows Claude Desktop an
 - OPNsense firewall with API access configured
 - MCP-compatible client (e.g., Claude Desktop)
 
+## Prerequisites
+
+- `uv` for Python package management (see installation below).
+- `jq` (command-line JSON processor) if you plan to use the `setup-claude.sh` script for automated Claude Desktop configuration.
+
 ## Installation
 
 1. Install [uv](https://github.com/astral-sh/uv), a fast Python package installer and environment manager:
@@ -56,7 +61,7 @@ source .venv/bin/activate
 4. Install the required packages:
 
 ```bash
-uv add "mcp[cli]" httpx
+uv pip install -r requirements.txt
 ```
 
 5. Save the server code to a file named `opnsense_mcp_server.py`
@@ -79,14 +84,24 @@ Before using this server, you need to create API credentials in your OPNsense fi
 
 ## Configuring Claude Desktop
 
-To use this MCP server with Claude Desktop:
+To use this MCP server with Claude Desktop, you can either configure it manually or use the provided setup script.
+
+**Method 1: Using the Setup Script (Recommended)**
+
+1.  Ensure you have `jq` installed on your system. You can typically install it using your system's package manager (e.g., `apt install jq`, `yum install jq`, `brew install jq`).
+2.  Make the script executable: `chmod +x setup-claude.sh`
+3.  Run the script: `bash setup-claude.sh`
+4.  The script will attempt to automatically find your Claude Desktop configuration file and add the necessary server entry.
+5.  Restart Claude Desktop for the changes to take effect.
+
+**Method 2: Manual Configuration**
 
 1. Install [Claude Desktop](https://claude.ai/desktop) if you haven't already
 2. Open Claude Desktop
 3. Access the settings from the Claude menu
 4. Go to the Developer tab
 5. Click on "Edit Config"
-6. Add the following configuration to the `mcpServers` section:
+6. Find the `mcpServers` section (or add it if it doesn't exist) and add the following entry:
 
 ```json
 {
@@ -102,7 +117,7 @@ To use this MCP server with Claude Desktop:
 }
 ```
 
-Replace `/path/to/opnsense_mcp_server.py` with the actual path to your server script.
+Replace `/path/to/opnsense_mcp_server.py` with the **absolute path** to your `opnsense_mcp_server.py` script.
 
 7. Save the config file and restart Claude Desktop
 
