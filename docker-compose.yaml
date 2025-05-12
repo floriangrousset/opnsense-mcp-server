@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  opnsense-mcp:
+    build: .
+    container_name: opnsense-mcp-server
+    restart: unless-stopped
+    volumes:
+      - ./config:/app/config
+    environment:
+      - PYTHONUNBUFFERED=1
+    ports:
+      - "8080:8080"  # For future HTTP transport support
