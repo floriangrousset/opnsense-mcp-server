@@ -19,16 +19,16 @@ Thank you for considering contributing to the OPNsense MCP Server project! We we
 
 ### Pull Requests
 
-1.  Fork the repository.
-2.  Create a new branch (`git checkout -b feature/YourFeature` or `bugfix/YourBugfix`).
-3.  Make your changes. Adhere to the existing code style.
-4.  Add tests for your changes if applicable.
-5.  Ensure your code passes any existing tests.
-6.  Commit your changes (`git commit -am 'Add some feature'`). Use clear and descriptive commit messages.
-7.  Push to the branch (`git push origin feature/YourFeature`).
-8.  Create a new Pull Request.
-    -   Provide a clear description of the problem and solution.
-    -   Link to any relevant issues.
+1. Fork the repository.
+2. Create a new branch (`git checkout -b feature/YourFeature` or `bugfix/YourBugfix`).
+3. Make your changes. Adhere to the existing code style.
+4. Add tests for your changes if applicable.
+5. Ensure your code passes any existing tests.
+6. Commit your changes (`git commit -am 'Add some feature'`). Use clear and descriptive commit messages.
+7. Push to the branch (`git push origin feature/YourFeature`).
+8. Create a new Pull Request.
+    - Provide a clear description of the problem and solution.
+    - Link to any relevant issues.
 
 ## Code Style
 
@@ -36,4 +36,4 @@ Please adhere to standard Python coding conventions (PEP 8). Ensure your code is
 
 ## Questions?
 
-If you have questions about contributing, feel free to open an issue and ask. 
+If you have questions about contributing, feel free to open an issue and ask.
