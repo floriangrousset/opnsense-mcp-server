@@ -4,10 +4,8 @@ OPNsense MCP Server
 
 A Model Context Protocol (MCP) server implementation for managing OPNsense firewalls.
 This server allows Claude and other MCP-compatible clients to interact with all features
-exposed by the OPNsense API.
-
-Author: Claude (based on user request)
-Date: May 12, 2025
+exposed by the OPNsense API. This server is designed to be run on a local machine and
+not exposed to the public internet. Please see the README.md file for more information.
 """
 
 import os
@@ -27,6 +25,50 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("opnsense-mcp")
+
+
+# API Endpoint Constants
+# Core
+API_CORE_MENU_GET_ITEMS = "/core/menu/getItems"
+API_CORE_FIRMWARE_STATUS = "/core/firmware/status"
+API_CORE_SYSTEM_INFO = "/core/system/info"
+API_CORE_SERVICE_SEARCH = "/core/service/search"
+API_CORE_SERVICE_RESTART = "/core/service/restart"  # Needs /{service_name}
+API_CORE_BACKUP_DOWNLOAD = "/core/backup/download"
+API_CORE_FIRMWARE_PLUGINS = "/core/firmware/plugins"
+API_CORE_FIRMWARE_INSTALL = "/core/firmware/install"  # Needs /{plugin_name}
+
+# Firewall
+API_FIREWALL_FILTER_SEARCH_RULE = "/firewall/filter/searchRule"
+API_FIREWALL_FILTER_ADD_RULE = "/firewall/filter/addRule"
+API_FIREWALL_FILTER_DEL_RULE = "/firewall/filter/delRule"    # Needs /{uuid}
+API_FIREWALL_FILTER_TOGGLE_RULE = "/firewall/filter/toggleRule" # Needs /{uuid}/{enabled_int}
+API_FIREWALL_FILTER_APPLY = "/firewall/filter/apply"
+API_FIREWALL_ALIAS_SEARCH_ITEM = "/firewall/alias/searchItem"
+API_FIREWALL_ALIAS_UTIL_ADD = "/firewall/alias_util/add"      # Needs /{alias_name}/{address}
+API_FIREWALL_ALIAS_UTIL_DELETE = "/firewall/alias_util/delete"  # Needs /{alias_name}/{address}
+API_FIREWALL_ALIAS_RECONFIGURE = "/firewall/alias/reconfigure"
+
+# Interfaces
+API_INTERFACES_OVERVIEW_INFO = "/interfaces/overview/interfacesInfo"
+
+# DHCP
+API_DHCP_LEASES_SEARCH = "/dhcp/leases/searchLease"
+
+# Diagnostics
+API_DIAGNOSTICS_LOG_FIREWALL = "/diagnostics/log/firewall"
+API_DIAGNOSTICS_SYSTEM_PROCESSOR = "/diagnostics/system/processor"
+API_DIAGNOSTICS_SYSTEM_MEMORY = "/diagnostics/system/memory"
+API_DIAGNOSTICS_SYSTEM_STORAGE = "/diagnostics/system/storage"
+API_DIAGNOSTICS_SYSTEM_TEMPERATURE = "/diagnostics/system/temperature"
+
+# Routes
+API_ROUTES_GET = "/routes/routes/get"
+
+# VPN
+API_OPENVPN_SERVICE_STATUS = "/openvpn/service/getStatus"
+API_IPSEC_SERVICE_STATUS = "/ipsec/service/status"
+API_WIREGUARD_SERVICE_SHOW = "/wireguard/service/show"
 
 
 class OPNsenseConfig(TypedDict, total=False):
@@ -94,21 +136,25 @@ class OPNsenseClient:
             elif method.upper() == "POST":
                 response = await self.client.post(url, headers=headers, json=data)
             else:
+                # For other methods like DELETE, PUT if ever needed.
+                # httpx.request allows specifying the method directly.
+                # response = await self.client.request(method.upper(), url, headers=headers, json=data if data else None)
+                logger.error(f"Unsupported HTTP method in OPNsenseClient.request: {method}")
                 raise ValueError(f"Unsupported HTTP method: {method}")
             
             response.raise_for_status()
             return response.json()
         except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error: {e}")
+            logger.error(f"HTTP error: {e.response.text}", exc_info=True)
             raise
         except httpx.RequestError as e:
-            logger.error(f"Request error: {e}")
+            logger.error(f"Request error: {e}", exc_info=True)
             raise
         except json.JSONDecodeError as e:
-            logger.error(f"JSON decode error: {e}")
+            logger.error(f"JSON decode error: {e}", exc_info=True)
             raise
-        except Exception as e:
-            logger.error(f"Unexpected error: {e}")
+        except Exception as e: # Catch-all for unexpected errors during the request itself
+            logger.error(f"Unexpected error in OPNsenseClient.request: {e}", exc_info=True)
             raise
 
 
@@ -139,7 +185,7 @@ async def get_api_endpoints(
     
     try:
         # Get all available modules first
-        response = await opnsense_client.request("GET", "/core/menu/getItems")
+        response = await opnsense_client.request("GET", API_CORE_MENU_GET_ITEMS)
         
         if module:
             # Filter endpoints by module if specified
@@ -152,6 +198,7 @@ async def get_api_endpoints(
             # Return all modules and endpoints
             return json.dumps(response, indent=2)
     except Exception as e:
+        logger.error(f"Error in get_api_endpoints: {str(e)}", exc_info=True)
         await ctx.error(f"Error fetching API endpoints: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -171,15 +218,15 @@ async def get_system_status(ctx: Context) -> str:
     
     try:
         # Get firmware status
-        firmware = await opnsense_client.request("GET", "/core/firmware/status")
+        firmware = await opnsense_client.request("GET", API_CORE_FIRMWARE_STATUS)
         
         # Get system information
-        system_info = await opnsense_client.request("GET", "/core/system/info")
+        system_info = await opnsense_client.request("GET", API_CORE_SYSTEM_INFO)
         
         # Get service status
         services = await opnsense_client.request(
             "POST", 
-            "/core/service/search",
+            API_CORE_SERVICE_SEARCH,
             data={"current": 1, "rowCount": -1, "searchPhrase": ""}
         )
         
@@ -192,6 +239,7 @@ async def get_system_status(ctx: Context) -> str:
         
         return json.dumps(status, indent=2)
     except Exception as e:
+        logger.error(f"Error in get_system_status: {str(e)}", exc_info=True)
         await ctx.error(f"Error fetching system status: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -220,7 +268,7 @@ async def firewall_get_rules(
     try:
         response = await opnsense_client.request(
             "POST",
-            "/firewall/filter/searchRule",
+            API_FIREWALL_FILTER_SEARCH_RULE,
             data={
                 "current": page,
                 "rowCount": rows_per_page,
@@ -230,6 +278,7 @@ async def firewall_get_rules(
         
         return json.dumps(response, indent=2)
     except Exception as e:
+        logger.error(f"Error in firewall_get_rules: {str(e)}", exc_info=True)
         await ctx.error(f"Error fetching firewall rules: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -289,7 +338,7 @@ async def firewall_add_rule(
         # Add the rule
         add_result = await opnsense_client.request(
             "POST",
-            "/firewall/filter/addRule",
+            API_FIREWALL_FILTER_ADD_RULE,
             data=rule_data
         )
         
@@ -297,7 +346,7 @@ async def firewall_add_rule(
         await ctx.info("Rule added, applying changes...")
         apply_result = await opnsense_client.request(
             "POST",
-            "/firewall/filter/apply"
+            API_FIREWALL_FILTER_APPLY
         )
         
         return json.dumps({
@@ -305,6 +354,7 @@ async def firewall_add_rule(
             "apply_result": apply_result
         }, indent=2)
     except Exception as e:
+        logger.error(f"Error in firewall_add_rule: {str(e)}", exc_info=True)
         await ctx.error(f"Error adding firewall rule: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -327,14 +377,14 @@ async def firewall_delete_rule(ctx: Context, uuid: str) -> str:
         # Delete the rule
         delete_result = await opnsense_client.request(
             "POST",
-            f"/firewall/filter/delRule/{uuid}"
+            f"{API_FIREWALL_FILTER_DEL_RULE}/{uuid}"
         )
         
         # Apply changes
         await ctx.info("Rule deleted, applying changes...")
         apply_result = await opnsense_client.request(
             "POST",
-            "/firewall/filter/apply"
+            API_FIREWALL_FILTER_APPLY
         )
         
         return json.dumps({
@@ -342,6 +392,7 @@ async def firewall_delete_rule(ctx: Context, uuid: str) -> str:
             "apply_result": apply_result
         }, indent=2)
     except Exception as e:
+        logger.error(f"Error in firewall_delete_rule (uuid: {uuid}): {str(e)}", exc_info=True)
         await ctx.error(f"Error deleting firewall rule: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -365,14 +416,14 @@ async def firewall_toggle_rule(ctx: Context, uuid: str, enabled: bool) -> str:
         # Toggle the rule
         toggle_result = await opnsense_client.request(
             "POST",
-            f"/firewall/filter/toggleRule/{uuid}/{1 if enabled else 0}"
+            f"{API_FIREWALL_FILTER_TOGGLE_RULE}/{uuid}/{1 if enabled else 0}"
         )
         
         # Apply changes
         await ctx.info(f"Rule {'enabled' if enabled else 'disabled'}, applying changes...")
         apply_result = await opnsense_client.request(
             "POST",
-            "/firewall/filter/apply"
+            API_FIREWALL_FILTER_APPLY
         )
         
         return json.dumps({
@@ -380,6 +431,7 @@ async def firewall_toggle_rule(ctx: Context, uuid: str, enabled: bool) -> str:
             "apply_result": apply_result
         }, indent=2)
     except Exception as e:
+        logger.error(f"Error in firewall_toggle_rule (uuid: {uuid}, enabled: {enabled}): {str(e)}", exc_info=True)
         await ctx.error(f"Error toggling firewall rule: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -398,9 +450,10 @@ async def get_interfaces(ctx: Context) -> str:
         return "OPNsense client not initialized. Please configure the server first."
     
     try:
-        response = await opnsense_client.request("GET", "/interfaces/overview/interfacesInfo")
+        response = await opnsense_client.request("GET", API_INTERFACES_OVERVIEW_INFO)
         return json.dumps(response, indent=2)
     except Exception as e:
+        logger.error(f"Error in get_interfaces: {str(e)}", exc_info=True)
         await ctx.error(f"Error fetching interfaces: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -419,9 +472,10 @@ async def get_dhcp_leases(ctx: Context) -> str:
         return "OPNsense client not initialized. Please configure the server first."
     
     try:
-        response = await opnsense_client.request("GET", "/dhcp/leases/searchLease")
+        response = await opnsense_client.request("GET", API_DHCP_LEASES_SEARCH)
         return json.dumps(response, indent=2)
     except Exception as e:
+        logger.error(f"Error in get_dhcp_leases: {str(e)}", exc_info=True)
         await ctx.error(f"Error fetching DHCP leases: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -450,7 +504,7 @@ async def get_firewall_aliases(
     try:
         response = await opnsense_client.request(
             "POST",
-            "/firewall/alias/searchItem",
+            API_FIREWALL_ALIAS_SEARCH_ITEM,
             data={
                 "current": page,
                 "rowCount": rows_per_page,
@@ -460,6 +514,7 @@ async def get_firewall_aliases(
         
         return json.dumps(response, indent=2)
     except Exception as e:
+        logger.error(f"Error in get_firewall_aliases: {str(e)}", exc_info=True)
         await ctx.error(f"Error fetching firewall aliases: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -483,14 +538,14 @@ async def add_to_alias(ctx: Context, alias_name: str, address: str) -> str:
         # Add to alias
         add_result = await opnsense_client.request(
             "POST",
-            f"/firewall/alias_util/add/{alias_name}/{address}"
+            f"{API_FIREWALL_ALIAS_UTIL_ADD}/{alias_name}/{urllib.parse.quote_plus(address)}"
         )
         
         # Reconfigure aliases
         await ctx.info("Entry added, applying changes...")
         reconfigure_result = await opnsense_client.request(
             "POST",
-            "/firewall/alias/reconfigure"
+            API_FIREWALL_ALIAS_RECONFIGURE
         )
         
         return json.dumps({
@@ -498,6 +553,7 @@ async def add_to_alias(ctx: Context, alias_name: str, address: str) -> str:
             "reconfigure_result": reconfigure_result
         }, indent=2)
     except Exception as e:
+        logger.error(f"Error in add_to_alias (alias: {alias_name}, address: {address}): {str(e)}", exc_info=True)
         await ctx.error(f"Error adding to alias: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -521,14 +577,14 @@ async def delete_from_alias(ctx: Context, alias_name: str, address: str) -> str:
         # Delete from alias
         delete_result = await opnsense_client.request(
             "POST",
-            f"/firewall/alias_util/delete/{alias_name}/{address}"
+            f"{API_FIREWALL_ALIAS_UTIL_DELETE}/{alias_name}/{urllib.parse.quote_plus(address)}"
         )
         
         # Reconfigure aliases
         await ctx.info("Entry deleted, applying changes...")
         reconfigure_result = await opnsense_client.request(
             "POST",
-            "/firewall/alias/reconfigure"
+            API_FIREWALL_ALIAS_RECONFIGURE
         )
         
         return json.dumps({
@@ -536,6 +592,7 @@ async def delete_from_alias(ctx: Context, alias_name: str, address: str) -> str:
             "reconfigure_result": reconfigure_result
         }, indent=2)
     except Exception as e:
+        logger.error(f"Error in delete_from_alias (alias: {alias_name}, address: {address}): {str(e)}", exc_info=True)
         await ctx.error(f"Error deleting from alias: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -576,6 +633,7 @@ async def exec_api_call(
         
         return json.dumps(response, indent=2)
     except Exception as e:
+        logger.error(f"Error in exec_api_call (method: {method}, endpoint: {endpoint}): {str(e)}", exc_info=True)
         await ctx.error(f"Error executing API call: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -614,7 +672,7 @@ async def configure_opnsense_connection(
         test_client = OPNsenseClient(config)
         
         # Try to make a simple API call to verify connection
-        await test_client.request("GET", "/core/firmware/status")
+        await test_client.request("GET", API_CORE_FIRMWARE_STATUS)
         
         # If the above call succeeds, save the configuration
         if opnsense_client:
@@ -624,6 +682,7 @@ async def configure_opnsense_connection(
         
         return "OPNsense connection configured successfully"
     except Exception as e:
+        logger.error(f"Error in configure_opnsense_connection (url: {url}): {str(e)}", exc_info=True)
         await ctx.error(f"Error configuring OPNsense connection: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -653,12 +712,13 @@ async def get_firewall_logs(
     try:
         response = await opnsense_client.request(
             "GET",
-            "/diagnostics/log/firewall",
+            API_DIAGNOSTICS_LOG_FIREWALL,
             params={"limit": count, "filter": filter_text}
         )
         
         return json.dumps(response, indent=2)
     except Exception as e:
+        logger.error(f"Error in get_firewall_logs: {str(e)}", exc_info=True)
         await ctx.error(f"Error fetching firewall logs: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -680,11 +740,12 @@ async def restart_service(ctx: Context, service_name: str) -> str:
     try:
         response = await opnsense_client.request(
             "POST",
-            f"/core/service/restart/{service_name}"
+            f"{API_CORE_SERVICE_RESTART}/{service_name}"
         )
         
         return json.dumps(response, indent=2)
     except Exception as e:
+        logger.error(f"Error in restart_service (service: {service_name}): {str(e)}", exc_info=True)
         await ctx.error(f"Error restarting service: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -703,9 +764,10 @@ async def backup_config(ctx: Context) -> str:
         return "OPNsense client not initialized. Please configure the server first."
     
     try:
-        response = await opnsense_client.request("POST", "/core/backup/download")
+        response = await opnsense_client.request("POST", API_CORE_BACKUP_DOWNLOAD)
         return json.dumps(response, indent=2)
     except Exception as e:
+        logger.error(f"Error in backup_config: {str(e)}", exc_info=True)
         await ctx.error(f"Error creating backup: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -724,9 +786,10 @@ async def get_system_routes(ctx: Context) -> str:
         return "OPNsense client not initialized. Please configure the server first."
     
     try:
-        response = await opnsense_client.request("GET", "/routes/routes/get")
+        response = await opnsense_client.request("GET", API_ROUTES_GET)
         return json.dumps(response, indent=2)
     except Exception as e:
+        logger.error(f"Error in get_system_routes: {str(e)}", exc_info=True)
         await ctx.error(f"Error fetching system routes: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -746,10 +809,10 @@ async def get_system_health(ctx: Context) -> str:
     
     try:
         # Get multiple health metrics
-        cpu = await opnsense_client.request("GET", "/diagnostics/system/processor")
-        memory = await opnsense_client.request("GET", "/diagnostics/system/memory")
-        disk = await opnsense_client.request("GET", "/diagnostics/system/storage")
-        temperature = await opnsense_client.request("GET", "/diagnostics/system/temperature")
+        cpu = await opnsense_client.request("GET", API_DIAGNOSTICS_SYSTEM_PROCESSOR)
+        memory = await opnsense_client.request("GET", API_DIAGNOSTICS_SYSTEM_MEMORY)
+        disk = await opnsense_client.request("GET", API_DIAGNOSTICS_SYSTEM_STORAGE)
+        temperature = await opnsense_client.request("GET", API_DIAGNOSTICS_SYSTEM_TEMPERATURE)
         
         # Combine results
         return json.dumps({
@@ -759,6 +822,7 @@ async def get_system_health(ctx: Context) -> str:
             "temperature": temperature
         }, indent=2)
     except Exception as e:
+        logger.error(f"Error in get_system_health: {str(e)}", exc_info=True)
         await ctx.error(f"Error fetching system health: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -777,9 +841,10 @@ async def list_plugins(ctx: Context) -> str:
         return "OPNsense client not initialized. Please configure the server first."
     
     try:
-        response = await opnsense_client.request("GET", "/core/firmware/plugins")
+        response = await opnsense_client.request("GET", API_CORE_FIRMWARE_PLUGINS)
         return json.dumps(response, indent=2)
     except Exception as e:
+        logger.error(f"Error in list_plugins: {str(e)}", exc_info=True)
         await ctx.error(f"Error listing plugins: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -801,11 +866,12 @@ async def install_plugin(ctx: Context, plugin_name: str) -> str:
     try:
         response = await opnsense_client.request(
             "POST",
-            f"/core/firmware/install/{plugin_name}"
+            f"{API_CORE_FIRMWARE_INSTALL}/{plugin_name}"
         )
         
         return json.dumps(response, indent=2)
     except Exception as e:
+        logger.error(f"Error in install_plugin (plugin: {plugin_name}): {str(e)}", exc_info=True)
         await ctx.error(f"Error installing plugin: {str(e)}")
         return f"Error: {str(e)}"
 
@@ -826,16 +892,17 @@ async def get_vpn_connections(ctx: Context, vpn_type: str = "OpenVPN") -> str:
     
     try:
         if vpn_type.lower() == "openvpn":
-            response = await opnsense_client.request("GET", "/openvpn/service/getStatus")
+            response = await opnsense_client.request("GET", API_OPENVPN_SERVICE_STATUS)
         elif vpn_type.lower() == "ipsec":
-            response = await opnsense_client.request("GET", "/ipsec/service/status")
+            response = await opnsense_client.request("GET", API_IPSEC_SERVICE_STATUS)
         elif vpn_type.lower() == "wireguard":
-            response = await opnsense_client.request("GET", "/wireguard/service/show")
+            response = await opnsense_client.request("GET", API_WIREGUARD_SERVICE_SHOW)
         else:
             return f"Unsupported VPN type: {vpn_type}"
         
         return json.dumps(response, indent=2)
     except Exception as e:
+        logger.error(f"Error in get_vpn_connections (type: {vpn_type}): {str(e)}", exc_info=True)
         await ctx.error(f"Error fetching VPN connections: {str(e)}")
         return f"Error: {str(e)}"
 
