@@ -216,6 +216,16 @@ Perform a security audit of my OPNsense firewall configuration.
 - Consider setting up a firewall rule to restrict API access to specific IP addresses
 - Regularly audit API access logs
 
+## Production Environment Disclaimer
+
+**Important:** For maximum security in production environments, it is strongly recommended to adhere to strict management practices:
+
+*   **Disable Web GUI & API:** On production firewalls, consider disabling the Web GUI (HTTP/HTTPS access) and the API access entirely after initial setup.
+*   **Console Management:** Primary management of production firewalls should ideally be performed via a direct console connection (serial cable).
+*   **Configuration Staging:** Alternatively, configure the firewall in a secure, isolated lower environment (e.g., staging or lab) using the Web GUI/API. Once finalized and tested, export the configuration (`config.xml`) and import it onto the production firewall (which could be running headless without GUI/API enabled).
+
+This MCP server provides powerful management capabilities but relies on the OPNsense API being enabled. Carefully evaluate the risks and benefits before enabling the API on critical production systems. Use dedicated, least-privilege API users and restrict access via firewall rules if the API must remain active.
+
 ## Troubleshooting
 
 If you encounter issues:
