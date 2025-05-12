@@ -16,7 +16,8 @@ import base64
 from typing import Dict, List, Any, Optional, Union, Tuple, TypedDict
 import urllib.parse
 import httpx
-from mcp import FastMCP, Context, ResourceRequest, types
+from mcp.server.fastmcp import FastMCP, Context
+from mcp import types
 
 
 # Configure logging
