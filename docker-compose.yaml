@@ -5,8 +5,6 @@ services:
     build: .
     container_name: opnsense-mcp-server
     restart: unless-stopped
-    volumes:
-      - ./config:/app/config
     environment:
       - PYTHONUNBUFFERED=1
     ports:
