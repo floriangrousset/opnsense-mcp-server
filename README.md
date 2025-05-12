@@ -1,17 +1,15 @@
-<p align="center">
-  <img src="opnsense-mcp-server-logo.png" alt="" width="600">
-</p>
-
 # OPNsense MCP Server
 
 OPNsense® is a powerful open-source firewall and routing platform built on FreeBSD. Managing OPNsense typically involves using its web interface or interacting directly with its comprehensive API. This project offers a way to manage your OPNsense firewall using natural language through AI clients like Claude Desktop. It does this by providing a Python server that implements Anthropic's Model Context Protocol (MCP), a standard allowing AI models to securely connect to and utilize external tools. This server listens for requests from MCP clients, translates them into the appropriate OPNsense API calls, and returns the results.
+
+![OPNsense MCP Server Logo](opnsense-mcp-server-logo.png)
 
 ## Features
 
 - Full access to OPNsense API functionality
 - Firewall rule management
 - Network interface monitoring
-- DHCP lease management 
+- DHCP lease management
 - Firewall alias management
 - System status and health monitoring
 - Service management
@@ -44,7 +42,7 @@ OPNsense® is a powerful open-source firewall and routing platform built on Free
 2. **Install `uv` (if not already installed):**
 
    `uv` is a fast Python package installer and environment manager. Install it using the official instructions:
-   
+
    ```bash
    # For macOS/Linux
    curl -LsSf https://astral.sh/uv/install.sh | sh
@@ -95,15 +93,15 @@ Before using this server, you need to create API credentials in your OPNsense fi
 
 To use this MCP server with Claude Desktop, you can either configure it manually or use the provided setup script.
 
-**Method 1: Using the Setup Script (Recommended)**
+### Method 1: Using the Setup Script (Recommended)
 
-1.  Ensure you have `jq` installed on your system. You can typically install it using your system's package manager (e.g., `apt install jq`, `yum install jq`, `brew install jq`).
-2.  Make the script executable: `chmod +x setup-claude.sh`
-3.  Run the script: `bash setup-claude.sh`
-4.  The script will attempt to automatically find your Claude Desktop configuration file and add the necessary server entry.
-5.  Restart Claude Desktop for the changes to take effect.
+1. Ensure you have `jq` installed on your system. You can typically install it using your system's package manager (e.g., `apt install jq`, `yum install jq`, `brew install jq`).
+2. Make the script executable: `chmod +x setup-claude.sh`
+3. Run the script: `bash setup-claude.sh`
+4. The script will attempt to automatically find your Claude Desktop configuration file and add the necessary server entry.
+5. Restart Claude Desktop for the changes to take effect.
 
-**Method 2: Manual Configuration**
+### Method 2: Manual Configuration
 
 1. Install [Claude Desktop](https://claude.ai/desktop) if you haven't already
 2. Open Claude Desktop
@@ -112,21 +110,21 @@ To use this MCP server with Claude Desktop, you can either configure it manually
 5. Click on "Edit Config"
 6. Find the `mcpServers` section (or add it if it doesn't exist) and add the following entry:
 
-```json
-{
-  "mcpServers": {
-    "opnsense": {
-      "command": "python",
-      "args": [
-        "/path/to/opnsense_mcp_server.py"
-      ],
-      "env": {}
+    ```json
+    {
+      "mcpServers": {
+        "opnsense": {
+          "command": "python",
+          "args": [
+            "/path/to/opnsense_mcp_server.py"
+          ],
+          "env": {}
+        }
+      }
     }
-  }
-}
-```
+    ```
 
-Replace `/path/to/opnsense_mcp_server.py` with the **absolute path** to your `opnsense_mcp_server.py` script.
+    Replace `/path/to/opnsense_mcp_server.py` with the **absolute path** to your `opnsense_mcp_server.py` script.
 
 7. Save the config file and restart Claude Desktop
 
@@ -136,78 +134,78 @@ Once the MCP server is configured and running with Claude Desktop, you can inter
 
 1. Configure the connection to your OPNsense firewall:
 
-```
-Configure my OPNsense firewall with the following information:
-URL: https://192.168.1.1
-API Key: your_api_key
-API Secret: your_api_secret
-```
+    ```text
+    Configure my OPNsense firewall with the following information:
+    URL: https://192.168.1.1
+    API Key: your_api_key
+    API Secret: your_api_secret
+    ```
 
 2. Check the system status:
 
-```
-What's the current status of my OPNsense firewall?
-```
+    ```text
+    What's the current status of my OPNsense firewall?
+    ```
 
 3. Manage firewall rules:
 
-```
-List all firewall rules.
-```
+    ```text
+    List all firewall rules.
+    ```
 
-```
-Add a new firewall rule to allow HTTP traffic from any source to my web server at 192.168.1.100.
-```
+    ```text
+    Add a new firewall rule to allow HTTP traffic from any source to my web server at 192.168.1.100.
+    ```
 
-```
-Delete the firewall rule with UUID abc123def456.
-```
+    ```text
+    Delete the firewall rule with UUID abc123def456.
+    ```
 
 4. Work with firewall aliases:
 
-```
-Show me all the firewall aliases.
-```
+    ```text
+    Show me all the firewall aliases.
+    ```
 
-```
-Add IP address 10.0.0.5 to the alias named "BlockedIPs".
-```
+    ```text
+    Add IP address 10.0.0.5 to the alias named "BlockedIPs".
+    ```
 
 5. Monitor network interfaces:
 
-```
-Show me all network interfaces and their status.
-```
+    ```text
+    Show me all network interfaces and their status.
+    ```
 
 6. View system health:
 
-```
-What's the current health status of my OPNsense system? Show CPU, memory, and disk usage.
-```
+    ```text
+    What's the current health status of my OPNsense system? Show CPU, memory, and disk usage.
+    ```
 
 7. Manage services:
 
-```
-Restart the DHCP service.
-```
+    ```text
+    Restart the DHCP service.
+    ```
 
 8. Examine VPN connections:
 
-```
-Show me all active OpenVPN connections.
-```
+    ```text
+    Show me all active OpenVPN connections.
+    ```
 
 9. Execute a custom API call:
 
-```
-Execute a GET request to the endpoint "/interfaces/overview/interfacesInfo".
-```
+    ```text
+    Execute a GET request to the endpoint "/interfaces/overview/interfacesInfo".
+    ```
 
 10. Perform a basic security audit:
 
-```
-Perform a security audit of my OPNsense firewall configuration.
-```
+    ```text
+    Perform a security audit of my OPNsense firewall configuration.
+    ```
 
 ## Security Considerations
 
@@ -220,9 +218,9 @@ Perform a security audit of my OPNsense firewall configuration.
 
 **Important:** For maximum security in production environments, it is strongly recommended to adhere to strict management practices:
 
-*   **Disable Web GUI & API:** On production firewalls, consider disabling the Web GUI (HTTP/HTTPS access) and the API access entirely after initial setup.
-*   **Console Management:** Primary management of production firewalls should ideally be performed via a direct console connection (serial cable).
-*   **Configuration Staging:** Alternatively, configure the firewall in a secure, isolated lower environment (e.g., staging or lab) using the Web GUI/API. Once finalized and tested, export the configuration (`config.xml`) and import it onto the production firewall (which could be running headless without GUI/API enabled).
+- **Disable Web GUI & API:** On production firewalls, consider disabling the Web GUI (HTTP/HTTPS access) and the API access entirely after initial setup.
+- **Console Management:** Primary management of production firewalls should ideally be performed via a direct console connection (serial cable).
+- **Configuration Staging:** Alternatively, configure the firewall in a secure, isolated lower environment (e.g., staging or lab) using the Web GUI/API. Once finalized and tested, export the configuration (`config.xml`) and import it onto the production firewall (which could be running headless without GUI/API enabled).
 
 This MCP server provides powerful management capabilities but relies on the OPNsense API being enabled. Carefully evaluate the risks and benefits before enabling the API on critical production systems. Use dedicated, least-privilege API users and restrict access via firewall rules if the API must remain active.
 
@@ -239,9 +237,8 @@ If you encounter issues:
 ## References and Acknowledgements
 
 - **OPNsense®:** This project interacts with OPNsense firewalls. OPNsense is an open source, FreeBSD-based firewall and routing software. More information can be found on the [OPNsense Website](https://opnsense.org/) and their [API Documentation](https://docs.opnsense.org/development/how-tos/api.html).
-    - [OPNsense Development Guidelines](https://docs.opnsense.org/development/guidelines/basics.html)
 - **Anthropic & Model Context Protocol (MCP):** This server implements MCP to allow clients like Claude Desktop to interact with OPNsense. Learn more about how Claude uses tools via the [Anthropic Tool Use Documentation](https://docs.anthropic.com/claude/docs/tool-use).
-- **Project Logo:** The logo `opnsense-mcp-server-logo.png` was generated with the assistance of AI.
+- **Project Logo:** The logo `opnsense-mcp-server-logo.png` and part of the project code was generated with the assistance of AI.
 
 ## Contributing
 
