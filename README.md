@@ -6,7 +6,7 @@
 
 ## What is an MCP Server? Why Is It a Game Changer for AI?
 
-The **Model Context Protocol (MCP)** is a new standard that lets AI models (like Claude, ChatGPT, and others) securely interact with real-world tools, data, and systems—**not just answer questions, but actually take action**. You can think of it as "giving hands to the brain": the AI is the brain, and the MCP server is the set of hands that can reach out and do things in the real world. For more technical details, refer to the [official MCP specification](https://example.com/mcp-specification).
+The **Model Context Protocol (MCP)** is a new standard that lets AI models (like Claude, ChatGPT, and others) securely interact with real-world tools, data, and systems—**not just answer questions, but actually take action**. You can think of it as "giving hands to the brain": the AI is the brain, and the MCP server is the set of hands that can reach out and do things in the real world. For more technical details, refer to the [official MCP specification](https://docs.anthropic.com/en/docs/agents-and-tools/mcp).
 
 ### Why is this important?
 
