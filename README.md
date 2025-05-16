@@ -1,12 +1,12 @@
 # OPNsense MCP Server
 
-OPNsense® is a powerful open-source firewall and routing platform built on FreeBSD. Managing OPNsense typically involves using its web interface or interacting directly with its comprehensive API. This project offers a way to manage your OPNsense firewall using natural language through AI clients like Claude Desktop. It does this by providing a Python server that implements Anthropic's Model Context Protocol (MCP), a standard allowing AI models to securely connect to and utilize external tools. This server listens for requests from MCP clients, translates them into the appropriate OPNsense API calls, and returns the results.
+[OPNsense®](https://opnsense.org) is a powerful open-source firewall and routing platform built on FreeBSD. Managing OPNsense typically involves using its web interface or interacting directly with its comprehensive API. This project offers a way to manage your OPNsense firewall using natural language through AI clients like Claude Desktop. It does this by providing a Python server application that implements Anthropic's Model Context Protocol (MCP), a standard allowing AI models to securely connect to and utilize external tools. This locally running server listens for requests from MCP clients, translates them into the appropriate OPNsense API calls, and returns the results.
 
 ![OPNsense MCP Server Logo](opnsense-mcp-server-logo.png)
 
 ## What is an MCP Server? Why Is It a Game Changer for AI?
 
-The **Model Context Protocol (MCP)** is a new standard that lets AI models (like Claude, ChatGPT, and others) securely interact with real-world tools, data, and systems—**not just answer questions, but actually take action**. You can think of it as "giving hands to the brain": the AI is the brain, and the MCP server is the set of hands that can reach out and do things in the real world.
+The **Model Context Protocol (MCP)** is a new standard that lets AI models (like Claude, ChatGPT, and others) securely interact with real-world tools, data, and systems—**not just answer questions, but actually take action**. You can think of it as "giving hands to the brain": the AI is the brain, and the MCP server is the set of hands that can reach out and do things in the real world. For more technical details, refer to the [official MCP specification](https://example.com/mcp-specification).
 
 ### Why is this important?
 
