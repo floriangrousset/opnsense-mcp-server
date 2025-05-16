@@ -4,6 +4,29 @@ OPNsense® is a powerful open-source firewall and routing platform built on Free
 
 ![OPNsense MCP Server Logo](opnsense-mcp-server-logo.png)
 
+## What is an MCP Server? Why Is It a Game Changer for AI?
+
+The **Model Context Protocol (MCP)** is a new standard that lets AI models (like Claude, ChatGPT, and others) securely interact with real-world tools, data, and systems—**not just answer questions, but actually take action**. You can think of it as "giving hands to the brain": the AI is the brain, and the MCP server is the set of hands that can reach out and do things in the real world.
+
+### Why is this important?
+
+- **From Answers to Actions:** Traditional AI models can only provide information. With MCP, they can actually perform tasks—like managing your firewall, sending emails, or updating files—by calling tools exposed by an MCP server.
+- **Security and Trust:** MCP is designed to be secure and auditable. You control exactly what the AI can access, and you can see every action it takes.
+- **Plug-and-Play for AI Clients:** Tools like Claude Desktop make it easy to connect to MCP servers. You just add the server in the settings, and suddenly your AI can manage your OPNsense firewall, interact with your files, or do anything else the server exposes.
+- **Separation of Concerns:** The AI doesn't need to know how to talk to your firewall or database. The MCP server handles all the details, so you get the power of automation without the risk of giving the AI direct, unrestricted access.
+
+### How does it work in practice?
+
+1. **You run an MCP server** (like this OPNsense MCP Server) on your machine or network.
+2. **You connect your AI client** (like Claude Desktop) to the MCP server by adding it in the settings.
+3. **The AI can now use the tools** exposed by the server—securely, with your oversight.
+
+MCP servers are a game changer because they let you safely delegate real-world tasks to AI, making your AI not just smart, but truly useful.
+
+---
+
+Below are some of the key features provided by this OPNsense MCP Server:
+
 ## Features
 
 - Full access to OPNsense API functionality
