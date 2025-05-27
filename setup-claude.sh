@@ -28,7 +28,7 @@ mkdir -p "$CONFIG_DIR"
 
 # Get the script directory
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-SERVER_PATH="$SCRIPT_DIR/opnsense_mcp_server.py"
+SERVER_PATH="$SCRIPT_DIR/opnsense-mcp-server.py"
 
 # Check if the config file exists
 if [ -f "$CONFIG_FILE" ]; then

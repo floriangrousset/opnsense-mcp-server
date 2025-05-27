@@ -13,10 +13,10 @@ COPY requirements.txt .
 RUN uv pip install --system -r requirements.txt
 
 # Copy application code
-COPY opnsense_mcp_server.py .
+COPY opnsense-mcp-server.py .
 
 # Expose port (for future HTTP transport support)
 EXPOSE 8080
 
 # Set the entrypoint
-ENTRYPOINT ["python", "opnsense_mcp_server.py"] 
+ENTRYPOINT ["python", "opnsense-mcp-server.py"] 
