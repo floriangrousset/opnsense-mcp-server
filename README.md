@@ -98,7 +98,7 @@ Below are some of the key features provided by this OPNsense MCP Server:
 5. **Make Scripts Executable (Linux/macOS):**
 
    ```bash
-   chmod +x opnsense_mcp_server.py
+   chmod +x opnsense-mcp-server.py
    chmod +x setup-claude.sh
    ```
 
@@ -139,7 +139,7 @@ To use this MCP server with Claude Desktop, you can either configure it manually
         "opnsense": {
           "command": "python",
           "args": [
-            "/path/to/opnsense_mcp_server.py"
+            "/path/to/opnsense-mcp-server.py"
           ],
           "env": {}
         }
@@ -147,7 +147,7 @@ To use this MCP server with Claude Desktop, you can either configure it manually
     }
     ```
 
-    Replace `/path/to/opnsense_mcp_server.py` with the **absolute path** to your `opnsense_mcp_server.py` script.
+    Replace `/path/to/opnsense-mcp-server.py` with the **absolute path** to your `opnsense-mcp-server.py` script.
 
 7. Save the config file and restart Claude Desktop
 
