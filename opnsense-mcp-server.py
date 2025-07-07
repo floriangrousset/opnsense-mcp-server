@@ -126,7 +126,6 @@ class OPNsenseClient:
         url = f"{self.base_url}/api{endpoint}"
         headers = {
             "Authorization": f"Basic {self.auth_header}",
-            "Content-Type": "application/json",
             "Accept": "application/json"
         }
         
