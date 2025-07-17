@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/floriangrousset-opnsense-mcp-server-badge.png)](https://mseep.ai/app/floriangrousset-opnsense-mcp-server)
+
 # OPNsense MCP Server
 
 [OPNsense®](https://opnsense.org) is a powerful open-source firewall and routing platform built on FreeBSD. Managing OPNsense typically involves using its web interface or interacting directly with its comprehensive API. This project offers a way to manage your OPNsense firewall using natural language through AI clients like Claude Desktop. It does this by providing a Python server application that implements Anthropic's Model Context Protocol (MCP), a standard allowing AI models to securely connect to and utilize external tools. This locally running server listens for requests from MCP clients, translates them into the appropriate OPNsense API calls, and returns the results.
