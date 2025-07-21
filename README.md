@@ -1,3 +1,5 @@
+[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/floriangrousset-opnsense-mcp-server-badge.png)](https://mseep.ai/app/floriangrousset-opnsense-mcp-server)
+
 # OPNsense MCP Server
 
 [OPNsense®](https://opnsense.org) is a powerful open-source firewall and routing platform built on FreeBSD. Managing OPNsense typically involves using its web interface or interacting directly with its comprehensive API. This project offers a way to manage your OPNsense firewall using natural language through AI clients like Claude Desktop. It does this by providing a Python server application that implements Anthropic's Model Context Protocol (MCP), a standard allowing AI models to securely connect to and utilize external tools. This locally running server listens for requests from MCP clients, translates them into the appropriate OPNsense API calls, and returns the results.
@@ -98,7 +100,7 @@ Below are some of the key features provided by this OPNsense MCP Server:
 5. **Make Scripts Executable (Linux/macOS):**
 
    ```bash
-   chmod +x opnsense_mcp_server.py
+   chmod +x opnsense-mcp-server.py
    chmod +x setup-claude.sh
    ```
 
@@ -139,7 +141,7 @@ To use this MCP server with Claude Desktop, you can either configure it manually
         "opnsense": {
           "command": "python",
           "args": [
-            "/path/to/opnsense_mcp_server.py"
+            "/path/to/opnsense-mcp-server.py"
           ],
           "env": {}
         }
@@ -147,7 +149,7 @@ To use this MCP server with Claude Desktop, you can either configure it manually
     }
     ```
 
-    Replace `/path/to/opnsense_mcp_server.py` with the **absolute path** to your `opnsense_mcp_server.py` script.
+    Replace `/path/to/opnsense-mcp-server.py` with the **absolute path** to your `opnsense-mcp-server.py` script.
 
 7. Save the config file and restart Claude Desktop
 
