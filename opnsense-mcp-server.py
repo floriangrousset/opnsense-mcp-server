@@ -15,17 +15,264 @@ import asyncio
 import base64
 from typing import Dict, List, Any, Optional, Union, Tuple, TypedDict
 import urllib.parse
+from datetime import datetime, timedelta
+from enum import Enum
 import httpx
 from mcp.server.fastmcp import FastMCP, Context
 from mcp import types
 
 
-# Configure logging
+# Configure logging with enhanced format
 logging.basicConfig(
     level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    format="%(asctime)s - %(name)s - %(levelname)s - [%(funcName)s:%(lineno)d] - %(message)s",
 )
 logger = logging.getLogger("opnsense-mcp")
+
+
+# ========== EXCEPTION HIERARCHY ==========
+
+class OPNsenseError(Exception):
+    """Base exception for all OPNsense-related errors."""
+
+    def __init__(self, message: str, error_code: Optional[str] = None, context: Optional[Dict[str, Any]] = None):
+        super().__init__(message)
+        self.message = message
+        self.error_code = error_code or self.__class__.__name__
+        self.context = context or {}
+        self.timestamp = datetime.utcnow()
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert exception to dictionary for structured logging."""
+        return {
+            "error_type": self.__class__.__name__,
+            "error_code": self.error_code,
+            "message": self.message,
+            "context": self.context,
+            "timestamp": self.timestamp.isoformat()
+        }
+
+
+class AuthenticationError(OPNsenseError):
+    """Raised when authentication with OPNsense fails."""
+    pass
+
+
+class AuthorizationError(OPNsenseError):
+    """Raised when user doesn't have permission for the requested operation."""
+    pass
+
+
+class ConnectionError(OPNsenseError):
+    """Raised when connection to OPNsense cannot be established."""
+    pass
+
+
+class ConfigurationError(OPNsenseError):
+    """Raised when OPNsense configuration is invalid or missing."""
+    pass
+
+
+class ValidationError(OPNsenseError):
+    """Raised when input parameters are invalid."""
+    pass
+
+
+class APIError(OPNsenseError):
+    """Raised when OPNsense API returns an error response."""
+
+    def __init__(self, message: str, status_code: Optional[int] = None, response_data: Optional[Dict] = None, **kwargs):
+        super().__init__(message, **kwargs)
+        self.status_code = status_code
+        self.response_data = response_data or {}
+
+
+class TimeoutError(OPNsenseError):
+    """Raised when API request times out."""
+    pass
+
+
+class ResourceNotFoundError(OPNsenseError):
+    """Raised when requested resource doesn't exist."""
+    pass
+
+
+class RateLimitError(OPNsenseError):
+    """Raised when API rate limit is exceeded."""
+    pass
+
+
+# ========== ERROR RESPONSE SYSTEM ==========
+
+class ErrorSeverity(str, Enum):
+    """Enumeration for error severity levels."""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class ErrorResponse:
+    """Structured error response system."""
+
+    def __init__(self, error: Exception, operation: str, severity: ErrorSeverity = ErrorSeverity.MEDIUM):
+        self.error = error
+        self.operation = operation
+        self.severity = severity
+        self.timestamp = datetime.utcnow()
+        self.error_id = f"{operation}_{int(self.timestamp.timestamp())}"
+
+    def get_user_message(self) -> str:
+        """Get user-friendly error message."""
+        if isinstance(self.error, AuthenticationError):
+            return "Authentication failed. Please check your API credentials."
+        elif isinstance(self.error, AuthorizationError):
+            return "Access denied. You don't have permission for this operation."
+        elif isinstance(self.error, ConnectionError):
+            return "Cannot connect to OPNsense. Please check the URL and network connectivity."
+        elif isinstance(self.error, ConfigurationError):
+            return "OPNsense connection not configured. Please configure the connection first."
+        elif isinstance(self.error, ValidationError):
+            return f"Invalid input: {self.error.message}"
+        elif isinstance(self.error, APIError):
+            if self.error.status_code == 404:
+                return "The requested resource was not found."
+            elif self.error.status_code == 429:
+                return "API rate limit exceeded. Please wait before trying again."
+            else:
+                return f"API error: {self.error.message}"
+        elif isinstance(self.error, TimeoutError):
+            return "Request timed out. The OPNsense server may be overloaded."
+        elif isinstance(self.error, ResourceNotFoundError):
+            return f"Resource not found: {self.error.message}"
+        else:
+            return f"An unexpected error occurred during {self.operation}."
+
+    def get_technical_details(self) -> Dict[str, Any]:
+        """Get technical error details for logging."""
+        details = {
+            "error_id": self.error_id,
+            "operation": self.operation,
+            "severity": self.severity.value,
+            "timestamp": self.timestamp.isoformat(),
+            "error_type": type(self.error).__name__,
+            "message": str(self.error)
+        }
+
+        if isinstance(self.error, OPNsenseError):
+            details.update(self.error.to_dict())
+
+        if isinstance(self.error, APIError):
+            details["status_code"] = self.error.status_code
+            details["response_data"] = self.error.response_data
+
+        return details
+
+
+# ========== RETRY MECHANISM ==========
+
+class RetryConfig:
+    """Configuration for retry mechanism."""
+
+    def __init__(self, max_attempts: int = 3, base_delay: float = 1.0, max_delay: float = 60.0,
+                 exponential_backoff: bool = True, retryable_errors: Optional[List[type]] = None):
+        self.max_attempts = max_attempts
+        self.base_delay = base_delay
+        self.max_delay = max_delay
+        self.exponential_backoff = exponential_backoff
+        self.retryable_errors = retryable_errors or [ConnectionError, TimeoutError, APIError]
+
+
+async def retry_with_backoff(func, *args, retry_config: RetryConfig = None, **kwargs):
+    """Retry function with exponential backoff."""
+    if retry_config is None:
+        retry_config = RetryConfig()
+
+    last_exception = None
+
+    for attempt in range(retry_config.max_attempts):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            last_exception = e
+
+            # Check if error is retryable
+            if not any(isinstance(e, err_type) for err_type in retry_config.retryable_errors):
+                raise e
+
+            # Don't retry on last attempt
+            if attempt == retry_config.max_attempts - 1:
+                break
+
+            # Calculate delay
+            if retry_config.exponential_backoff:
+                delay = min(retry_config.base_delay * (2 ** attempt), retry_config.max_delay)
+            else:
+                delay = retry_config.base_delay
+
+            logger.info(f"Attempt {attempt + 1} failed, retrying in {delay}s: {str(e)}")
+            await asyncio.sleep(delay)
+
+    # All attempts failed
+    raise last_exception
+
+
+# ========== LOGGING FRAMEWORK ==========
+
+class RequestResponseLogger:
+    """Framework for logging API requests and responses."""
+
+    def __init__(self, logger: logging.Logger):
+        self.logger = logger
+
+    def log_request(self, method: str, url: str, headers: Optional[Dict] = None,
+                   data: Optional[Dict] = None, operation: str = "unknown"):
+        """Log API request details."""
+        # Sanitize sensitive headers
+        safe_headers = {}
+        if headers:
+            for key, value in headers.items():
+                if key.lower() in ['authorization', 'x-api-key']:
+                    safe_headers[key] = '[REDACTED]'
+                else:
+                    safe_headers[key] = value
+
+        log_data = {
+            "operation": operation,
+            "request": {
+                "method": method,
+                "url": url,
+                "headers": safe_headers,
+                "has_data": bool(data)
+            }
+        }
+
+        self.logger.info(f"API Request: {json.dumps(log_data)}")
+
+    def log_response(self, status_code: int, response_size: Optional[int] = None,
+                    duration_ms: Optional[float] = None, operation: str = "unknown",
+                    error: Optional[Exception] = None):
+        """Log API response details."""
+        log_data = {
+            "operation": operation,
+            "response": {
+                "status_code": status_code,
+                "response_size": response_size,
+                "duration_ms": duration_ms,
+                "success": 200 <= status_code < 300,
+                "has_error": bool(error)
+            }
+        }
+
+        if error:
+            log_data["error"] = str(error)
+
+        level = logging.INFO if log_data["response"]["success"] else logging.WARNING
+        self.logger.log(level, f"API Response: {json.dumps(log_data)}")
+
+
+# Initialize request/response logger
+request_logger = RequestResponseLogger(logger)
 
 
 # API Endpoint Constants
@@ -106,56 +353,140 @@ class OPNsenseClient:
         await self.client.aclose()
     
     async def request(
-        self, 
-        method: str, 
-        endpoint: str, 
+        self,
+        method: str,
+        endpoint: str,
         data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None
+        params: Optional[Dict[str, Any]] = None,
+        operation: str = "api_request",
+        timeout: float = 30.0,
+        retry_config: Optional[RetryConfig] = None
     ) -> Dict[str, Any]:
-        """Make a request to the OPNsense API.
-        
+        """Make a request to the OPNsense API with enhanced error handling.
+
         Args:
             method: HTTP method (GET, POST, etc.)
             endpoint: API endpoint (e.g., "/core/firmware/status")
             data: Request payload for POST requests
             params: Query parameters for GET requests
-            
+            operation: Name of operation for logging/error context
+            timeout: Request timeout in seconds
+            retry_config: Configuration for retry mechanism
+
         Returns:
             Response from the API as a dictionary
+
+        Raises:
+            ValidationError: For invalid input parameters
+            AuthenticationError: For authentication failures (401)
+            AuthorizationError: For authorization failures (403)
+            ResourceNotFoundError: For not found errors (404)
+            RateLimitError: For rate limit errors (429)
+            APIError: For other HTTP errors
+            ConnectionError: For network connection issues
+            TimeoutError: For request timeouts
         """
+        # Validate inputs
+        if not method or not endpoint:
+            raise ValidationError("Method and endpoint are required",
+                                context={"method": method, "endpoint": endpoint})
+
+        if method.upper() not in ["GET", "POST", "PUT", "DELETE", "PATCH"]:
+            raise ValidationError(f"Unsupported HTTP method: {method}",
+                                context={"method": method})
+
         url = f"{self.base_url}/api{endpoint}"
         headers = {
             "Authorization": f"Basic {self.auth_header}",
-            "Accept": "application/json"
+            "Accept": "application/json",
+            "User-Agent": "OPNsense-MCP-Server/1.0"
         }
-        
-        try:
-            logger.debug(f"Making {method} request to {url}")
-            if method.upper() == "GET":
-                response = await self.client.get(url, headers=headers, params=params)
-            elif method.upper() == "POST":
-                response = await self.client.post(url, headers=headers, json=data)
-            else:
-                # For other methods like DELETE, PUT if ever needed.
-                # httpx.request allows specifying the method directly.
-                # response = await self.client.request(method.upper(), url, headers=headers, json=data if data else None)
-                logger.error(f"Unsupported HTTP method in OPNsenseClient.request: {method}")
-                raise ValueError(f"Unsupported HTTP method: {method}")
-            
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error: {e.response.text}", exc_info=True)
-            raise
-        except httpx.RequestError as e:
-            logger.error(f"Request error: {e}", exc_info=True)
-            raise
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON decode error: {e}", exc_info=True)
-            raise
-        except Exception as e: # Catch-all for unexpected errors during the request itself
-            logger.error(f"Unexpected error in OPNsenseClient.request: {e}", exc_info=True)
-            raise
+
+        # Log the request
+        request_logger.log_request(method, url, headers, data, operation)
+        start_time = datetime.utcnow()
+
+        async def _make_request():
+            """Internal request function for retry mechanism."""
+            try:
+                if method.upper() == "GET":
+                    response = await self.client.get(url, headers=headers, params=params, timeout=timeout)
+                elif method.upper() == "POST":
+                    response = await self.client.post(url, headers=headers, json=data, timeout=timeout)
+                elif method.upper() == "PUT":
+                    response = await self.client.put(url, headers=headers, json=data, timeout=timeout)
+                elif method.upper() == "DELETE":
+                    response = await self.client.delete(url, headers=headers, params=params, timeout=timeout)
+                elif method.upper() == "PATCH":
+                    response = await self.client.patch(url, headers=headers, json=data, timeout=timeout)
+
+                # Calculate response time
+                duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                response_size = len(response.content) if response.content else 0
+
+                # Handle HTTP errors
+                if response.status_code == 401:
+                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
+                    raise AuthenticationError("Authentication failed - invalid API credentials",
+                                            context={"status_code": 401, "endpoint": endpoint})
+                elif response.status_code == 403:
+                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
+                    raise AuthorizationError("Access denied - insufficient permissions",
+                                           context={"status_code": 403, "endpoint": endpoint})
+                elif response.status_code == 404:
+                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
+                    raise ResourceNotFoundError(f"Resource not found: {endpoint}",
+                                              context={"status_code": 404, "endpoint": endpoint})
+                elif response.status_code == 429:
+                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
+                    raise RateLimitError("API rate limit exceeded",
+                                       context={"status_code": 429, "endpoint": endpoint})
+                elif not (200 <= response.status_code < 300):
+                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
+                    try:
+                        error_data = response.json()
+                    except:
+                        error_data = {"error": response.text}
+
+                    raise APIError(f"API error: {response.status_code}",
+                                 status_code=response.status_code,
+                                 response_data=error_data,
+                                 context={"endpoint": endpoint})
+
+                # Parse JSON response
+                try:
+                    result = response.json()
+                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
+                    return result
+                except json.JSONDecodeError as e:
+                    request_logger.log_response(response.status_code, response_size, duration_ms, operation, e)
+                    raise APIError(f"Invalid JSON response from OPNsense API: {str(e)}",
+                                 status_code=response.status_code,
+                                 context={"endpoint": endpoint, "json_error": str(e)})
+
+            except httpx.TimeoutException as e:
+                duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                request_logger.log_response(0, 0, duration_ms, operation, e)
+                raise TimeoutError(f"Request timed out after {timeout}s",
+                                 context={"timeout": timeout, "endpoint": endpoint})
+
+            except httpx.ConnectError as e:
+                duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                request_logger.log_response(0, 0, duration_ms, operation, e)
+                raise ConnectionError(f"Cannot connect to OPNsense at {self.base_url}",
+                                    context={"base_url": self.base_url, "endpoint": endpoint, "error": str(e)})
+
+            except httpx.RequestError as e:
+                duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                request_logger.log_response(0, 0, duration_ms, operation, e)
+                raise ConnectionError(f"Network error: {str(e)}",
+                                    context={"endpoint": endpoint, "error": str(e)})
+
+        # Use retry mechanism if configured
+        if retry_config:
+            return await retry_with_backoff(_make_request, retry_config=retry_config)
+        else:
+            return await _make_request()
 
 
 # Initialize MCP server
@@ -164,6 +495,65 @@ mcp = FastMCP("OPNsense MCP Server", description="Manage OPNsense firewalls via 
 
 # Set up global client instance that will be populated during initialization
 opnsense_client: Optional[OPNsenseClient] = None
+
+
+# ========== ERROR HANDLING HELPERS ==========
+
+async def handle_tool_error(ctx: Context, operation: str, error: Exception, severity: ErrorSeverity = ErrorSeverity.MEDIUM) -> str:
+    """Centralized error handling for MCP tools.
+
+    Args:
+        ctx: MCP context for error reporting
+        operation: Name of the operation that failed
+        error: The exception that occurred
+        severity: Severity level of the error
+
+    Returns:
+        User-friendly error message
+    """
+    error_response = ErrorResponse(error, operation, severity)
+
+    # Log technical details
+    technical_details = error_response.get_technical_details()
+    logger.error(f"Tool error in {operation}: {json.dumps(technical_details, indent=2)}")
+
+    # Report error to MCP context
+    user_message = error_response.get_user_message()
+    await ctx.error(user_message)
+
+    return f"Error: {user_message}"
+
+
+def check_client_configured() -> None:
+    """Check if OPNsense client is configured.
+
+    Raises:
+        ConfigurationError: If client is not configured
+    """
+    if opnsense_client is None:
+        raise ConfigurationError(
+            "OPNsense connection not configured. Use configure_opnsense_connection first.",
+            context={"required_action": "configure_connection"}
+        )
+
+
+def validate_uuid(uuid: str, operation: str) -> None:
+    """Validate UUID format.
+
+    Args:
+        uuid: UUID string to validate
+        operation: Operation name for error context
+
+    Raises:
+        ValidationError: If UUID format is invalid
+    """
+    import re
+    uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+    if not uuid_pattern.match(uuid):
+        raise ValidationError(
+            f"Invalid UUID format: {uuid}",
+            context={"uuid": uuid, "operation": operation, "expected_format": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}
+        )
 
 
 @mcp.tool(name="get_api_endpoints", description="List available API endpoints from OPNsense")
