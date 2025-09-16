@@ -162,3 +162,4 @@ Comprehensive logging system providing full visibility into OPNsense operations 
 ## Claude Desktop Integration
 
 The `setup-claude.sh` script automatically configures Claude Desktop to use this MCP server by modifying the `claude_desktop_config.json` file with the appropriate server entry.
+- For every new feature development iteration: 1. move to develop branch and pull the latest 2. create a new branch for the feature to implement 3. implement and make multiple commits to that branch during the implementation of the feature 4. once done with implementing create a pull request of feature branch to develop branch 5. ask me to merge the pull request before you can move to the next feature to implement.
