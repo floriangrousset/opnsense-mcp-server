@@ -13,11 +13,18 @@ import json
 import logging
 import asyncio
 import base64
+import hashlib
 from typing import Dict, List, Any, Optional, Union, Tuple, TypedDict
+from datetime import datetime, timedelta
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
 import urllib.parse
 import httpx
 from mcp.server.fastmcp import FastMCP, Context
 from mcp import types
+from pydantic import BaseModel, Field, field_validator, ValidationError
+import keyring
+from aiolimiter import AsyncLimiter
 
 
 # Configure logging
@@ -26,6 +33,203 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger("opnsense-mcp")
+
+
+# Custom Exceptions
+class OPNsenseError(Exception):
+    """Base exception for OPNsense operations."""
+    def __init__(self, message: str, details: Optional[Dict] = None):
+        super().__init__(message)
+        self.details = details or {}
+
+
+class ConfigurationError(OPNsenseError):
+    """Client not configured or invalid configuration."""
+    pass
+
+
+class AuthenticationError(OPNsenseError):
+    """Authentication failed."""
+    pass
+
+
+class APIError(OPNsenseError):
+    """API call failed."""
+    def __init__(self, message: str, status_code: Optional[int] = None, response_text: Optional[str] = None):
+        super().__init__(message)
+        self.status_code = status_code
+        self.response_text = response_text
+
+
+class NetworkError(OPNsenseError):
+    """Network communication error."""
+    pass
+
+
+class RateLimitError(OPNsenseError):
+    """Rate limit exceeded."""
+    pass
+
+
+# Pydantic Models for Configuration and Validation
+class OPNsenseConfig(BaseModel):
+    """Configuration for OPNsense connection."""
+    url: str = Field(..., description="OPNsense base URL")
+    api_key: str = Field(..., description="API key")
+    api_secret: str = Field(..., description="API secret", repr=False)  # Hide in logs
+    verify_ssl: bool = Field(default=True, description="Whether to verify SSL certificates")
+
+    @field_validator('url')
+    @classmethod
+    def validate_url(cls, v):
+        """Validate URL format."""
+        if not v.startswith(('http://', 'https://')):
+            raise ValueError('URL must start with http:// or https://')
+        return v.rstrip('/')
+
+    class Config:
+        """Pydantic configuration."""
+        validate_assignment = True
+
+
+# Connection Pool and Rate Limiting
+class ConnectionPool:
+    """Manages OPNsense client connections with pooling and rate limiting."""
+
+    def __init__(self, max_connections: int = 5, ttl_seconds: int = 300):
+        self.max_connections = max_connections
+        self.ttl = timedelta(seconds=ttl_seconds)
+        self.connections: Dict[str, Tuple[OPNsenseClient, datetime]] = {}
+        self.lock = asyncio.Lock()
+        # Rate limiting: 10 requests per second with burst of 20
+        self.rate_limiter = AsyncLimiter(max_rate=10, time_period=1.0)
+        self.burst_limiter = AsyncLimiter(max_rate=20, time_period=1.0)
+
+    def _get_config_hash(self, config: OPNsenseConfig) -> str:
+        """Generate hash for config to use as pool key."""
+        config_str = f"{config.url}:{config.api_key}"
+        return hashlib.sha256(config_str.encode()).hexdigest()[:16]
+
+    async def get_client(self, config: OPNsenseConfig) -> 'OPNsenseClient':
+        """Get or create client from pool."""
+        config_hash = self._get_config_hash(config)
+
+        async with self.lock:
+            # Check if we have a valid existing client
+            if config_hash in self.connections:
+                client, created_at = self.connections[config_hash]
+                if datetime.now() - created_at < self.ttl:
+                    return client
+                else:
+                    # Client expired, close and remove
+                    await client.close()
+                    del self.connections[config_hash]
+
+            # Create new client
+            client = OPNsenseClient(config, self)
+            self.connections[config_hash] = (client, datetime.now())
+
+            # Cleanup old connections if pool is full
+            if len(self.connections) > self.max_connections:
+                await self._cleanup_oldest()
+
+            return client
+
+    async def _cleanup_oldest(self):
+        """Remove oldest connection from pool."""
+        if not self.connections:
+            return
+
+        oldest_key = min(
+            self.connections.keys(),
+            key=lambda k: self.connections[k][1]
+        )
+        client, _ = self.connections[oldest_key]
+        await client.close()
+        del self.connections[oldest_key]
+
+    async def check_rate_limit(self):
+        """Check and enforce rate limits."""
+        # Try burst limit first
+        if not self.burst_limiter.has_capacity():
+            raise RateLimitError("Burst rate limit exceeded. Please slow down requests.")
+
+        # Apply rate limit
+        await self.rate_limiter.acquire()
+        await self.burst_limiter.acquire()
+
+    async def close_all(self):
+        """Close all connections in pool."""
+        async with self.lock:
+            for client, _ in self.connections.values():
+                await client.close()
+            self.connections.clear()
+
+
+# Server State Management
+@dataclass
+class ServerState:
+    """Managed server state with proper lifecycle."""
+    config: Optional[OPNsenseConfig] = None
+    pool: Optional[ConnectionPool] = None
+    session_created: Optional[datetime] = None
+    session_ttl: timedelta = timedelta(hours=1)  # 1 hour session timeout
+
+    async def initialize(self, config: OPNsenseConfig):
+        """Initialize server state with validation."""
+        await self.cleanup()
+
+        # Store encrypted credentials
+        try:
+            await self._store_credentials(config)
+        except Exception as e:
+            logger.warning(f"Could not store credentials securely: {e}. Using in-memory storage.")
+
+        self.config = config
+        self.pool = ConnectionPool()
+        self.session_created = datetime.now()
+
+        # Validate connection
+        client = await self.pool.get_client(config)
+        await client.request("GET", API_CORE_FIRMWARE_STATUS)
+
+        logger.info("OPNsense connection initialized successfully")
+
+    async def _store_credentials(self, config: OPNsenseConfig):
+        """Store credentials securely using keyring."""
+        service_name = "opnsense-mcp-server"
+        username = f"{config.url}-{config.api_key[:8]}"  # Partial key for identification
+
+        # Store as JSON for easy retrieval
+        credentials = {
+            "url": config.url,
+            "api_key": config.api_key,
+            "api_secret": config.api_secret,
+            "verify_ssl": config.verify_ssl
+        }
+
+        keyring.set_password(service_name, username, json.dumps(credentials))
+        logger.debug("Credentials stored securely")
+
+    async def get_client(self) -> 'OPNsenseClient':
+        """Get OPNsense client with session validation."""
+        if not self.config or not self.pool:
+            raise ConfigurationError("OPNsense client not configured. Use configure_opnsense_connection first.")
+
+        # Check session expiry
+        if self.session_created and datetime.now() - self.session_created > self.session_ttl:
+            logger.info("Session expired, reinitializing...")
+            await self.initialize(self.config)
+
+        return await self.pool.get_client(self.config)
+
+    async def cleanup(self):
+        """Cleanup resources."""
+        if self.pool:
+            await self.pool.close_all()
+            self.pool = None
+        self.config = None
+        self.session_created = None
 
 
 # API Endpoint Constants
@@ -72,29 +276,33 @@ API_IPSEC_SERVICE_STATUS = "/ipsec/service/status"
 API_WIREGUARD_SERVICE_SHOW = "/wireguard/service/show"
 
 
-class OPNsenseConfig(TypedDict, total=False):
-    """Configuration for OPNsense connection."""
-    url: str
-    api_key: str
-    api_secret: str
-    verify_ssl: bool
-
-
 class OPNsenseClient:
     """Client for interacting with OPNsense API."""
-    
-    def __init__(self, config: OPNsenseConfig):
+
+    def __init__(self, config: OPNsenseConfig, pool: Optional['ConnectionPool'] = None):
         """Initialize OPNsense API client.
-        
+
         Args:
             config: Configuration for OPNsense connection
+            pool: Connection pool for rate limiting
         """
-        self.base_url = config["url"].rstrip("/")
-        self.api_key = config["api_key"]
-        self.api_secret = config["api_secret"]
-        self.verify_ssl = config.get("verify_ssl", True)
-        self.client = httpx.AsyncClient(verify=self.verify_ssl)
-        
+        self.base_url = config.url.rstrip("/")
+        self.api_key = config.api_key
+        self.api_secret = config.api_secret
+        self.verify_ssl = config.verify_ssl
+        self.pool = pool
+
+        # Enhanced client configuration
+        self.client = httpx.AsyncClient(
+            verify=self.verify_ssl,
+            timeout=httpx.Timeout(30.0, pool=5.0),
+            limits=httpx.Limits(
+                max_keepalive_connections=5,
+                max_connections=10,
+                keepalive_expiry=30.0
+            )
+        )
+
         # Set up Basic Auth
         auth_str = f"{self.api_key}:{self.api_secret}"
         self.auth_header = base64.b64encode(auth_str.encode()).decode()
@@ -106,55 +314,104 @@ class OPNsenseClient:
         await self.client.aclose()
     
     async def request(
-        self, 
-        method: str, 
-        endpoint: str, 
+        self,
+        method: str,
+        endpoint: str,
         data: Optional[Dict[str, Any]] = None,
         params: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Make a request to the OPNsense API.
-        
+        """Make a request to the OPNsense API with enhanced error handling and rate limiting.
+
         Args:
             method: HTTP method (GET, POST, etc.)
             endpoint: API endpoint (e.g., "/core/firmware/status")
             data: Request payload for POST requests
             params: Query parameters for GET requests
-            
+
         Returns:
             Response from the API as a dictionary
+
+        Raises:
+            AuthenticationError: If authentication fails (401)
+            APIError: If API returns an error status
+            NetworkError: If network communication fails
+            RateLimitError: If rate limit is exceeded
         """
+        # Apply rate limiting if pool is available
+        if self.pool:
+            await self.pool.check_rate_limit()
+
         url = f"{self.base_url}/api{endpoint}"
         headers = {
             "Authorization": f"Basic {self.auth_header}",
-            "Accept": "application/json"
+            "Accept": "application/json",
+            "User-Agent": "OPNsense-MCP-Server/1.0"
         }
-        
+
         try:
-            logger.debug(f"Making {method} request to {url}")
+            logger.debug(f"Making {method} request to {endpoint}")
+
             if method.upper() == "GET":
                 response = await self.client.get(url, headers=headers, params=params)
             elif method.upper() == "POST":
                 response = await self.client.post(url, headers=headers, json=data)
+            elif method.upper() == "DELETE":
+                response = await self.client.delete(url, headers=headers)
+            elif method.upper() == "PUT":
+                response = await self.client.put(url, headers=headers, json=data)
             else:
-                # For other methods like DELETE, PUT if ever needed.
-                # httpx.request allows specifying the method directly.
-                # response = await self.client.request(method.upper(), url, headers=headers, json=data if data else None)
-                logger.error(f"Unsupported HTTP method in OPNsenseClient.request: {method}")
                 raise ValueError(f"Unsupported HTTP method: {method}")
-            
-            response.raise_for_status()
-            return response.json()
-        except httpx.HTTPStatusError as e:
-            logger.error(f"HTTP error: {e.response.text}", exc_info=True)
-            raise
+
+            # Enhanced error handling
+            try:
+                response.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                if e.response.status_code == 401:
+                    raise AuthenticationError(
+                        "Authentication failed. Check API credentials.",
+                        {"endpoint": endpoint, "status_code": 401}
+                    )
+                elif e.response.status_code == 403:
+                    raise AuthenticationError(
+                        "Access forbidden. Check API permissions.",
+                        {"endpoint": endpoint, "status_code": 403}
+                    )
+                elif e.response.status_code == 404:
+                    raise APIError(
+                        f"API endpoint not found: {endpoint}",
+                        e.response.status_code,
+                        e.response.text
+                    )
+                elif e.response.status_code == 429:
+                    raise RateLimitError(
+                        "API rate limit exceeded. Please slow down requests.",
+                        {"endpoint": endpoint, "retry_after": e.response.headers.get("Retry-After")}
+                    )
+                else:
+                    raise APIError(
+                        f"API request failed with status {e.response.status_code}",
+                        e.response.status_code,
+                        e.response.text
+                    )
+
+            # Parse response
+            try:
+                return response.json()
+            except ValueError as e:
+                raise APIError(
+                    f"Invalid JSON response from {endpoint}: {str(e)}",
+                    response.status_code,
+                    response.text
+                )
+
+        except httpx.ConnectError as e:
+            raise NetworkError(f"Cannot connect to OPNsense at {self.base_url}: {str(e)}")
+        except httpx.TimeoutException as e:
+            raise NetworkError(f"Request timeout for {endpoint}: {str(e)}")
         except httpx.RequestError as e:
-            logger.error(f"Request error: {e}", exc_info=True)
-            raise
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON decode error: {e}", exc_info=True)
-            raise
-        except Exception as e: # Catch-all for unexpected errors during the request itself
-            logger.error(f"Unexpected error in OPNsenseClient.request: {e}", exc_info=True)
+            raise NetworkError(f"Network error for {endpoint}: {str(e)}")
+        except Exception as e:
+            logger.error(f"Unexpected error in request to {endpoint}: {str(e)}", exc_info=True)
             raise
 
 
@@ -162,8 +419,13 @@ class OPNsenseClient:
 mcp = FastMCP("OPNsense MCP Server", description="Manage OPNsense firewalls via MCP")
 
 
-# Set up global client instance that will be populated during initialization
-opnsense_client: Optional[OPNsenseClient] = None
+# Initialize server state management
+server_state = ServerState()
+
+
+async def get_opnsense_client() -> OPNsenseClient:
+    """Get OPNsense client from server state with validation."""
+    return await server_state.get_client()
 
 
 @mcp.tool(name="get_api_endpoints", description="List available API endpoints from OPNsense")
@@ -172,21 +434,20 @@ async def get_api_endpoints(
     module: Optional[str] = None
 ) -> str:
     """List available API endpoints from OPNsense.
-    
+
     Args:
         ctx: MCP context
         module: Optional module name to filter endpoints
-        
+
     Returns:
         JSON string of available endpoints
     """
-    if not opnsense_client:
-        return "OPNsense client not initialized. Please configure the server first."
-    
     try:
+        client = await get_opnsense_client()
+
         # Get all available modules first
-        response = await opnsense_client.request("GET", API_CORE_MENU_GET_ITEMS)
-        
+        response = await client.request("GET", API_CORE_MENU_GET_ITEMS)
+
         if module:
             # Filter endpoints by module if specified
             if module in response:
@@ -197,9 +458,17 @@ async def get_api_endpoints(
         else:
             # Return all modules and endpoints
             return json.dumps(response, indent=2)
-    except Exception as e:
+
+    except ConfigurationError as e:
+        await ctx.error(str(e))
+        return f"Configuration Error: {str(e)}"
+    except (AuthenticationError, NetworkError, APIError) as e:
         logger.error(f"Error in get_api_endpoints: {str(e)}", exc_info=True)
         await ctx.error(f"Error fetching API endpoints: {str(e)}")
+        return f"Error: {str(e)}"
+    except Exception as e:
+        logger.error(f"Unexpected error in get_api_endpoints: {str(e)}", exc_info=True)
+        await ctx.error(f"Unexpected error: {str(e)}")
         return f"Error: {str(e)}"
 
 
@@ -213,34 +482,41 @@ async def get_system_status(ctx: Context) -> str:
     Returns:
         Formatted system status information
     """
-    if not opnsense_client:
-        return "OPNsense client not initialized. Please configure the server first."
-    
     try:
+        client = await get_opnsense_client()
+
         # Get firmware status
-        firmware = await opnsense_client.request("GET", API_CORE_FIRMWARE_STATUS)
-        
+        firmware = await client.request("GET", API_CORE_FIRMWARE_STATUS)
+
         # Get system information
-        system_info = await opnsense_client.request("GET", API_CORE_SYSTEM_INFO)
-        
+        system_info = await client.request("GET", API_CORE_SYSTEM_INFO)
+
         # Get service status
-        services = await opnsense_client.request(
-            "POST", 
+        services = await client.request(
+            "POST",
             API_CORE_SERVICE_SEARCH,
             data={"current": 1, "rowCount": -1, "searchPhrase": ""}
         )
-        
+
         # Format and return the combined status
         status = {
             "firmware": firmware,
             "system": system_info,
             "services": services.get("rows", [])
         }
-        
+
         return json.dumps(status, indent=2)
-    except Exception as e:
+
+    except ConfigurationError as e:
+        await ctx.error(str(e))
+        return f"Configuration Error: {str(e)}"
+    except (AuthenticationError, NetworkError, APIError) as e:
         logger.error(f"Error in get_system_status: {str(e)}", exc_info=True)
         await ctx.error(f"Error fetching system status: {str(e)}")
+        return f"Error: {str(e)}"
+    except Exception as e:
+        logger.error(f"Unexpected error in get_system_status: {str(e)}", exc_info=True)
+        await ctx.error(f"Unexpected error: {str(e)}")
         return f"Error: {str(e)}"
 
 
@@ -638,7 +914,7 @@ async def exec_api_call(
         return f"Error: {str(e)}"
 
 
-@mcp.tool(name="configure_opnsense_connection", description="Configure the OPNsense connection")
+@mcp.tool(name="configure_opnsense_connection", description="Configure the OPNsense connection with enhanced security")
 async def configure_opnsense_connection(
     ctx: Context,
     url: str,
@@ -646,44 +922,55 @@ async def configure_opnsense_connection(
     api_secret: str,
     verify_ssl: bool = True
 ) -> str:
-    """Configure the OPNsense connection.
-    
+    """Configure the OPNsense connection with enhanced security and validation.
+
     Args:
         ctx: MCP context
         url: OPNsense base URL (e.g., "https://192.168.1.1")
         api_key: API key
         api_secret: API secret
         verify_ssl: Whether to verify SSL certificates
-        
+
     Returns:
         Success message
     """
-    global opnsense_client
-    
     try:
-        # Test the connection first
+        # Validate configuration using Pydantic
         config = OPNsenseConfig(
             url=url,
             api_key=api_key,
             api_secret=api_secret,
             verify_ssl=verify_ssl
         )
-        
-        test_client = OPNsenseClient(config)
-        
-        # Try to make a simple API call to verify connection
-        await test_client.request("GET", API_CORE_FIRMWARE_STATUS)
-        
-        # If the above call succeeds, save the configuration
-        if opnsense_client:
-            await opnsense_client.close()
-            
-        opnsense_client = test_client
-        
-        return "OPNsense connection configured successfully"
+
+        # Initialize server state with new configuration
+        await server_state.initialize(config)
+
+        await ctx.info("OPNsense connection configured and validated successfully")
+        return "OPNsense connection configured successfully with enhanced security"
+
+    except AuthenticationError as e:
+        error_msg = f"Authentication failed: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return f"Authentication Error: {str(e)}"
+
+    except NetworkError as e:
+        error_msg = f"Network error: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return f"Network Error: {str(e)}"
+
+    except ValidationError as e:
+        error_msg = f"Configuration validation failed: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+        return f"Configuration Error: {str(e)}"
+
     except Exception as e:
-        logger.error(f"Error in configure_opnsense_connection (url: {url}): {str(e)}", exc_info=True)
-        await ctx.error(f"Error configuring OPNsense connection: {str(e)}")
+        error_msg = f"Error configuring OPNsense connection: {str(e)}"
+        logger.error(f"Unexpected error in configure_opnsense_connection (url: {url}): {str(e)}", exc_info=True)
+        await ctx.error(error_msg)
         return f"Error: {str(e)}"
 
 
