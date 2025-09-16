@@ -104,6 +104,13 @@ docker-compose up -d
   - **Bridge Management**: `list_bridges`, `get_bridge`, `create_bridge`, `update_bridge`, `delete_bridge`
   - **LAGG Management**: `list_lagg_interfaces`, `get_lagg`, `create_lagg`, `update_lagg`, `delete_lagg`, `reconfigure_lagg`
   - **Virtual IP Management**: `list_virtual_ips`, `get_virtual_ip`, `create_virtual_ip`, `update_virtual_ip`, `delete_virtual_ip`, `reconfigure_virtual_ips`, `get_next_carp_vhid`
+- **Certificate Management**:
+  - **Certificate Authority (CA)**: `list_certificate_authorities`, `get_certificate_authority`, `create_certificate_authority`, `delete_certificate_authority`, `export_certificate_authority`
+  - **Certificates**: `list_certificates`, `get_certificate`, `import_certificate`, `delete_certificate`, `export_certificate`
+  - **Certificate Signing Requests (CSR)**: `list_certificate_signing_requests`, `get_certificate_signing_request`, `create_certificate_signing_request`, `delete_certificate_signing_request`
+  - **ACME (Let's Encrypt) Accounts**: `list_acme_accounts`, `get_acme_account`, `create_acme_account`, `delete_acme_account`
+  - **ACME Certificates**: `list_acme_certificates`, `get_acme_certificate`, `create_acme_certificate`, `sign_acme_certificate`, `revoke_acme_certificate`, `delete_acme_certificate`
+  - **Certificate Validation**: `analyze_certificate_expiration`, `validate_certificate_chain`, `get_certificate_usage`
 - **Services**: `restart_service`, `list_plugins`, `install_plugin`
 - **VPN**: `get_vpn_connections` (OpenVPN, IPsec, WireGuard)
 - **Backup**: `backup_config`
@@ -245,6 +252,49 @@ Comprehensive network interface management for physical interfaces, VLANs, bridg
 - **Conflict Detection**: Prevents VLAN tag conflicts and CARP VHID collisions
 - **Graceful Error Handling**: Detailed error messages with context for troubleshooting
 - **Network Topology Awareness**: Understanding of interface relationships and dependencies
+
+### Certificate Management
+
+Comprehensive SSL/TLS certificate lifecycle management including Certificate Authorities, certificates, CSRs, and Let's Encrypt automation:
+
+#### Certificate Authority Management
+- **CA Lifecycle**: Create, manage, and export Certificate Authorities with configurable parameters
+- **Distinguished Name Support**: Full DN configuration with country, state, city, organization details
+- **Cryptographic Options**: Configurable digest algorithms (SHA-256/384/512) and key lengths (2048/4096 bits)
+- **Certificate Lifetime**: Customizable CA certificate validity periods
+
+#### Certificate Management
+- **Certificate Import/Export**: Support for PEM format certificate and private key import/export
+- **Certificate Lifecycle**: Complete CRUD operations for certificate management
+- **Format Validation**: Built-in PEM format validation for certificates and private keys
+- **Certificate Details**: Comprehensive certificate information including issuer, subject, and validity dates
+
+#### Certificate Signing Request (CSR) Management
+- **CSR Generation**: Create certificate signing requests with full DN support
+- **Cryptographic Configuration**: Configurable digest algorithms and RSA key lengths
+- **External CA Integration**: Generate CSRs for external Certificate Authority signing
+
+#### ACME (Let's Encrypt) Integration
+- **Account Management**: Create and manage Let's Encrypt accounts with email validation
+- **Certificate Automation**: Automated certificate issuance and renewal for domain validation
+- **Multi-Domain Support**: Support for Subject Alternative Names (SANs) in certificates
+- **Auto-Renewal**: Configurable automatic certificate renewal to prevent expiration
+- **Certificate Lifecycle**: Complete ACME certificate signing, revocation, and deletion
+
+#### Certificate Validation & Monitoring
+- **Expiration Analysis**: Automated certificate expiration monitoring with configurable warning thresholds
+- **Chain Validation**: Certificate trust chain validation and completeness checking
+- **Usage Analysis**: Certificate inventory and usage recommendations for cleanup
+- **Self-Signed Detection**: Identification of self-signed certificates with security recommendations
+- **Private Key Validation**: Verification of certificate-private key pairs for SSL/TLS services
+
+#### Implementation Features
+- **UUID-Based Management**: Reliable resource identification using OPNsense UUIDs
+- **Automatic Service Integration**: Configuration changes automatically trigger service reconfiguration
+- **Comprehensive Validation**: Input validation for all certificate parameters including email formats, country codes, and key lengths
+- **Security Best Practices**: Built-in security recommendations and validation for production environments
+- **Error Handling**: Detailed error messages with context for certificate management troubleshooting
+- **PEM Format Support**: Native support for industry-standard PEM certificate and key formats
 
 ## Claude Desktop Integration
 
