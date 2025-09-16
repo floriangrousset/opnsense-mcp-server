@@ -3156,6 +3156,415 @@ async def test_user_authentication(ctx: Context, username: str, auth_server: Opt
         return await handle_tool_error(ctx, "test_user_authentication", e)
 
 
+# ========== USER MANAGEMENT HELPER TOOLS ==========
+
+@mcp.tool()
+async def create_admin_user(ctx: RequestContext, username: str, password: str,
+                           full_name: str = "", email: str = "") -> str:
+    """
+    Create a new administrative user with full system privileges.
+
+    Args:
+        username: Username for the new admin user
+        password: Password for the user
+        full_name: Full name of the user (optional)
+        email: Email address of the user (optional)
+
+    Returns:
+        JSON response with creation status and user details
+    """
+    try:
+        client = get_opnsense_client()
+        if not client:
+            return "Error: OPNsense connection not configured. Use configure_opnsense_connection first."
+
+        # Create the user first
+        user_data = {
+            "user": {
+                "name": username,
+                "password": password,
+                "full_name": full_name or username,
+                "email": email,
+                "disabled": "0",
+                "expires": "",
+                "comment": "Administrative user created via MCP"
+            }
+        }
+
+        response = await client.request("POST", API_CORE_USER_ADD,
+                                      data=user_data, operation="create_admin_user")
+
+        if response.get("result") != "saved":
+            return json.dumps({"error": "Failed to create user", "response": response}, indent=2)
+
+        user_uuid = response.get("uuid")
+        if not user_uuid:
+            return json.dumps({"error": "User created but UUID not returned", "response": response}, indent=2)
+
+        # Get all available privileges
+        privileges_response = await client.request("GET", API_CORE_AUTH_PRIVILEGES,
+                                                 operation="get_privileges_for_admin")
+
+        if "privileges" not in privileges_response:
+            return json.dumps({
+                "user_created": True,
+                "uuid": user_uuid,
+                "warning": "User created but could not retrieve privileges for assignment"
+            }, indent=2)
+
+        # Assign all privileges to make this a full admin
+        all_privileges = list(privileges_response["privileges"].keys())
+        privilege_string = ",".join(all_privileges)
+
+        # Update user with all privileges
+        update_data = {
+            "user": {
+                "name": username,
+                "password": password,
+                "full_name": full_name or username,
+                "email": email,
+                "disabled": "0",
+                "expires": "",
+                "comment": "Administrative user created via MCP",
+                "priv": privilege_string
+            }
+        }
+
+        await client.request("POST", f"{API_CORE_USER_SET}/{user_uuid}",
+                           data=update_data, operation="assign_admin_privileges")
+
+        # Reload configuration
+        await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_admin_creation")
+
+        return json.dumps({
+            "result": "success",
+            "message": f"Administrative user '{username}' created successfully",
+            "uuid": user_uuid,
+            "privileges_assigned": len(all_privileges),
+            "full_admin": True
+        }, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "create_admin_user", e)
+
+
+@mcp.tool()
+async def create_readonly_user(ctx: RequestContext, username: str, password: str,
+                              full_name: str = "", email: str = "") -> str:
+    """
+    Create a new read-only user with limited system access.
+
+    Args:
+        username: Username for the new read-only user
+        password: Password for the user
+        full_name: Full name of the user (optional)
+        email: Email address of the user (optional)
+
+    Returns:
+        JSON response with creation status and user details
+    """
+    try:
+        client = get_opnsense_client()
+        if not client:
+            return "Error: OPNsense connection not configured. Use configure_opnsense_connection first."
+
+        # Define read-only privileges (common monitoring/viewing privileges)
+        readonly_privileges = [
+            "page-all",                    # Basic page access
+            "page-status-system",          # System status
+            "page-status-interfaces",      # Interface status
+            "page-status-logs",           # Log viewing
+            "page-diagnostics-all",       # Diagnostic tools
+            "page-status-dashboard",      # Dashboard access
+            "page-firewall-rules",        # Firewall rule viewing (read-only)
+            "page-interfaces-overview"    # Interface overview
+        ]
+
+        # Create user with read-only privileges
+        user_data = {
+            "user": {
+                "name": username,
+                "password": password,
+                "full_name": full_name or username,
+                "email": email,
+                "disabled": "0",
+                "expires": "",
+                "comment": "Read-only user created via MCP",
+                "priv": ",".join(readonly_privileges)
+            }
+        }
+
+        response = await client.request("POST", API_CORE_USER_ADD,
+                                      data=user_data, operation="create_readonly_user")
+
+        if response.get("result") != "saved":
+            return json.dumps({"error": "Failed to create read-only user", "response": response}, indent=2)
+
+        # Reload configuration
+        await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_readonly_creation")
+
+        return json.dumps({
+            "result": "success",
+            "message": f"Read-only user '{username}' created successfully",
+            "uuid": response.get("uuid"),
+            "privileges_assigned": readonly_privileges,
+            "access_level": "read-only"
+        }, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "create_readonly_user", e)
+
+
+@mcp.tool()
+async def reset_user_password(ctx: RequestContext, username: str, new_password: str) -> str:
+    """
+    Reset a user's password by username.
+
+    Args:
+        username: Username of the user whose password to reset
+        new_password: New password to set
+
+    Returns:
+        JSON response with password reset status
+    """
+    try:
+        client = get_opnsense_client()
+        if not client:
+            return "Error: OPNsense connection not configured. Use configure_opnsense_connection first."
+
+        # First, find the user by username
+        search_response = await client.request("GET", API_CORE_USER_SEARCH,
+                                             operation="search_user_for_password_reset")
+
+        if "rows" not in search_response:
+            return json.dumps({"error": "Failed to retrieve user list"}, indent=2)
+
+        user_uuid = None
+        user_data = None
+        for user in search_response["rows"]:
+            if user.get("name") == username:
+                user_uuid = user.get("uuid")
+                user_data = user
+                break
+
+        if not user_uuid:
+            return json.dumps({"error": f"User '{username}' not found"}, indent=2)
+
+        # Get full user details
+        user_detail_response = await client.request("GET", f"{API_CORE_USER_GET}/{user_uuid}",
+                                                   operation="get_user_details_for_password_reset")
+
+        if "user" not in user_detail_response:
+            return json.dumps({"error": "Failed to retrieve user details"}, indent=2)
+
+        current_user = user_detail_response["user"]
+
+        # Update user with new password (preserve all other settings)
+        update_data = {
+            "user": {
+                "name": current_user.get("name", username),
+                "password": new_password,
+                "full_name": current_user.get("full_name", ""),
+                "email": current_user.get("email", ""),
+                "disabled": current_user.get("disabled", "0"),
+                "expires": current_user.get("expires", ""),
+                "comment": current_user.get("comment", ""),
+                "priv": current_user.get("priv", ""),
+                "groups": current_user.get("groups", "")
+            }
+        }
+
+        response = await client.request("POST", f"{API_CORE_USER_SET}/{user_uuid}",
+                                      data=update_data, operation="reset_user_password")
+
+        if response.get("result") != "saved":
+            return json.dumps({"error": "Failed to reset password", "response": response}, indent=2)
+
+        # Reload configuration
+        await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_password_reset")
+
+        return json.dumps({
+            "result": "success",
+            "message": f"Password successfully reset for user '{username}'",
+            "uuid": user_uuid
+        }, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "reset_user_password", e)
+
+
+@mcp.tool()
+async def bulk_user_creation(ctx: RequestContext, user_template: str) -> str:
+    """
+    Create multiple users from a template specification.
+
+    Args:
+        user_template: JSON string containing user template and list of users to create.
+                      Format: {
+                        "template": {
+                          "password": "default_password",
+                          "privileges": ["priv1", "priv2"],
+                          "groups": ["group1"],
+                          "expires": "",
+                          "disabled": "0"
+                        },
+                        "users": [
+                          {"username": "user1", "full_name": "User One", "email": "user1@example.com"},
+                          {"username": "user2", "full_name": "User Two", "email": "user2@example.com"}
+                        ]
+                      }
+
+    Returns:
+        JSON response with bulk creation results
+    """
+    try:
+        client = get_opnsense_client()
+        if not client:
+            return "Error: OPNsense connection not configured. Use configure_opnsense_connection first."
+
+        # Parse the template
+        try:
+            template_data = json.loads(user_template)
+        except json.JSONDecodeError as e:
+            return json.dumps({"error": f"Invalid JSON template: {str(e)}"}, indent=2)
+
+        if "template" not in template_data or "users" not in template_data:
+            return json.dumps({"error": "Template must contain 'template' and 'users' sections"}, indent=2)
+
+        template = template_data["template"]
+        users_to_create = template_data["users"]
+
+        results = []
+        successful_creations = 0
+
+        for user_spec in users_to_create:
+            try:
+                username = user_spec.get("username")
+                if not username:
+                    results.append({"error": "Username required for each user", "user_spec": user_spec})
+                    continue
+
+                # Build user data from template and user-specific overrides
+                user_data = {
+                    "user": {
+                        "name": username,
+                        "password": user_spec.get("password", template.get("password", "")),
+                        "full_name": user_spec.get("full_name", template.get("full_name", username)),
+                        "email": user_spec.get("email", template.get("email", "")),
+                        "disabled": user_spec.get("disabled", template.get("disabled", "0")),
+                        "expires": user_spec.get("expires", template.get("expires", "")),
+                        "comment": user_spec.get("comment", template.get("comment", "Bulk created via MCP")),
+                        "priv": ",".join(user_spec.get("privileges", template.get("privileges", []))),
+                        "groups": ",".join(user_spec.get("groups", template.get("groups", [])))
+                    }
+                }
+
+                response = await client.request("POST", API_CORE_USER_ADD,
+                                              data=user_data, operation=f"bulk_create_user_{username}")
+
+                if response.get("result") == "saved":
+                    results.append({
+                        "username": username,
+                        "status": "success",
+                        "uuid": response.get("uuid")
+                    })
+                    successful_creations += 1
+                else:
+                    results.append({
+                        "username": username,
+                        "status": "failed",
+                        "error": response.get("validations", "Unknown error")
+                    })
+
+            except Exception as user_error:
+                results.append({
+                    "username": user_spec.get("username", "unknown"),
+                    "status": "failed",
+                    "error": str(user_error)
+                })
+
+        # Reload configuration if any users were created
+        if successful_creations > 0:
+            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_bulk_creation")
+
+        return json.dumps({
+            "result": "completed",
+            "total_users": len(users_to_create),
+            "successful_creations": successful_creations,
+            "failed_creations": len(users_to_create) - successful_creations,
+            "details": results
+        }, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "bulk_user_creation", e)
+
+
+@mcp.tool()
+async def setup_user_group_template(ctx: RequestContext, template_name: str,
+                                   privileges: list, description: str = "") -> str:
+    """
+    Create a user group template with predefined privileges for common roles.
+
+    Args:
+        template_name: Name for the group template
+        privileges: List of privilege names to assign to the group
+        description: Description of the group's purpose
+
+    Returns:
+        JSON response with group creation status
+    """
+    try:
+        client = get_opnsense_client()
+        if not client:
+            return "Error: OPNsense connection not configured. Use configure_opnsense_connection first."
+
+        # Validate privileges exist
+        privileges_response = await client.request("GET", API_CORE_AUTH_PRIVILEGES,
+                                                 operation="validate_privileges_for_template")
+
+        if "privileges" not in privileges_response:
+            return json.dumps({"error": "Could not retrieve available privileges"}, indent=2)
+
+        available_privileges = set(privileges_response["privileges"].keys())
+        invalid_privileges = [p for p in privileges if p not in available_privileges]
+
+        if invalid_privileges:
+            return json.dumps({
+                "error": "Invalid privileges specified",
+                "invalid_privileges": invalid_privileges,
+                "available_privileges": list(available_privileges)
+            }, indent=2)
+
+        # Create the group
+        group_data = {
+            "group": {
+                "name": template_name,
+                "description": description or f"Template group: {template_name}",
+                "priv": ",".join(privileges)
+            }
+        }
+
+        response = await client.request("POST", API_CORE_GROUP_ADD,
+                                      data=group_data, operation="create_group_template")
+
+        if response.get("result") != "saved":
+            return json.dumps({"error": "Failed to create group template", "response": response}, indent=2)
+
+        # Reload configuration
+        await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_template_creation")
+
+        return json.dumps({
+            "result": "success",
+            "message": f"Group template '{template_name}' created successfully",
+            "uuid": response.get("uuid"),
+            "privileges_assigned": privileges,
+            "privilege_count": len(privileges)
+        }, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "setup_user_group_template", e)
+
+
 # Entry point
 if __name__ == "__main__":
     mcp.run()
