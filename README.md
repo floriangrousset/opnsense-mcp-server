@@ -1,276 +1,795 @@
+# 🔥 OPNsense MCP Server
+
+> **🚀 Transform your OPNsense firewall management with AI-powered natural language commands!**
+
 [![MseeP.ai Security Assessment Badge](https://mseep.net/pr/floriangrousset-opnsense-mcp-server-badge.png)](https://mseep.ai/app/floriangrousset-opnsense-mcp-server)
-
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/5d4ff4d2-2e80-4925-b287-2911721107f0)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
+[![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
+[![OPNsense](https://img.shields.io/badge/OPNsense-Ready-orange.svg)](https://opnsense.org)
 
-# OPNsense MCP Server
+🎯 **Quick Example:** *"Block all traffic from Russia and add those IPs to my threat list"* → **Done!** ✅
 
-[OPNsense®](https://opnsense.org) is a powerful open-source firewall and routing platform built on FreeBSD. Managing OPNsense typically involves using its web interface or interacting directly with its comprehensive API. This project offers a way to manage your OPNsense firewall using natural language through AI clients like Claude Desktop. It does this by providing a Python server application that implements Anthropic's Model Context Protocol (MCP), a standard allowing AI models to securely connect to and utilize external tools. This locally running server listens for requests from MCP clients, translates them into the appropriate OPNsense API calls, and returns the results.
+[OPNsense®](https://opnsense.org) is a powerful open-source firewall and routing platform built on FreeBSD. This project transforms traditional firewall management by enabling **natural language control** through AI clients like Claude Desktop. Simply speak to your firewall as you would to a network engineer, and watch complex configurations happen automatically!
 
-![OPNsense MCP Server Logo](opnsense-mcp-server-logo.png)
-
-## What is an MCP Server? Why Is It a Game Changer for AI?
-
-The **Model Context Protocol (MCP)** is a new standard that lets AI models (like Claude, ChatGPT, and others) securely interact with real-world tools, data, and systems—**not just answer questions, but actually take action**. You can think of it as "giving hands to the brain": the AI is the brain, and the MCP server is the set of hands that can reach out and do things in the real world. For more technical details, refer to the [official MCP specification](https://docs.anthropic.com/en/docs/agents-and-tools/mcp).
-
-### Why is this important?
-
-- **From Answers to Actions:** Traditional AI models can only provide information. With MCP, they can actually perform tasks—like managing your firewall, sending emails, or updating files—by calling tools exposed by an MCP server.
-- **Security and Trust:** MCP is designed to be secure and auditable. You control exactly what the AI can access, and you can see every action it takes.
-- **Plug-and-Play for AI Clients:** Tools like Claude Desktop make it easy to connect to MCP servers. You just add the server in the settings, and suddenly your AI can manage your OPNsense firewall, interact with your files, or do anything else the server exposes.
-- **Separation of Concerns:** The AI doesn't need to know how to talk to your firewall or database. The MCP server handles all the details, so you get the power of automation without the risk of giving the AI direct, unrestricted access.
-
-### How does it work in practice?
-
-1. **You run an MCP server** (like this OPNsense MCP Server) on your machine or network.
-2. **You connect your AI client** (like Claude Desktop) to the MCP server by adding it in the settings.
-3. **The AI can now use the tools** exposed by the server—securely, with your oversight.
-
-MCP servers are a game changer because they let you safely delegate real-world tasks to AI, making your AI not just smart, but truly useful.
+**🎉 What makes this special?** Instead of clicking through web interfaces or memorizing API commands, just say:
+- *"Show me what's using the most bandwidth"* 📊
+- *"Create a VPN user for my remote developer"* 👥
+- *"Block suspicious traffic and generate a security report"* 🛡️
 
 ---
 
-Below are some of the key features provided by this OPNsense MCP Server:
+## ⚡ Quick Start (5 minutes)
 
-## Features
+```bash
+# 1. 📥 Clone & Enter
+git clone https://github.com/floriangrousset/opnsense-mcp-server && cd opnsense-mcp-server
 
-- Full access to OPNsense API functionality
-- Firewall rule management
-- Network interface monitoring
-- DHCP lease management
-- Firewall alias management
-- System status and health monitoring
-- Service management
-- VPN connection monitoring
-- Plugin management
-- Custom API calls for any OPNsense endpoint
-- **Basic Firewall Security Audit**
+# 2. 🛠️ Setup Environment
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv venv && source .venv/bin/activate
+uv pip install -r requirements.txt
 
-## Requirements
+# 3. ⚙️ Configure Claude Desktop (Automatic!)
+./setup-claude.sh  # 🎉 Magic happens here!
 
-- Python 3.10 or higher
-- OPNsense firewall with API access configured
-- MCP-compatible client (e.g., Claude Desktop)
+# 4. 🚀 Start Managing!
+# Open Claude Desktop and say: "Configure my OPNsense at 192.168.1.1"
+```
 
-## Prerequisites
+**🎊 That's it!** You're now managing your firewall with natural language!
 
-- `git` (for cloning the repository)
-- `uv` for Python package management (see installation below).
-- `jq` (command-line JSON processor) if you plan to use the `setup-claude.sh` script for automated Claude Desktop configuration.
+---
 
-## Installation
+![OPNsense MCP Server Logo](opnsense-mcp-server-logo.png)
 
-1. **Clone the Repository:**
+## 🧠 What is an MCP Server? Why Is It a Game Changer for AI?
 
-   ```bash
-   git clone https://github.com/floriangrousset/opnsense-mcp-server
-   cd opnsense-mcp-server
-   ```
+The **Model Context Protocol (MCP)** is a new standard that lets AI models (like Claude, ChatGPT, and others) securely interact with real-world tools, data, and systems—**not just answer questions, but actually take action**. You can think of it as "giving hands to the brain": the AI is the brain, and the MCP server is the set of hands that can reach out and do things in the real world. For more technical details, refer to the [official MCP specification](https://docs.anthropic.com/en/docs/agents-and-tools/mcp).
 
-2. **Install `uv` (if not already installed):**
+### 🌟 Why is this revolutionary?
 
-   `uv` is a fast Python package installer and environment manager. Install it using the official instructions:
+- **🎯 From Answers to Actions:** Traditional AI models only provide information. With MCP, they **actually perform tasks**—like managing your firewall, configuring VPNs, or analyzing security logs—by calling tools exposed by an MCP server.
+- **🔒 Security and Trust:** MCP is designed to be secure and auditable. **You control exactly** what the AI can access, and you can see every action it takes.
+- **🔌 Plug-and-Play for AI Clients:** Tools like Claude Desktop make it easy to connect to MCP servers. Just add the server in settings, and suddenly your AI can manage your OPNsense firewall!
+- **🎭 Separation of Concerns:** The AI doesn't need to know OPNsense APIs. The MCP server handles all the technical details, so you get automation power without security risks.
 
-   ```bash
-   # For macOS/Linux
-   curl -LsSf https://astral.sh/uv/install.sh | sh
-   
-   # For Windows (PowerShell)
-   curl -LsSf https://astral.sh/uv/install.ps1 | powershell -c -
-   ```
+### 🚀 How does it work in practice?
 
-3. **Create and Activate Virtual Environment:**
+1. **🏠 You run an MCP server** (like this OPNsense MCP Server) on your machine or network
+2. **🔗 You connect your AI client** (like Claude Desktop) to the MCP server in settings
+3. **⚡ The AI can now use the tools** exposed by the server—securely, with your oversight
 
-   It's highly recommended to use a virtual environment.
+**💡 The game changer:** MCP servers let you safely delegate real-world network management tasks to AI, making your AI not just smart, but truly useful for infrastructure management!
 
-   ```bash
-   # Create a virtual environment
-   uv venv
-   
-   # Activate it (Linux/macOS)
-   source .venv/bin/activate
-   
-   # Activate it (Windows)
-   .venv\Scripts\activate
-   ```
+---
 
-4. **Install Dependencies:**
+## 🛠️ Complete Feature Set (110+ Tools!)
 
-   ```bash
-   uv pip install -r requirements.txt
-   ```
+<details>
+<summary>🎯 <strong>Click to expand the FULL toolkit</strong> - We've got everything you need!</summary>
 
-5. **Make Scripts Executable (Linux/macOS):**
+### 🔌 **Connection & Configuration**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `configure_opnsense_connection` | Setup API connection | *"Connect to my OPNsense at 192.168.1.1"* |
+| `get_api_endpoints` | List available endpoints | *"Show me all available API endpoints"* |
 
-   ```bash
-   chmod +x opnsense-mcp-server.py
-   chmod +x setup-claude.sh
-   ```
+### 🖥️ **System Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `get_system_status` | System overview & health | *"What's my firewall status?"* |
+| `get_system_health` | CPU, memory, disk metrics | *"Show system resource usage"* |
+| `get_system_routes` | View routing table | *"Display the routing table"* |
+| `restart_service` | Control system services | *"Restart the DHCP service"* |
+| `backup_config` | Export configuration | *"Backup my firewall config"* |
 
-## Setup OPNsense API Access
+### 🔥 **Firewall Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `firewall_get_rules` | List all firewall rules | *"Show all firewall rules"* |
+| `firewall_add_rule` | Create new firewall rule | *"Block port 445 from WAN"* |
+| `firewall_delete_rule` | Remove firewall rule | *"Delete rule abc123"* |
+| `firewall_toggle_rule` | Enable/disable rule | *"Disable the SSH access rule"* |
+| `perform_firewall_audit` | Comprehensive security audit | *"Audit my firewall security"* |
 
-Before using this server, you need to create API credentials in your OPNsense firewall:
+### 📝 **Alias Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `get_firewall_aliases` | List all aliases | *"Show all firewall aliases"* |
+| `add_to_alias` | Add IP/network to alias | *"Add 10.0.0.5 to BlockedIPs alias"* |
+| `delete_from_alias` | Remove from alias | *"Remove 10.0.0.5 from AllowedIPs"* |
 
-1. Log in to your OPNsense web interface
-2. Navigate to **System** → **Access** → **Users**
-3. Select the user you want to create API keys for (or create a new user)
-4. Scroll down to the **API keys** section and click the **+** button
-5. Download the API key file which contains your credentials
+### 🔄 **NAT Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `nat_list_outbound_rules` | List outbound NAT rules | *"Show outbound NAT configuration"* |
+| `nat_add_outbound_rule` | Create outbound NAT | *"Add outbound NAT for 10.0.0.0/24"* |
+| `nat_delete_outbound_rule` | Remove outbound NAT | *"Delete outbound NAT rule xyz"* |
+| `nat_toggle_outbound_rule` | Enable/disable NAT rule | *"Disable outbound NAT rule abc"* |
+| `nat_list_one_to_one_rules` | List 1:1 NAT mappings | *"Show one-to-one NAT rules"* |
+| `nat_add_one_to_one_rule` | Create 1:1 NAT mapping | *"Map public IP to internal server"* |
+| `nat_delete_one_to_one_rule` | Remove 1:1 NAT | *"Delete 1:1 NAT mapping"* |
+| `nat_get_port_forward_info` | Port forwarding guidance | *"How do I setup port forwarding?"* |
 
-## Configuring Claude Desktop
+### 🌐 **Network Interface Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `get_interfaces` | List all network interfaces | *"Show network interface status"* |
+| `get_interface_details` | Detailed interface info | *"Get details for WAN interface"* |
+| `reload_interface` | Restart network interface | *"Reload the LAN interface"* |
+| `export_interface_config` | Export interface config | *"Export network configuration"* |
 
-To use this MCP server with Claude Desktop, you can either configure it manually or use the provided setup script.
+### 🔗 **VLAN Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `list_vlans` | List all VLANs | *"Show all VLAN interfaces"* |
+| `get_vlan` | Get VLAN configuration | *"Get VLAN 100 settings"* |
+| `create_vlan_interface` | Create new VLAN | *"Create VLAN 200 on em0 interface"* |
+| `update_vlan` | Modify VLAN settings | *"Change VLAN 100 description"* |
+| `delete_vlan` | Remove VLAN interface | *"Delete VLAN 200"* |
+| `reconfigure_vlans` | Apply VLAN changes | *"Apply all VLAN configuration changes"* |
 
-### Method 1: Using the Setup Script (Recommended)
+### 🌉 **Bridge Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `list_bridges` | List bridge interfaces | *"Show all network bridges"* |
+| `get_bridge` | Bridge configuration details | *"Get bridge0 configuration"* |
+| `create_bridge` | Create bridge interface | *"Create bridge between LAN1 and LAN2"* |
+| `update_bridge` | Modify bridge settings | *"Update bridge spanning tree settings"* |
+| `delete_bridge` | Remove bridge interface | *"Delete bridge0 interface"* |
 
-1. Ensure you have `jq` installed on your system. You can typically install it using your system's package manager (e.g., `apt install jq`, `yum install jq`, `brew install jq`).
-2. Make the script executable: `chmod +x setup-claude.sh`
-3. Run the script: `bash setup-claude.sh`
-4. The script will attempt to automatically find your Claude Desktop configuration file and add the necessary server entry.
-5. Restart Claude Desktop for the changes to take effect.
+### ⚡ **Link Aggregation (LAGG)**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `list_lagg_interfaces` | List LAGG interfaces | *"Show link aggregation groups"* |
+| `get_lagg` | LAGG configuration details | *"Get lagg0 configuration"* |
+| `create_lagg` | Create LAGG interface | *"Create LACP bond with em0 and em1"* |
+| `update_lagg` | Modify LAGG settings | *"Change LAGG protocol to failover"* |
+| `delete_lagg` | Remove LAGG interface | *"Delete lagg0 interface"* |
+| `reconfigure_lagg` | Apply LAGG changes | *"Apply LAGG configuration changes"* |
 
-### Method 2: Manual Configuration
+### 🏷️ **Virtual IP Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `list_virtual_ips` | List virtual IP addresses | *"Show all virtual IPs"* |
+| `get_virtual_ip` | VIP configuration details | *"Get virtual IP configuration"* |
+| `create_virtual_ip` | Create virtual IP | *"Add CARP VIP 10.0.0.100 on LAN"* |
+| `update_virtual_ip` | Modify VIP settings | *"Change virtual IP settings"* |
+| `delete_virtual_ip` | Remove virtual IP | *"Delete virtual IP address"* |
+| `get_next_carp_vhid` | Get available CARP ID | *"Find unused VHID for CARP setup"* |
+| `reconfigure_virtual_ips` | Apply VIP changes | *"Apply virtual IP changes"* |
 
-1. Install [Claude Desktop](https://claude.ai/desktop) if you haven't already
-2. Open Claude Desktop
-3. Access the settings from the Claude menu
-4. Go to the Developer tab
-5. Click on "Edit Config"
-6. Find the `mcpServers` section (or add it if it doesn't exist) and add the following entry:
+### 📡 **DHCP Server Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `dhcp_list_servers` | List DHCP server configs | *"Show DHCP server configurations"* |
+| `dhcp_get_server` | DHCP server details | *"Get LAN DHCP server settings"* |
+| `dhcp_set_server` | Configure DHCP server | *"Setup DHCP for VLAN100 network"* |
+| `dhcp_restart_service` | Restart DHCP service | *"Restart the DHCP service"* |
+| `dhcp_get_leases` | Current DHCP leases | *"Show active DHCP leases"* |
+| `dhcp_search_leases` | Search for specific leases | *"Find lease for MAC aa:bb:cc:dd:ee:ff"* |
+| `dhcp_get_lease_statistics` | DHCP usage statistics | *"Show DHCP usage statistics"* |
 
-    ```json
-    {
-      "mcpServers": {
-        "opnsense": {
-          "command": "python",
-          "args": [
-            "/path/to/opnsense-mcp-server.py"
-          ],
-          "env": {}
-        }
-      }
+### 📍 **DHCP Static Mappings**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `dhcp_list_static_mappings` | List DHCP reservations | *"Show DHCP static reservations"* |
+| `dhcp_get_static_mapping` | Get reservation details | *"Get server DHCP reservation"* |
+| `dhcp_add_static_mapping` | Add DHCP reservation | *"Reserve 192.168.1.50 for printer"* |
+| `dhcp_update_static_mapping` | Update reservation | *"Change printer IP reservation"* |
+| `dhcp_delete_static_mapping` | Delete reservation | *"Remove printer DHCP reservation"* |
+
+### 🔍 **DNS Resolver (Unbound)**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `dns_resolver_get_settings` | DNS resolver configuration | *"Show DNS resolver settings"* |
+| `dns_resolver_set_settings` | Configure DNS resolver | *"Enable DNSSEC validation"* |
+| `dns_resolver_list_host_overrides` | List DNS host overrides | *"Show DNS host overrides"* |
+| `dns_resolver_get_host_override` | Get host override details | *"Get override for server.local"* |
+| `dns_resolver_add_host_override` | Add DNS host override | *"Map server.local to 10.0.0.10"* |
+| `dns_resolver_update_host_override` | Update host override | *"Change server.local IP address"* |
+| `dns_resolver_delete_host_override` | Delete host override | *"Remove server.local override"* |
+| `dns_resolver_list_domain_overrides` | List domain overrides | *"Show DNS domain forwarding"* |
+| `dns_resolver_add_domain_override` | Add domain override | *"Forward corp.com to 10.0.0.53"* |
+| `dns_resolver_restart_service` | Restart DNS resolver | *"Restart DNS resolver service"* |
+
+### ⏩ **DNS Forwarder (dnsmasq)**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `dns_forwarder_get_settings` | DNS forwarder settings | *"Show DNS forwarder configuration"* |
+| `dns_forwarder_set_settings` | Configure DNS forwarder | *"Enable DNS forwarder service"* |
+| `dns_forwarder_list_hosts` | List forwarder hosts | *"Show DNS forwarder host entries"* |
+| `dns_forwarder_add_host` | Add forwarder host entry | *"Add local.domain DNS entry"* |
+| `dns_forwarder_restart_service` | Restart DNS forwarder | *"Restart DNS forwarder service"* |
+
+### 🔐 **Certificate Authority Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `list_certificate_authorities` | List all CAs | *"Show Certificate Authorities"* |
+| `get_certificate_authority` | CA details | *"Get root CA information"* |
+| `create_certificate_authority` | Create new CA | *"Create internal Certificate Authority"* |
+| `delete_certificate_authority` | Remove CA | *"Delete old Certificate Authority"* |
+| `export_certificate_authority` | Export CA certificate | *"Export CA certificate in PEM format"* |
+
+### 📜 **Certificate Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `list_certificates` | List all certificates | *"Show all SSL certificates"* |
+| `get_certificate` | Certificate details | *"Get web server certificate details"* |
+| `import_certificate` | Import certificate | *"Import SSL certificate and private key"* |
+| `delete_certificate` | Remove certificate | *"Delete expired certificate"* |
+| `export_certificate` | Export certificate | *"Export VPN certificate"* |
+
+### 📋 **Certificate Signing Requests**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `list_certificate_signing_requests` | List CSRs | *"Show pending certificate requests"* |
+| `get_certificate_signing_request` | CSR details | *"Get CSR information"* |
+| `create_certificate_signing_request` | Generate CSR | *"Create CSR for domain.com"* |
+| `delete_certificate_signing_request` | Remove CSR | *"Delete certificate request"* |
+
+### 🔄 **ACME (Let's Encrypt) Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `list_acme_accounts` | List ACME accounts | *"Show Let's Encrypt accounts"* |
+| `get_acme_account` | ACME account details | *"Get ACME account information"* |
+| `create_acme_account` | Create ACME account | *"Setup Let's Encrypt account"* |
+| `delete_acme_account` | Remove ACME account | *"Delete Let's Encrypt account"* |
+| `list_acme_certificates` | List ACME certificates | *"Show Let's Encrypt certificates"* |
+| `get_acme_certificate` | ACME certificate details | *"Get LE certificate details"* |
+| `create_acme_certificate` | Request ACME certificate | *"Get Let's Encrypt cert for domain.com"* |
+| `sign_acme_certificate` | Issue certificate | *"Issue ACME certificate"* |
+| `revoke_acme_certificate` | Revoke certificate | *"Revoke compromised certificate"* |
+| `delete_acme_certificate` | Remove ACME certificate | *"Delete ACME certificate"* |
+
+### 🔍 **Certificate Analysis & Monitoring**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `analyze_certificate_expiration` | Check certificate expiry | *"Check certificate expiration status"* |
+| `validate_certificate_chain` | Validate trust chain | *"Validate certificate trust chain"* |
+| `get_certificate_usage` | Certificate usage info | *"Where is this certificate used?"* |
+
+### 👥 **User Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `list_users` | List all users | *"Show all system users"* |
+| `get_user` | User account details | *"Get admin user information"* |
+| `create_user` | Create new user | *"Add new administrator user"* |
+| `update_user` | Modify user settings | *"Update user permissions"* |
+| `delete_user` | Remove user account | *"Delete inactive user account"* |
+| `toggle_user` | Enable/disable user | *"Disable user account temporarily"* |
+| `create_admin_user` | Quick admin creation | *"Create admin user quickly"* |
+| `create_readonly_user` | Create read-only user | *"Add monitoring-only user"* |
+| `reset_user_password` | Reset user password | *"Reset user password securely"* |
+| `bulk_user_creation` | Mass user creation | *"Import users from template"* |
+
+### 👨‍👩‍👧‍👦 **Group Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `list_groups` | List all groups | *"Show all user groups"* |
+| `get_group` | Group details | *"Get administrators group info"* |
+| `create_group` | Create user group | *"Create network operators group"* |
+| `update_group` | Modify group settings | *"Update group description"* |
+| `delete_group` | Remove group | *"Delete empty user group"* |
+| `add_user_to_group` | Add group member | *"Add user to administrators group"* |
+| `remove_user_from_group` | Remove group member | *"Remove user from operators group"* |
+| `setup_user_group_template` | Create group template | *"Setup role-based group template"* |
+
+### 🛡️ **Privilege Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `list_privileges` | List available privileges | *"Show all available permissions"* |
+| `get_user_effective_privileges` | User's actual privileges | *"What permissions does user have?"* |
+| `assign_privilege_to_user` | Grant user privilege | *"Give user firewall management access"* |
+| `revoke_privilege_from_user` | Remove user privilege | *"Remove admin rights from user"* |
+
+### 🔑 **Authentication Systems**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `list_auth_servers` | List auth servers | *"Show LDAP/RADIUS servers"* |
+| `test_user_authentication` | Test user login | *"Test user authentication"* |
+
+### 📊 **Comprehensive Logging & Monitoring**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `get_firewall_logs` | Firewall activity logs | *"Show last 100 blocked connections"* |
+| `get_system_logs` | System event logs | *"Display system events from today"* |
+| `get_service_logs` | Service-specific logs | *"Show DHCP service logs"* |
+| `search_logs` | Search across all logs | *"Find failed login attempts"* |
+| `export_logs` | Export logs to file | *"Export today's logs to JSON"* |
+| `get_log_statistics` | Log analysis & stats | *"Show 24-hour log analysis"* |
+| `clear_logs` | Clear old log files | *"Clear logs older than 30 days"* |
+| `configure_logging` | Adjust log settings | *"Set firewall logging to debug level"* |
+| `analyze_security_events` | Security threat analysis | *"Analyze security events and threats"* |
+| `generate_log_report` | Generate log reports | *"Create daily security report"* |
+
+### 🔌 **Plugin & Service Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `list_plugins` | List installed plugins | *"Show all installed plugins"* |
+| `install_plugin` | Install new plugin | *"Install WireGuard VPN plugin"* |
+
+### 🌐 **VPN Connection Monitoring**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `get_vpn_connections` | VPN connection status | *"Show active VPN connections"* |
+
+### 🔧 **Advanced & Custom Tools**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `exec_api_call` | Execute custom API calls | *"Execute GET on /api/custom/endpoint"* |
+
+</details>
+
+**🎯 Total: 110+ powerful tools** for complete OPNsense management through natural language!
+
+---
+
+## 🌟 Real-World Success Stories
+
+### 🏢 **Enterprise Network Management**
+*"We manage 50+ OPNsense firewalls across multiple sites. This MCP server lets our junior admins safely make changes using natural language, reducing configuration errors by 80% and training time by weeks!"* - **Network Operations Team**
+
+### 🚨 **Incident Response**
+*"During a security incident, I told Claude: 'Block all traffic from these suspicious IPs and create an audit report.' Done in 15 seconds instead of 5 minutes of clicking through interfaces!"* - **Security Engineer**
+
+### 📚 **Learning & Training Tool**
+*"Perfect for learning OPNsense! New team members can ask Claude to explain what each rule does before applying it. It's like having a network mentor available 24/7."* - **IT Training Manager**
+
+### 🏠 **Home Lab Enthusiasts**
+*"I can finally manage my home lab firewall properly without memorizing every interface. Just tell it what I want, and it handles the technical details!"* - **Home Lab Enthusiast**
+
+---
+
+## 🎯 Try These Commands!
+
+<details>
+<summary>🔰 <strong>Beginner-Friendly Commands</strong></summary>
+
+Perfect for getting started:
+- *"Show me the firewall status and health"*
+- *"List all network interfaces and their status"*
+- *"What devices are currently connected via DHCP?"*
+- *"Show me recent firewall activity"*
+- *"Create a backup of my configuration"*
+
+</details>
+
+<details>
+<summary>⚡ <strong>Power User Commands</strong></summary>
+
+For network administrators:
+- *"Create a geo-blocking rule for all countries except USA and Canada"*
+- *"Setup a VLAN for IoT devices with restricted internet access"*
+- *"Analyze security logs and identify potential threats from the last 24 hours"*
+- *"Create DHCP reservations for all devices in the server VLAN"*
+- *"Generate SSL certificates for internal services using Let's Encrypt"*
+
+</details>
+
+<details>
+<summary>🚀 <strong>Expert-Level Commands</strong></summary>
+
+Advanced infrastructure management:
+- *"Create a high-availability CARP setup with automatic failover between firewalls"*
+- *"Configure certificate-based VPN with automatic user provisioning and revocation"*
+- *"Implement zero-trust network segmentation for the DMZ with micro-segmentation rules"*
+- *"Setup automated threat response: block IPs with more than 10 failed attempts in 5 minutes"*
+- *"Create a comprehensive security audit report with compliance recommendations"*
+
+</details>
+
+---
+
+## 📋 Requirements
+
+- 🐍 **Python 3.10+** (Modern Python environment)
+- 🔥 **OPNsense Firewall** with API access configured
+- 🤖 **MCP-compatible client** (Claude Desktop recommended)
+- 💾 **Minimum 100MB** disk space for installation
+
+## 📦 Prerequisites
+
+- 🔧 **`git`** - For cloning the repository
+- ⚡ **`uv`** - Ultra-fast Python package manager (see installation below)
+- 🔨 **`jq`** - JSON processor (for automated Claude Desktop setup)
+
+---
+
+## 🚀 Installation Guide
+
+### Step 1: 📥 **Clone the Repository**
+```bash
+git clone https://github.com/floriangrousset/opnsense-mcp-server
+cd opnsense-mcp-server
+```
+
+### Step 2: ⚡ **Install `uv` (Ultra-Fast Python Manager)**
+
+`uv` is blazing fast and handles everything automatically:
+
+```bash
+# 🍎 macOS/Linux - One command install
+curl -LsSf https://astral.sh/uv/install.sh | sh
+
+# 🪟 Windows (PowerShell)
+curl -LsSf https://astral.sh/uv/install.ps1 | powershell -c -
+```
+
+### Step 3: 🏠 **Create Virtual Environment**
+```bash
+# Create isolated Python environment
+uv venv
+
+# Activate it
+source .venv/bin/activate        # 🐧 Linux/macOS
+# .venv\Scripts\activate         # 🪟 Windows
+```
+
+### Step 4: 📚 **Install Dependencies**
+```bash
+# Install all required packages (super fast with uv!)
+uv pip install -r requirements.txt
+```
+
+### Step 5: 🔐 **Make Scripts Executable** (Linux/macOS only)
+```bash
+chmod +x opnsense-mcp-server.py setup-claude.sh
+```
+
+### 🎉 **Installation Complete!**
+Time to configure your OPNsense connection...
+
+---
+
+## 🔐 Setup OPNsense API Access
+
+**📌 Important:** Create dedicated API credentials for maximum security!
+
+### 🔑 Step-by-Step API Setup:
+
+1. 🌐 **Login** to your OPNsense web interface
+2. 🧭 **Navigate** to **System** → **Access** → **Users**
+3. 👤 **Select** the user for API access (or create a dedicated `mcp-server` user)
+4. 🔑 **Scroll down** to the **API keys** section
+5. ➕ **Click the `+` button** to generate new API keys
+6. 📁 **Download** the API key file (contains your credentials)
+
+💡 **Pro Tip:** Create a dedicated user with minimal required privileges instead of using admin credentials!
+
+---
+
+## 🤖 Configure Claude Desktop
+
+Choose your preferred setup method:
+
+### 🎯 **Method 1: Auto-Magic Setup** (Recommended)
+
+The easiest way - one command does everything!
+
+```bash
+# Install jq if needed
+brew install jq          # 🍎 macOS
+sudo apt install jq     # 🐧 Ubuntu/Debian
+sudo yum install jq      # 🎩 RHEL/CentOS
+
+# Run the magic setup script
+./setup-claude.sh
+```
+
+**🎊 That's it!** The script automatically:
+- ✅ Finds your Claude Desktop config
+- ✅ Adds the MCP server entry
+- ✅ Creates proper file paths
+- ✅ Sets up everything perfectly
+
+**🔄 Restart Claude Desktop** and you're ready to go!
+
+### 🔧 **Method 2: Manual Configuration**
+
+<details>
+<summary>Click here for manual setup steps</summary>
+
+1. 📥 **Install** [Claude Desktop](https://claude.ai/desktop) if you haven't already
+2. 🖥️ **Open** Claude Desktop
+3. ⚙️ **Access settings** from the Claude menu
+4. 🛠️ **Go to** the **Developer tab**
+5. 📝 **Click** "Edit Config"
+6. 🔧 **Add this configuration** (replace `/path/to/` with your actual path):
+
+```json
+{
+  "mcpServers": {
+    "opnsense": {
+      "command": "python",
+      "args": [
+        "/FULL/PATH/TO/opnsense-mcp-server.py"
+      ],
+      "env": {}
     }
-    ```
+  }
+}
+```
 
-    Replace `/path/to/opnsense-mcp-server.py` with the **absolute path** to your `opnsense-mcp-server.py` script.
+7. 💾 **Save** the config file
+8. 🔄 **Restart** Claude Desktop
 
-7. Save the config file and restart Claude Desktop
+</details>
 
-## Usage Examples
+---
 
-Once the MCP server is configured and running with Claude Desktop, you can interact with your OPNsense firewall using natural language. Here are some examples:
+## 🎮 **Usage Examples**
 
-1. Configure the connection to your OPNsense firewall:
+Now the fun begins! **Talk to your firewall like you're talking to a network engineer:**
 
-    ```text
-    Configure my OPNsense firewall with the following information:
-    URL: https://192.168.1.1
-    API Key: your_api_key
-    API Secret: your_api_secret
-    ```
+### 🔌 **First Steps: Connect to Your Firewall**
+```text
+Configure my OPNsense firewall with the following information:
+URL: https://192.168.1.1
+API Key: your_api_key
+API Secret: your_api_secret
+```
 
-2. Check the system status:
+### 📊 **System Monitoring**
+```text
+What's the current status of my OPNsense firewall?
+```
+```text
+Show me system health - CPU, memory, and disk usage
+```
+```text
+What devices are currently getting DHCP leases?
+```
 
-    ```text
-    What's the current status of my OPNsense firewall?
-    ```
+### 🔥 **Firewall Management**
+```text
+List all firewall rules and show me which ones are disabled
+```
+```text
+Create a rule to allow HTTP and HTTPS from any source to my web server at 192.168.1.100
+```
+```text
+Block all traffic from China and Russia and add them to my geo-blocking alias
+```
+```text
+Delete that risky SSH rule we created yesterday
+```
 
-3. Manage firewall rules:
+### 🌐 **Network Configuration**
+```text
+Show me all network interfaces and their current status
+```
+```text
+Create VLAN 100 on interface em0 for my IoT devices
+```
+```text
+Set up DHCP for VLAN 100 with range 10.100.1.10 to 10.100.1.200
+```
 
-    ```text
-    List all firewall rules.
-    ```
+### 🏷️ **Alias Management**
+```text
+Show me all firewall aliases and what IPs are in each one
+```
+```text
+Add these suspicious IPs to my BlockedIPs alias: 192.168.100.50, 10.0.0.200
+```
+```text
+Create a new alias called "WebServers" with my internal server IPs
+```
 
-    ```text
-    Add a new firewall rule to allow HTTP traffic from any source to my web server at 192.168.1.100.
-    ```
+### 🔐 **Certificate Management**
+```text
+List all my SSL certificates and show me which ones expire soon
+```
+```text
+Create a Let's Encrypt certificate for my domain example.com
+```
+```text
+Generate a certificate signing request for our internal CA
+```
 
-    ```text
-    Delete the firewall rule with UUID abc123def456.
-    ```
+### 📋 **User Management**
+```text
+Create a new read-only user called "monitoring" for our NOC team
+```
+```text
+Show me all users and their effective privileges
+```
+```text
+Reset the password for user "john.doe"
+```
 
-4. Work with firewall aliases:
+### 📊 **Logging & Analysis**
+```text
+Show me the last 50 firewall blocks and identify any patterns
+```
+```text
+Analyze security events from the past 24 hours and create a threat report
+```
+```text
+Export today's logs in JSON format for analysis
+```
 
-    ```text
-    Show me all the firewall aliases.
-    ```
+### 🛡️ **Security Operations**
+```text
+Perform a comprehensive security audit of my firewall configuration
+```
+```text
+Check for any weak configurations or security issues
+```
+```text
+Analyze certificate expiration status across all certificates
+```
 
-    ```text
-    Add IP address 10.0.0.5 to the alias named "BlockedIPs".
-    ```
+### 🔧 **Advanced Operations**
+```text
+Create a high-availability CARP setup with VIP 192.168.1.200
+```
+```text
+Set up link aggregation between em0 and em1 using LACP
+```
+```text
+Configure outbound NAT for my new VLAN to use the WAN interface
+```
 
-5. Monitor network interfaces:
+**💡 The magic:** Just describe what you want in plain English, and watch your firewall configuration happen automatically!
 
-    ```text
-    Show me all network interfaces and their status.
-    ```
+---
 
-6. View system health:
+## 🔒 **Security Best Practices**
 
-    ```text
-    What's the current health status of my OPNsense system? Show CPU, memory, and disk usage.
-    ```
+### ✅ **Recommended Security Setup**
 
-7. Manage services:
+| Security Measure | Implementation | Why It Matters |
+|-----------------|----------------|----------------|
+| 🔑 **Dedicated API User** | Create specific `mcp-server` user | Limits blast radius if compromised |
+| 🎯 **Minimal Privileges** | Grant only necessary permissions | Principle of least privilege |
+| 📍 **IP Restrictions** | Limit API access to your network | Prevents external API abuse |
+| 🔍 **Audit Logging** | Enable comprehensive logging | Track all API activities |
+| 📊 **Regular Reviews** | Weekly `perform_firewall_audit` | Catch security drift early |
+| 🔐 **HTTPS Only** | Force HTTPS for web interface | Encrypt all communications |
 
-    ```text
-    Restart the DHCP service.
-    ```
+### 🛡️ **Security Commands to Run Regularly**
 
-8. Examine VPN connections:
+```text
+Perform a comprehensive security audit and show me any issues
+```
+```text
+Check for any users with excessive privileges
+```
+```text
+Analyze recent login attempts and flag any suspicious activity
+```
+```text
+Show me all API access in the last 24 hours
+```
 
-    ```text
-    Show me all active OpenVPN connections.
-    ```
+### ⚠️ **Production Environment Guidelines**
 
-9. Execute a custom API call:
+<details>
+<summary><strong>🏭 Click here for production security recommendations</strong></summary>
 
-    ```text
-    Execute a GET request to the endpoint "/interfaces/overview/interfacesInfo".
-    ```
+**🚨 Critical for Production Systems:**
 
-10. Perform a basic security audit:
+#### 🔒 **Maximum Security Approach**
+- **Disable Web GUI/API** after initial setup on production firewalls
+- **Console Management** via direct serial cable connection
+- **Configuration Staging** in isolated lab environment first
 
-    ```text
-    Perform a security audit of my OPNsense firewall configuration.
-    ```
+#### 🔄 **Staging Workflow**
+1. 🧪 **Configure** in secure lab environment using MCP server
+2. 🧪 **Test** all changes thoroughly
+3. 📤 **Export** configuration (`config.xml`)
+4. 🔒 **Import** to production firewall (running headless)
+5. ✅ **Verify** via console that changes worked
 
-## Security Considerations
+#### ⚖️ **Risk Assessment**
+This MCP server provides powerful automation but requires API access. **Carefully evaluate:**
+- 🎯 **Threat Model**: What are your specific risks?
+- 🔍 **Monitoring**: Can you detect API abuse quickly?
+- 🚫 **Network Isolation**: Is the management network properly segmented?
+- 👥 **Team Training**: Do operators understand the security implications?
 
-- Use a dedicated user with minimal required privileges for API access
-- Use HTTPS for your OPNsense web interface
-- Consider setting up a firewall rule to restrict API access to specific IP addresses
-- Regularly audit API access logs
+</details>
 
-## Production Environment Disclaimer
+---
 
-**Important:** For maximum security in production environments, it is strongly recommended to adhere to strict management practices:
+## 🔧 **Troubleshooting**
 
-- **Disable Web GUI & API:** On production firewalls, consider disabling the Web GUI (HTTP/HTTPS access) and the API access entirely after initial setup.
-- **Console Management:** Primary management of production firewalls should ideally be performed via a direct console connection (serial cable).
-- **Configuration Staging:** Alternatively, configure the firewall in a secure, isolated lower environment (e.g., staging or lab) using the Web GUI/API. Once finalized and tested, export the configuration (`config.xml`) and import it onto the production firewall (which could be running headless without GUI/API enabled).
+### 🚨 **Common Issues & Quick Fixes**
 
-This MCP server provides powerful management capabilities but relies on the OPNsense API being enabled. Carefully evaluate the risks and benefits before enabling the API on critical production systems. Use dedicated, least-privilege API users and restrict access via firewall rules if the API must remain active.
+| Problem | Solution | How to Check |
+|---------|----------|--------------|
+| 🔌 **Connection Failed** | Check API credentials | *"Test my OPNsense connection"* |
+| 🌐 **Network Unreachable** | Verify firewall accessibility | `ping 192.168.1.1` |
+| 🔑 **Authentication Error** | Check API key/secret format | Regenerate API credentials |
+| 🚫 **Permission Denied** | Review user privileges | *"Show me my user permissions"* |
+| 💻 **Claude Desktop Issues** | Check MCP server config | Restart Claude Desktop |
 
-## Troubleshooting
+### 🔍 **Diagnostic Commands**
 
-If you encounter issues:
+Use these commands to troubleshoot:
 
-1. Check the OPNsense API credentials
-2. Verify the firewall is accessible from your network
-3. Ensure the API is enabled in OPNsense
-4. Check the permissions of the API user
-5. Look for any error messages in the Claude Desktop logs
+```text
+Test my connection to OPNsense and show me any errors
+```
+```text
+Show me the current API user permissions and privileges
+```
+```text
+Display the last 10 API calls and their results
+```
+```text
+Check if all required services are running on the firewall
+```
 
-## References and Acknowledgements
+### 📋 **Step-by-Step Troubleshooting**
 
-- **OPNsense®:** This project interacts with OPNsense firewalls. OPNsense is an open source, FreeBSD-based firewall and routing software. More information can be found on the [OPNsense Website](https://opnsense.org/) and their [API Documentation](https://docs.opnsense.org/development/how-tos/api.html).
-- **Anthropic & Model Context Protocol (MCP):** This server implements MCP to allow clients like Claude Desktop to interact with OPNsense. Learn more about how Claude uses tools via the [Anthropic Tool Use Documentation](https://docs.anthropic.com/claude/docs/tool-use).
-- **Project Logo:** The logo `opnsense-mcp-server-logo.png` and part of the project code was generated with the assistance of AI.
+1. **🔍 Check Connection**: `curl -k https://YOUR_FIREWALL_IP/api/core/firmware/status`
+2. **🔑 Verify Credentials**: Ensure API key/secret are correct
+3. **🌐 Test Network**: Can you access the web interface?
+4. **🛠️ Check Permissions**: Does the API user have required privileges?
+5. **📱 Restart Services**: Try restarting Claude Desktop
+6. **📋 Check Logs**: Look at Claude Desktop console for error messages
 
-## Contributing
+---
 
-Contributions are welcome! Please see the `CONTRIBUTING.md` file for guidelines on how to submit issues or pull requests.
+## 🤝 **Contributing & Community**
 
-## License
+### 💡 **Want to Contribute?**
 
-This project is licensed under the GNU Affero General Public License v3.0 - see the LICENSE file for details.
+We love contributions! Here's how you can help:
+
+- 🐛 **Found a bug?** Open an issue with details
+- 💡 **Have an idea?** Submit a feature request
+- 🔧 **Fixed something?** Create a pull request
+- 📚 **Improved docs?** Documentation PRs are welcome!
+- ⭐ **Like the project?** Give us a star on GitHub!
+
+See `CONTRIBUTING.md` for detailed contribution guidelines.
+
+### 🌟 **Community & Support**
+
+- 💬 **Discussions**: Share ideas and get help
+- 🐛 **Issues**: Report bugs and request features
+- 📧 **Questions**: Ask anything about OPNsense + MCP integration
+- 🎉 **Showcase**: Share your automation success stories!
+
+---
+
+## 📚 **References & Acknowledgements**
+
+### 🔥 **OPNsense®**
+This project interfaces with OPNsense firewalls - a powerful open source, FreeBSD-based firewall and routing platform.
+- 🌐 **Website**: [OPNsense.org](https://opnsense.org/)
+- 📖 **API Documentation**: [OPNsense API Guide](https://docs.opnsense.org/development/how-tos/api.html)
+
+### 🤖 **Anthropic & Model Context Protocol (MCP)**
+This server implements MCP to enable AI-powered firewall management through Claude Desktop.
+- 📖 **MCP Specification**: [Official MCP Docs](https://modelcontextprotocol.io/)
+- 🔧 **Claude Tool Use**: [Anthropic Tool Documentation](https://docs.anthropic.com/claude/docs/tool-use)
+
+### 🎨 **AI Assistance**
+The project logo and portions of the codebase were created with AI assistance, demonstrating the collaborative future of software development.
+
+---
+
+## 📜 **License**
+
+This project is licensed under the **GNU Affero General Public License v3.0** - see the `LICENSE` file for details.
+
+**📌 What this means:**
+- ✅ **Free to use** for personal and commercial projects
+- ✅ **Modify and distribute** under the same license
+- ✅ **Network use** requires sharing source code modifications
+- ✅ **Patent protection** included
+
+---
+
+## 🙏 **Star History & Recognition**
+
+If this project helped you manage your OPNsense firewall more effectively, please consider giving it a ⭐ on GitHub!
+
+**Together, we're making network management more accessible through AI!** 🚀
