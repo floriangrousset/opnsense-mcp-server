@@ -2511,6 +2511,350 @@ async def toggle_user(ctx: Context, user_uuid: str, enabled: bool) -> str:
         return await handle_tool_error(ctx, "toggle_user", e)
 
 
+# ========== GROUP MANAGEMENT ==========
+
+@mcp.tool(name="list_groups", description="List all groups in OPNsense")
+async def list_groups(ctx: Context) -> str:
+    """List all groups configured in OPNsense.
+
+    Args:
+        ctx: MCP context
+
+    Returns:
+        JSON string with list of all groups
+    """
+    try:
+        client = await get_opnsense_client()
+
+        response = await client.request("POST", API_CORE_GROUP_SEARCH, operation="list_groups")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "list_groups", e)
+
+
+@mcp.tool(name="get_group", description="Get details of a specific group")
+async def get_group(ctx: Context, group_uuid: Optional[str] = None) -> str:
+    """Get details of a specific group or all groups.
+
+    Args:
+        ctx: MCP context
+        group_uuid: UUID of specific group to retrieve (optional - if not provided, returns all groups)
+
+    Returns:
+        JSON string with group details
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID if provided
+        if group_uuid:
+            validate_uuid(group_uuid, "group_uuid")
+            endpoint = f"{API_CORE_GROUP_GET}/{group_uuid}"
+        else:
+            endpoint = API_CORE_GROUP_GET
+
+        response = await client.request("GET", endpoint, operation="get_group")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "get_group", e)
+
+
+@mcp.tool(name="create_group", description="Create a new group")
+async def create_group(
+    ctx: Context,
+    name: str,
+    description: str = "",
+    privileges: Optional[str] = None,
+    members: Optional[str] = None
+) -> str:
+    """Create a new group in OPNsense.
+
+    Args:
+        ctx: MCP context
+        name: Name of the group (must be unique)
+        description: Description of the group (optional)
+        privileges: Comma-separated list of privilege names (optional)
+        members: Comma-separated list of usernames to add to group (optional)
+
+    Returns:
+        JSON string with creation result and new group UUID
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate required parameters
+        if not name:
+            raise ValidationError("Group name is required", context={"name": name})
+
+        if len(name) < 2:
+            raise ValidationError("Group name must be at least 2 characters long",
+                                context={"name": name})
+
+        # Prepare group data
+        group_data = {
+            "group": {
+                "name": name,
+                "description": description
+            }
+        }
+
+        # Add privileges if specified
+        if privileges:
+            # Convert comma-separated string to list
+            priv_list = [p.strip() for p in privileges.split(",") if p.strip()]
+            group_data["group"]["priv"] = ",".join(priv_list)
+
+        # Add members if specified
+        if members:
+            # Convert comma-separated string to list and validate usernames
+            member_list = [m.strip() for m in members.split(",") if m.strip()]
+            group_data["group"]["member"] = ",".join(member_list)
+
+        # Create the group
+        response = await client.request("POST", API_CORE_GROUP_ADD,
+                                      data=group_data, operation="create_group")
+
+        # Reload configuration if creation was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_create")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "create_group", e)
+
+
+@mcp.tool(name="update_group", description="Update an existing group")
+async def update_group(
+    ctx: Context,
+    group_uuid: str,
+    name: Optional[str] = None,
+    description: Optional[str] = None,
+    privileges: Optional[str] = None,
+    members: Optional[str] = None
+) -> str:
+    """Update an existing group in OPNsense.
+
+    Args:
+        ctx: MCP context
+        group_uuid: UUID of the group to update
+        name: New name for the group (optional)
+        description: New description for the group (optional)
+        privileges: Comma-separated list of privilege names (optional)
+        members: Comma-separated list of usernames in group (optional)
+
+    Returns:
+        JSON string with update result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(group_uuid, "group_uuid")
+
+        # Get current group configuration
+        current_group_response = await client.request("GET", f"{API_CORE_GROUP_GET}/{group_uuid}",
+                                                    operation="get_group_for_update")
+
+        if "group" not in current_group_response:
+            raise ResourceNotFoundError(f"Group with UUID {group_uuid} not found")
+
+        current_group = current_group_response["group"]
+
+        # Update only provided fields
+        if name is not None:
+            if len(name) < 2:
+                raise ValidationError("Group name must be at least 2 characters long",
+                                    context={"name": name})
+            current_group["name"] = name
+
+        if description is not None:
+            current_group["description"] = description
+
+        if privileges is not None:
+            # Convert comma-separated string to list
+            priv_list = [p.strip() for p in privileges.split(",") if p.strip()]
+            current_group["priv"] = ",".join(priv_list)
+
+        if members is not None:
+            # Convert comma-separated string to list and validate usernames
+            member_list = [m.strip() for m in members.split(",") if m.strip()]
+            current_group["member"] = ",".join(member_list)
+
+        # Prepare update data
+        group_data = {"group": current_group}
+
+        # Update the group
+        response = await client.request("POST", f"{API_CORE_GROUP_SET}/{group_uuid}",
+                                      data=group_data, operation="update_group")
+
+        # Reload configuration if update was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_update")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "update_group", e)
+
+
+@mcp.tool(name="delete_group", description="Delete a group")
+async def delete_group(ctx: Context, group_uuid: str) -> str:
+    """Delete a group from OPNsense.
+
+    This will remove the group and update all users who were members of this group.
+
+    Args:
+        ctx: MCP context
+        group_uuid: UUID of the group to delete
+
+    Returns:
+        JSON string with deletion result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(group_uuid, "group_uuid")
+
+        # Delete the group
+        response = await client.request("POST", f"{API_CORE_GROUP_DEL}/{group_uuid}",
+                                      operation="delete_group")
+
+        # Reload configuration if deletion was successful
+        if response.get("result") == "deleted":
+            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_delete")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "delete_group", e)
+
+
+@mcp.tool(name="add_user_to_group", description="Add a user to a group")
+async def add_user_to_group(ctx: Context, group_uuid: str, username: str) -> str:
+    """Add a user to an existing group.
+
+    Args:
+        ctx: MCP context
+        group_uuid: UUID of the group to modify
+        username: Username to add to the group
+
+    Returns:
+        JSON string with update result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(group_uuid, "group_uuid")
+
+        if not username:
+            raise ValidationError("Username is required", context={"username": username})
+
+        # Get current group configuration
+        current_group_response = await client.request("GET", f"{API_CORE_GROUP_GET}/{group_uuid}",
+                                                    operation="get_group_for_member_add")
+
+        if "group" not in current_group_response:
+            raise ResourceNotFoundError(f"Group with UUID {group_uuid} not found")
+
+        current_group = current_group_response["group"]
+
+        # Get current members
+        current_members = []
+        if "member" in current_group and current_group["member"]:
+            current_members = [m.strip() for m in current_group["member"].split(",") if m.strip()]
+
+        # Check if user is already a member
+        if username in current_members:
+            return json.dumps({"result": "no_change", "message": f"User '{username}' is already a member of the group"}, indent=2)
+
+        # Add the new member
+        current_members.append(username)
+        current_group["member"] = ",".join(current_members)
+
+        # Prepare update data
+        group_data = {"group": current_group}
+
+        # Update the group
+        response = await client.request("POST", f"{API_CORE_GROUP_SET}/{group_uuid}",
+                                      data=group_data, operation="add_user_to_group")
+
+        # Reload configuration if update was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_member_add")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "add_user_to_group", e)
+
+
+@mcp.tool(name="remove_user_from_group", description="Remove a user from a group")
+async def remove_user_from_group(ctx: Context, group_uuid: str, username: str) -> str:
+    """Remove a user from an existing group.
+
+    Args:
+        ctx: MCP context
+        group_uuid: UUID of the group to modify
+        username: Username to remove from the group
+
+    Returns:
+        JSON string with update result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(group_uuid, "group_uuid")
+
+        if not username:
+            raise ValidationError("Username is required", context={"username": username})
+
+        # Get current group configuration
+        current_group_response = await client.request("GET", f"{API_CORE_GROUP_GET}/{group_uuid}",
+                                                    operation="get_group_for_member_remove")
+
+        if "group" not in current_group_response:
+            raise ResourceNotFoundError(f"Group with UUID {group_uuid} not found")
+
+        current_group = current_group_response["group"]
+
+        # Get current members
+        current_members = []
+        if "member" in current_group and current_group["member"]:
+            current_members = [m.strip() for m in current_group["member"].split(",") if m.strip()]
+
+        # Check if user is actually a member
+        if username not in current_members:
+            return json.dumps({"result": "no_change", "message": f"User '{username}' is not a member of the group"}, indent=2)
+
+        # Remove the member
+        current_members.remove(username)
+        current_group["member"] = ",".join(current_members)
+
+        # Prepare update data
+        group_data = {"group": current_group}
+
+        # Update the group
+        response = await client.request("POST", f"{API_CORE_GROUP_SET}/{group_uuid}",
+                                      data=group_data, operation="remove_user_from_group")
+
+        # Reload configuration if update was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_member_remove")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "remove_user_from_group", e)
+
+
 # Entry point
 if __name__ == "__main__":
     mcp.run()
