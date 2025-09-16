@@ -83,7 +83,9 @@ docker-compose up -d
 - **Custom**: `exec_api_call` for arbitrary API endpoints
 
 ### Security Audit Feature
+
 The `perform_firewall_audit` tool performs automated security checks:
+
 - Firmware/plugin update status
 - WAN management access exposure
 - Overly permissive firewall rules
