@@ -482,34 +482,41 @@ async def get_system_status(ctx: Context) -> str:
     Returns:
         Formatted system status information
     """
-    if not opnsense_client:
-        return "OPNsense client not initialized. Please configure the server first."
-    
     try:
+        client = await get_opnsense_client()
+
         # Get firmware status
-        firmware = await opnsense_client.request("GET", API_CORE_FIRMWARE_STATUS)
-        
+        firmware = await client.request("GET", API_CORE_FIRMWARE_STATUS)
+
         # Get system information
-        system_info = await opnsense_client.request("GET", API_CORE_SYSTEM_INFO)
-        
+        system_info = await client.request("GET", API_CORE_SYSTEM_INFO)
+
         # Get service status
-        services = await opnsense_client.request(
-            "POST", 
+        services = await client.request(
+            "POST",
             API_CORE_SERVICE_SEARCH,
             data={"current": 1, "rowCount": -1, "searchPhrase": ""}
         )
-        
+
         # Format and return the combined status
         status = {
             "firmware": firmware,
             "system": system_info,
             "services": services.get("rows", [])
         }
-        
+
         return json.dumps(status, indent=2)
-    except Exception as e:
+
+    except ConfigurationError as e:
+        await ctx.error(str(e))
+        return f"Configuration Error: {str(e)}"
+    except (AuthenticationError, NetworkError, APIError) as e:
         logger.error(f"Error in get_system_status: {str(e)}", exc_info=True)
         await ctx.error(f"Error fetching system status: {str(e)}")
+        return f"Error: {str(e)}"
+    except Exception as e:
+        logger.error(f"Unexpected error in get_system_status: {str(e)}", exc_info=True)
+        await ctx.error(f"Unexpected error: {str(e)}")
         return f"Error: {str(e)}"
 
 
