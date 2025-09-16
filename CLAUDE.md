@@ -80,7 +80,32 @@ docker-compose up -d
 - **Logs**: `get_firewall_logs`
 - **Backup**: `backup_config`
 - **Security**: `perform_firewall_audit`
+- **Traffic Shaping & QoS**:
+  - **Core Management**: `traffic_shaper_get_status`, `traffic_shaper_reconfigure`, `traffic_shaper_get_settings`
+  - **Pipe Management**: `traffic_shaper_list_pipes`, `traffic_shaper_get_pipe`, `traffic_shaper_create_pipe`, `traffic_shaper_update_pipe`, `traffic_shaper_delete_pipe`, `traffic_shaper_toggle_pipe`
+  - **Queue Management**: `traffic_shaper_list_queues`, `traffic_shaper_get_queue`, `traffic_shaper_create_queue`, `traffic_shaper_update_queue`, `traffic_shaper_delete_queue`, `traffic_shaper_toggle_queue`
+  - **Rule Management**: `traffic_shaper_list_rules`, `traffic_shaper_get_rule`, `traffic_shaper_create_rule`, `traffic_shaper_update_rule`, `traffic_shaper_delete_rule`, `traffic_shaper_toggle_rule`
+  - **Common Use Cases**: `traffic_shaper_limit_user_bandwidth`, `traffic_shaper_prioritize_voip`, `traffic_shaper_setup_gaming_priority`, `traffic_shaper_create_guest_limits`
 - **Custom**: `exec_api_call` for arbitrary API endpoints
+
+### Traffic Shaping & QoS Architecture
+
+The traffic shaping implementation follows OPNsense's hierarchical QoS model:
+
+**Architecture Hierarchy:**
+- **Pipes**: Define hard bandwidth limits with configurable schedulers (FIFO, DRR, QFQ, FQ-CoDel, FQ-PIE)
+- **Queues**: Provide weighted bandwidth sharing within pipes (1-100 weight)
+- **Rules**: Apply shaping policies to specific traffic flows based on interface, protocol, source/destination
+
+**Key Features:**
+- **Comprehensive Validation**: Parameter validation for bandwidth metrics, queue sizes, schedulers
+- **Relationship Management**: Automatic validation of pipe-queue-rule dependencies
+- **Flexible Targeting**: Rules can target either pipes (hard limits) or queues (weighted sharing)
+- **Auto-Configuration**: Automatic service reconfiguration after all changes
+- **Common Use Cases**: High-level helpers for typical scenarios (per-user limits, VoIP priority, gaming optimization, guest networks)
+
+**Supported Bandwidth Metrics:** bit/s, Kbit/s, Mbit/s, Gbit/s
+**Supported Schedulers:** FIFO, DRR, QFQ, FQ-CoDel (recommended), FQ-PIE
 
 ### Security Audit Feature
 

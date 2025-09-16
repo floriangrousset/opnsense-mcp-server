@@ -35,12 +35,29 @@ logging.basicConfig(
 logger = logging.getLogger("opnsense-mcp")
 
 
-# Custom Exceptions
+# ========== ENHANCED EXCEPTION HIERARCHY ==========
+
 class OPNsenseError(Exception):
-    """Base exception for OPNsense operations."""
-    def __init__(self, message: str, details: Optional[Dict] = None):
+    """Base exception for all OPNsense-related errors with enhanced context."""
+
+    def __init__(self, message: str, error_code: Optional[str] = None, context: Optional[Dict[str, Any]] = None):
         super().__init__(message)
-        self.details = details or {}
+        self.message = message
+        self.error_code = error_code or self.__class__.__name__
+        self.context = context or {}
+        self.timestamp = datetime.utcnow()
+        # Keep backward compatibility
+        self.details = context or {}
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert exception to dictionary for structured logging."""
+        return {
+            "error_type": self.__class__.__name__,
+            "error_code": self.error_code,
+            "message": self.message,
+            "context": self.context,
+            "timestamp": self.timestamp.isoformat()
+        }
 
 
 class ConfigurationError(OPNsenseError):
@@ -68,6 +85,26 @@ class NetworkError(OPNsenseError):
 
 class RateLimitError(OPNsenseError):
     """Rate limit exceeded."""
+    pass
+
+
+class ValidationError(OPNsenseError):
+    """Input parameter validation failed."""
+    pass
+
+
+class TimeoutError(OPNsenseError):
+    """Request timed out."""
+    pass
+
+
+class ResourceNotFoundError(OPNsenseError):
+    """Requested resource not found."""
+    pass
+
+
+class AuthorizationError(OPNsenseError):
+    """User doesn't have permission for the requested operation."""
     pass
 
 
@@ -232,6 +269,183 @@ class ServerState:
         self.session_created = None
 
 
+# ========== ERROR RESPONSE SYSTEM ==========
+
+from enum import Enum
+
+class ErrorSeverity(str, Enum):
+    """Enumeration for error severity levels."""
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class ErrorResponse:
+    """Structured error response system with user-friendly messaging."""
+
+    def __init__(self, error: Exception, operation: str, severity: ErrorSeverity = ErrorSeverity.MEDIUM):
+        self.error = error
+        self.operation = operation
+        self.severity = severity
+        self.timestamp = datetime.utcnow()
+        self.error_id = f"{operation}_{int(self.timestamp.timestamp())}"
+
+    def get_user_message(self) -> str:
+        """Get user-friendly error message."""
+        if isinstance(self.error, AuthenticationError):
+            return "Authentication failed. Please check your API credentials."
+        elif isinstance(self.error, AuthorizationError):
+            return "Access denied. You don't have permission for this operation."
+        elif isinstance(self.error, NetworkError):
+            return "Cannot connect to OPNsense. Please check the URL and network connectivity."
+        elif isinstance(self.error, ConfigurationError):
+            return "OPNsense connection not configured. Please configure the connection first."
+        elif isinstance(self.error, ValidationError):
+            return f"Invalid input: {self.error.message}"
+        elif isinstance(self.error, APIError):
+            if self.error.status_code == 404:
+                return "The requested resource was not found."
+            elif self.error.status_code == 429:
+                return "API rate limit exceeded. Please wait before trying again."
+            else:
+                return f"API error: {self.error.message}"
+        elif isinstance(self.error, TimeoutError):
+            return "Request timed out. The OPNsense server may be overloaded."
+        elif isinstance(self.error, ResourceNotFoundError):
+            return f"Resource not found: {self.error.message}"
+        elif isinstance(self.error, RateLimitError):
+            return "Rate limit exceeded. Please slow down your requests."
+        else:
+            return f"An unexpected error occurred during {self.operation}."
+
+    def get_technical_details(self) -> Dict[str, Any]:
+        """Get technical error details for logging."""
+        details = {
+            "error_id": self.error_id,
+            "operation": self.operation,
+            "severity": self.severity.value,
+            "timestamp": self.timestamp.isoformat(),
+            "error_type": type(self.error).__name__,
+            "message": str(self.error)
+        }
+
+        if isinstance(self.error, OPNsenseError):
+            details.update(self.error.to_dict())
+
+        if isinstance(self.error, APIError):
+            details["status_code"] = self.error.status_code
+            details["response_text"] = self.error.response_text
+
+        return details
+
+
+# ========== RETRY MECHANISM ==========
+
+class RetryConfig:
+    """Configuration for retry mechanism with exponential backoff."""
+
+    def __init__(self, max_attempts: int = 3, base_delay: float = 1.0, max_delay: float = 60.0,
+                 exponential_backoff: bool = True, retryable_errors: Optional[List[type]] = None):
+        self.max_attempts = max_attempts
+        self.base_delay = base_delay
+        self.max_delay = max_delay
+        self.exponential_backoff = exponential_backoff
+        self.retryable_errors = retryable_errors or [NetworkError, TimeoutError, APIError, RateLimitError]
+
+
+async def retry_with_backoff(func, *args, retry_config: RetryConfig = None, **kwargs):
+    """Retry function with exponential backoff for transient failures."""
+    if retry_config is None:
+        retry_config = RetryConfig()
+
+    last_exception = None
+
+    for attempt in range(retry_config.max_attempts):
+        try:
+            return await func(*args, **kwargs)
+        except Exception as e:
+            last_exception = e
+
+            # Check if error is retryable
+            if not any(isinstance(e, err_type) for err_type in retry_config.retryable_errors):
+                raise e
+
+            # Don't retry on last attempt
+            if attempt == retry_config.max_attempts - 1:
+                break
+
+            # Calculate delay with exponential backoff
+            if retry_config.exponential_backoff:
+                delay = min(retry_config.base_delay * (2 ** attempt), retry_config.max_delay)
+            else:
+                delay = retry_config.base_delay
+
+            logger.info(f"Attempt {attempt + 1} failed, retrying in {delay}s: {str(e)}")
+            await asyncio.sleep(delay)
+
+    # All attempts failed
+    raise last_exception
+
+
+# ========== REQUEST/RESPONSE LOGGING ==========
+
+class RequestResponseLogger:
+    """Framework for logging API requests and responses with sensitive data protection."""
+
+    def __init__(self, logger: logging.Logger):
+        self.logger = logger
+
+    def log_request(self, method: str, url: str, headers: Optional[Dict] = None,
+                   data: Optional[Dict] = None, operation: str = "unknown"):
+        """Log API request details with sensitive data sanitization."""
+        # Sanitize sensitive headers
+        safe_headers = {}
+        if headers:
+            for key, value in headers.items():
+                if key.lower() in ['authorization', 'x-api-key']:
+                    safe_headers[key] = '[REDACTED]'
+                else:
+                    safe_headers[key] = value
+
+        log_data = {
+            "operation": operation,
+            "request": {
+                "method": method,
+                "url": url,
+                "headers": safe_headers,
+                "has_data": bool(data)
+            }
+        }
+
+        self.logger.info(f"API Request: {json.dumps(log_data)}")
+
+    def log_response(self, status_code: int, response_size: Optional[int] = None,
+                    duration_ms: Optional[float] = None, operation: str = "unknown",
+                    error: Optional[Exception] = None):
+        """Log API response details with performance metrics."""
+        log_data = {
+            "operation": operation,
+            "response": {
+                "status_code": status_code,
+                "response_size": response_size,
+                "duration_ms": duration_ms,
+                "success": 200 <= status_code < 300,
+                "has_error": bool(error)
+            }
+        }
+
+        if error:
+            log_data["error"] = str(error)
+
+        level = logging.INFO if log_data["response"]["success"] else logging.WARNING
+        self.logger.log(level, f"API Response: {json.dumps(log_data)}")
+
+
+# Initialize request/response logger
+request_logger = RequestResponseLogger(logger)
+
+
 # API Endpoint Constants
 # Core
 API_CORE_MENU_GET_ITEMS = "/core/menu/getItems"
@@ -297,6 +511,41 @@ API_FIREWALL_FILTER_BASE_APPLY = "/firewall/filter_base/apply"
 API_FIREWALL_FILTER_BASE_SAVEPOINT = "/firewall/filter_base/savepoint"
 API_FIREWALL_FILTER_BASE_REVERT = "/firewall/filter_base/revert"
 
+# ========== TRAFFIC SHAPER API ENDPOINTS ==========
+
+# Traffic Shaper Service Controller
+API_TRAFFICSHAPER_SERVICE_FLUSHRELOAD = "/trafficshaper/service/flushreload"
+API_TRAFFICSHAPER_SERVICE_RECONFIGURE = "/trafficshaper/service/reconfigure"
+API_TRAFFICSHAPER_SERVICE_STATISTICS = "/trafficshaper/service/statistics"
+
+# Traffic Shaper Settings - Pipes
+API_TRAFFICSHAPER_SETTINGS_ADD_PIPE = "/trafficshaper/settings/add_pipe"
+API_TRAFFICSHAPER_SETTINGS_DEL_PIPE = "/trafficshaper/settings/del_pipe"  # Needs /{uuid}
+API_TRAFFICSHAPER_SETTINGS_GET_PIPE = "/trafficshaper/settings/get_pipe"  # Optional /{uuid}
+API_TRAFFICSHAPER_SETTINGS_SET_PIPE = "/trafficshaper/settings/set_pipe"  # Needs /{uuid}
+API_TRAFFICSHAPER_SETTINGS_TOGGLE_PIPE = "/trafficshaper/settings/toggle_pipe"  # Needs /{uuid}/{enabled}
+API_TRAFFICSHAPER_SETTINGS_SEARCH_PIPES = "/trafficshaper/settings/search_pipes"
+
+# Traffic Shaper Settings - Queues
+API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE = "/trafficshaper/settings/add_queue"
+API_TRAFFICSHAPER_SETTINGS_DEL_QUEUE = "/trafficshaper/settings/del_queue"  # Needs /{uuid}
+API_TRAFFICSHAPER_SETTINGS_GET_QUEUE = "/trafficshaper/settings/get_queue"  # Optional /{uuid}
+API_TRAFFICSHAPER_SETTINGS_SET_QUEUE = "/trafficshaper/settings/set_queue"  # Needs /{uuid}
+API_TRAFFICSHAPER_SETTINGS_TOGGLE_QUEUE = "/trafficshaper/settings/toggle_queue"  # Needs /{uuid}/{enabled}
+API_TRAFFICSHAPER_SETTINGS_SEARCH_QUEUES = "/trafficshaper/settings/search_queues"
+
+# Traffic Shaper Settings - Rules
+API_TRAFFICSHAPER_SETTINGS_ADD_RULE = "/trafficshaper/settings/add_rule"
+API_TRAFFICSHAPER_SETTINGS_DEL_RULE = "/trafficshaper/settings/del_rule"  # Needs /{uuid}
+API_TRAFFICSHAPER_SETTINGS_GET_RULE = "/trafficshaper/settings/get_rule"  # Optional /{uuid}
+API_TRAFFICSHAPER_SETTINGS_SET_RULE = "/trafficshaper/settings/set_rule"  # Needs /{uuid}
+API_TRAFFICSHAPER_SETTINGS_TOGGLE_RULE = "/trafficshaper/settings/toggle_rule"  # Needs /{uuid}/{enabled}
+API_TRAFFICSHAPER_SETTINGS_SEARCH_RULES = "/trafficshaper/settings/search_rules"
+
+# Traffic Shaper Settings - General
+API_TRAFFICSHAPER_SETTINGS_GET = "/trafficshaper/settings/get"
+API_TRAFFICSHAPER_SETTINGS_SET = "/trafficshaper/settings/set"
+
 
 class OPNsenseClient:
     """Client for interacting with OPNsense API."""
@@ -340,25 +589,44 @@ class OPNsenseClient:
         method: str,
         endpoint: str,
         data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None
+        params: Optional[Dict[str, Any]] = None,
+        operation: str = "api_request",
+        timeout: float = 30.0,
+        retry_config: Optional[RetryConfig] = None
     ) -> Dict[str, Any]:
-        """Make a request to the OPNsense API with enhanced error handling and rate limiting.
+        """Make a request to the OPNsense API with comprehensive error handling and logging.
 
         Args:
             method: HTTP method (GET, POST, etc.)
             endpoint: API endpoint (e.g., "/core/firmware/status")
             data: Request payload for POST requests
             params: Query parameters for GET requests
+            operation: Name of operation for logging/error context
+            timeout: Request timeout in seconds
+            retry_config: Configuration for retry mechanism
 
         Returns:
             Response from the API as a dictionary
 
         Raises:
+            ValidationError: For invalid input parameters
             AuthenticationError: If authentication fails (401)
-            APIError: If API returns an error status
-            NetworkError: If network communication fails
-            RateLimitError: If rate limit is exceeded
+            AuthorizationError: If authorization fails (403)
+            ResourceNotFoundError: For not found errors (404)
+            RateLimitError: If rate limit is exceeded (429)
+            APIError: For other HTTP errors
+            NetworkError: For network connection issues
+            TimeoutError: For request timeouts
         """
+        # Validate inputs
+        if not method or not endpoint:
+            raise ValidationError("Method and endpoint are required",
+                                context={"method": method, "endpoint": endpoint})
+
+        if method.upper() not in ["GET", "POST", "PUT", "DELETE", "PATCH"]:
+            raise ValidationError(f"Unsupported HTTP method: {method}",
+                                context={"method": method})
+
         # Apply rate limiting if pool is available
         if self.pool:
             await self.pool.check_rate_limit()
@@ -370,71 +638,90 @@ class OPNsenseClient:
             "User-Agent": "OPNsense-MCP-Server/1.0"
         }
 
-        try:
-            logger.debug(f"Making {method} request to {endpoint}")
+        # Log the request
+        request_logger.log_request(method, url, headers, data, operation)
+        start_time = datetime.utcnow()
 
-            if method.upper() == "GET":
-                response = await self.client.get(url, headers=headers, params=params)
-            elif method.upper() == "POST":
-                response = await self.client.post(url, headers=headers, json=data)
-            elif method.upper() == "DELETE":
-                response = await self.client.delete(url, headers=headers)
-            elif method.upper() == "PUT":
-                response = await self.client.put(url, headers=headers, json=data)
-            else:
-                raise ValueError(f"Unsupported HTTP method: {method}")
-
-            # Enhanced error handling
+        async def _make_request():
+            """Internal request function for retry mechanism."""
             try:
-                response.raise_for_status()
-            except httpx.HTTPStatusError as e:
-                if e.response.status_code == 401:
-                    raise AuthenticationError(
-                        "Authentication failed. Check API credentials.",
-                        {"endpoint": endpoint, "status_code": 401}
-                    )
-                elif e.response.status_code == 403:
-                    raise AuthenticationError(
-                        "Access forbidden. Check API permissions.",
-                        {"endpoint": endpoint, "status_code": 403}
-                    )
-                elif e.response.status_code == 404:
-                    raise APIError(
-                        f"API endpoint not found: {endpoint}",
-                        e.response.status_code,
-                        e.response.text
-                    )
-                elif e.response.status_code == 429:
-                    raise RateLimitError(
-                        "API rate limit exceeded. Please slow down requests.",
-                        {"endpoint": endpoint, "retry_after": e.response.headers.get("Retry-After")}
-                    )
-                else:
-                    raise APIError(
-                        f"API request failed with status {e.response.status_code}",
-                        e.response.status_code,
-                        e.response.text
-                    )
+                if method.upper() == "GET":
+                    response = await self.client.get(url, headers=headers, params=params, timeout=timeout)
+                elif method.upper() == "POST":
+                    response = await self.client.post(url, headers=headers, json=data, timeout=timeout)
+                elif method.upper() == "PUT":
+                    response = await self.client.put(url, headers=headers, json=data, timeout=timeout)
+                elif method.upper() == "DELETE":
+                    response = await self.client.delete(url, headers=headers, params=params, timeout=timeout)
+                elif method.upper() == "PATCH":
+                    response = await self.client.patch(url, headers=headers, json=data, timeout=timeout)
 
-            # Parse response
-            try:
-                return response.json()
-            except ValueError as e:
-                raise APIError(
-                    f"Invalid JSON response from {endpoint}: {str(e)}",
-                    response.status_code,
-                    response.text
-                )
+                # Calculate response time
+                duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                response_size = len(response.content) if response.content else 0
 
-        except httpx.ConnectError as e:
-            raise NetworkError(f"Cannot connect to OPNsense at {self.base_url}: {str(e)}")
-        except httpx.TimeoutException as e:
-            raise NetworkError(f"Request timeout for {endpoint}: {str(e)}")
-        except httpx.RequestError as e:
-            raise NetworkError(f"Network error for {endpoint}: {str(e)}")
-        except Exception as e:
-            logger.error(f"Unexpected error in request to {endpoint}: {str(e)}", exc_info=True)
-            raise
+                # Handle HTTP errors with proper exception mapping
+                if response.status_code == 401:
+                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
+                    raise AuthenticationError("Authentication failed - invalid API credentials",
+                                            context={"status_code": 401, "endpoint": endpoint})
+                elif response.status_code == 403:
+                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
+                    raise AuthorizationError("Access denied - insufficient permissions",
+                                           context={"status_code": 403, "endpoint": endpoint})
+                elif response.status_code == 404:
+                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
+                    raise ResourceNotFoundError(f"Resource not found: {endpoint}",
+                                              context={"status_code": 404, "endpoint": endpoint})
+                elif response.status_code == 429:
+                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
+                    raise RateLimitError("API rate limit exceeded",
+                                       context={"status_code": 429, "endpoint": endpoint, "retry_after": response.headers.get("Retry-After")})
+                elif not (200 <= response.status_code < 300):
+                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
+                    try:
+                        error_data = response.json()
+                    except:
+                        error_data = {"error": response.text}
+
+                    raise APIError(f"API error: {response.status_code}",
+                                 status_code=response.status_code,
+                                 response_text=response.text)
+
+                # Parse JSON response
+                try:
+                    result = response.json()
+                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
+                    return result
+                except json.JSONDecodeError as e:
+                    request_logger.log_response(response.status_code, response_size, duration_ms, operation, e)
+                    raise APIError(f"Invalid JSON response from OPNsense API: {str(e)}",
+                                 status_code=response.status_code,
+                                 response_text=response.text)
+
+            except httpx.TimeoutException as e:
+                duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                request_logger.log_response(0, 0, duration_ms, operation, e)
+                raise TimeoutError(f"Request timed out after {timeout}s",
+                                 context={"timeout": timeout, "endpoint": endpoint})
+
+            except httpx.ConnectError as e:
+                duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                request_logger.log_response(0, 0, duration_ms, operation, e)
+                raise NetworkError(f"Cannot connect to OPNsense at {self.base_url}",
+                                    context={"base_url": self.base_url, "endpoint": endpoint, "error": str(e)})
+
+            except httpx.RequestError as e:
+                duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
+                request_logger.log_response(0, 0, duration_ms, operation, e)
+                raise NetworkError(f"Network error: {str(e)}",
+                                    context={"endpoint": endpoint, "error": str(e)})
+
+        # Use retry mechanism if configured
+        if retry_config:
+            return await retry_with_backoff(_make_request, retry_config=retry_config)
+        else:
+            return await _make_request()
 
 
 # Initialize MCP server
@@ -443,6 +730,84 @@ mcp = FastMCP("OPNsense MCP Server", description="Manage OPNsense firewalls via 
 
 # Initialize server state management
 server_state = ServerState()
+
+
+# ========== ERROR HANDLING HELPERS ==========
+
+async def handle_tool_error(ctx: Context, operation: str, error: Exception, severity: ErrorSeverity = ErrorSeverity.MEDIUM) -> str:
+    """Centralized error handling for MCP tools.
+
+    Args:
+        ctx: MCP context for error reporting
+        operation: Name of the operation that failed
+        error: The exception that occurred
+        severity: Severity level of the error
+
+    Returns:
+        User-friendly error message
+    """
+    error_response = ErrorResponse(error, operation, severity)
+
+    # Log technical details
+    technical_details = error_response.get_technical_details()
+    logger.error(f"Tool error in {operation}: {json.dumps(technical_details, indent=2)}")
+
+    # Report error to MCP context
+    user_message = error_response.get_user_message()
+    await ctx.error(user_message)
+
+    return f"Error: {user_message}"
+
+
+def validate_uuid(uuid: str, operation: str) -> None:
+    """Validate UUID format.
+
+    Args:
+        uuid: UUID string to validate
+        operation: Operation name for error context
+
+    Raises:
+        ValidationError: If UUID format is invalid
+    """
+    import re
+    uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+    if not uuid_pattern.match(uuid):
+        raise ValidationError(
+            f"Invalid UUID format: {uuid}",
+            context={"uuid": uuid, "operation": operation, "expected_format": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}
+        )
+
+
+def validate_firewall_parameters(action: str, direction: str, ipprotocol: str, protocol: str, operation: str) -> None:
+    """Validate common firewall rule parameters.
+
+    Args:
+        action: Rule action (pass, block, reject)
+        direction: Traffic direction (in, out)
+        ipprotocol: IP protocol (inet, inet6)
+        protocol: Transport protocol (tcp, udp, icmp, any)
+        operation: Operation name for error context
+
+    Raises:
+        ValidationError: If any parameter is invalid
+    """
+    valid_actions = ["pass", "block", "reject"]
+    valid_directions = ["in", "out"]
+    valid_ipprotocols = ["inet", "inet6"]
+    valid_protocols = ["tcp", "udp", "icmp", "any"]
+
+    if action not in valid_actions:
+        raise ValidationError(f"Invalid action '{action}'. Must be one of: {valid_actions}",
+                            context={"operation": operation, "parameter": "action", "value": action})
+    if direction not in valid_directions:
+        raise ValidationError(f"Invalid direction '{direction}'. Must be one of: {valid_directions}",
+                            context={"operation": operation, "parameter": "direction", "value": direction})
+    if ipprotocol not in valid_ipprotocols:
+        raise ValidationError(f"Invalid IP protocol '{ipprotocol}'. Must be one of: {valid_ipprotocols}",
+                            context={"operation": operation, "parameter": "ipprotocol", "value": ipprotocol})
+    if protocol not in valid_protocols:
+        raise ValidationError(f"Invalid protocol '{protocol}'. Must be one of: {valid_protocols}",
+                            context={"operation": operation, "parameter": "protocol", "value": protocol})
 
 
 async def get_opnsense_client() -> OPNsenseClient:
@@ -595,8 +960,8 @@ async def firewall_add_rule(
     destination_port: str = "",
     enabled: bool = True
 ) -> str:
-    """Add a new firewall rule.
-    
+    """Add a new firewall rule with comprehensive validation and error handling.
+
     Args:
         ctx: MCP context
         description: Rule description
@@ -604,19 +969,32 @@ async def firewall_add_rule(
         interface: Network interface
         direction: Traffic direction (in, out)
         ipprotocol: IP protocol (inet for IPv4, inet6 for IPv6)
-        protocol: Transport protocol (tcp, udp, any)
+        protocol: Transport protocol (tcp, udp, icmp, any)
         source_net: Source network/host
         destination_net: Destination network/host
         destination_port: Destination port(s)
         enabled: Whether the rule is enabled
-        
+
     Returns:
         JSON string with the result
     """
-    if not opnsense_client:
-        return "OPNsense client not initialized. Please configure the server first."
-    
     try:
+        client = await get_opnsense_client()
+
+        # Validate firewall rule parameters
+        validate_firewall_parameters(action, direction, ipprotocol, protocol, "firewall_add_rule")
+
+        # Validate description
+        if not description or len(description.strip()) == 0:
+            raise ValidationError("Rule description is required",
+                                context={"operation": "firewall_add_rule", "parameter": "description"})
+
+        # Additional validation for specific protocols and ports
+        if protocol in ["tcp", "udp"] and destination_port and not destination_port.replace("-", "").replace(",", "").replace(" ", "").isdigit():
+            # Simple port validation - could be enhanced
+            if not all(part.strip().isdigit() or "-" in part for part in destination_port.split(",")):
+                raise ValidationError(f"Invalid port format: {destination_port}",
+                                    context={"operation": "firewall_add_rule", "parameter": "destination_port", "value": destination_port})
         # Prepare rule data
         rule_data = {
             "rule": {
@@ -652,47 +1030,48 @@ async def firewall_add_rule(
             "apply_result": apply_result
         }, indent=2)
     except Exception as e:
-        logger.error(f"Error in firewall_add_rule: {str(e)}", exc_info=True)
-        await ctx.error(f"Error adding firewall rule: {str(e)}")
-        return f"Error: {str(e)}"
+        return await handle_tool_error(ctx, "firewall_add_rule", e, ErrorSeverity.HIGH)
 
 
 @mcp.tool(name="firewall_delete_rule", description="Delete a firewall rule by UUID")
 async def firewall_delete_rule(ctx: Context, uuid: str) -> str:
-    """Delete a firewall rule by UUID.
-    
+    """Delete a firewall rule by UUID with enhanced validation and error handling.
+
     Args:
         ctx: MCP context
         uuid: UUID of the rule to delete
-        
+
     Returns:
         JSON string with the result
     """
-    if not opnsense_client:
-        return "OPNsense client not initialized. Please configure the server first."
-    
     try:
+        client = await get_opnsense_client()
+
+        # Validate UUID format
+        validate_uuid(uuid, "firewall_delete_rule")
         # Delete the rule
-        delete_result = await opnsense_client.request(
+        delete_result = await client.request(
             "POST",
-            f"{API_FIREWALL_FILTER_DEL_RULE}/{uuid}"
+            f"{API_FIREWALL_FILTER_DEL_RULE}/{uuid}",
+            operation="delete_firewall_rule"
         )
-        
-        # Apply changes
+
+        # Apply changes with retry for reliability
         await ctx.info("Rule deleted, applying changes...")
-        apply_result = await opnsense_client.request(
+        retry_config = RetryConfig(max_attempts=2, base_delay=1.0)
+        apply_result = await client.request(
             "POST",
-            API_FIREWALL_FILTER_APPLY
+            API_FIREWALL_FILTER_APPLY,
+            operation="apply_firewall_changes",
+            retry_config=retry_config
         )
-        
+
         return json.dumps({
             "delete_result": delete_result,
             "apply_result": apply_result
         }, indent=2)
     except Exception as e:
-        logger.error(f"Error in firewall_delete_rule (uuid: {uuid}): {str(e)}", exc_info=True)
-        await ctx.error(f"Error deleting firewall rule: {str(e)}")
-        return f"Error: {str(e)}"
+        return await handle_tool_error(ctx, "firewall_delete_rule", e, ErrorSeverity.HIGH)
 
 
 @mcp.tool(name="firewall_toggle_rule", description="Enable or disable a firewall rule")
@@ -1824,6 +2203,1463 @@ async def nat_get_port_forward_info(ctx: Context) -> str:
 
 
 # --- End NAT Management ---
+
+
+# ========== TRAFFIC SHAPING AND QoS MANAGEMENT ==========
+
+@mcp.tool(name="traffic_shaper_get_status", description="Get traffic shaper service status and statistics")
+async def traffic_shaper_get_status(ctx: Context) -> str:
+    """Get traffic shaper service status and detailed statistics.
+
+    Args:
+        ctx: MCP context
+
+    Returns:
+        JSON string containing traffic shaper status and statistics
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Get service status and statistics
+        statistics_response = await client.request("GET", API_TRAFFICSHAPER_SERVICE_STATISTICS, operation="get_traffic_shaper_statistics")
+
+        return json.dumps(statistics_response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_get_status", e)
+
+
+@mcp.tool(name="traffic_shaper_reconfigure", description="Apply traffic shaper configuration changes")
+async def traffic_shaper_reconfigure(ctx: Context) -> str:
+    """Reconfigure and apply all traffic shaper changes.
+
+    This should be called after making configuration changes to pipes, queues, or rules
+    to ensure the changes take effect.
+
+    Args:
+        ctx: MCP context
+
+    Returns:
+        JSON string with reconfiguration status
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Reconfigure the traffic shaper service
+        response = await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_traffic_shaper")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_reconfigure", e)
+
+
+@mcp.tool(name="traffic_shaper_get_settings", description="Get general traffic shaper settings and configuration")
+async def traffic_shaper_get_settings(ctx: Context) -> str:
+    """Get general traffic shaper settings and configuration.
+
+    Args:
+        ctx: MCP context
+
+    Returns:
+        JSON string with general traffic shaper settings
+    """
+    try:
+        client = await get_opnsense_client()
+
+        response = await client.request("GET", API_TRAFFICSHAPER_SETTINGS_GET, operation="get_traffic_shaper_settings")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_get_settings", e)
+
+
+# ========== PIPE MANAGEMENT ==========
+
+@mcp.tool(name="traffic_shaper_list_pipes", description="List all traffic shaper pipes with optional filtering")
+async def traffic_shaper_list_pipes(ctx: Context) -> str:
+    """List all traffic shaper pipes with their configurations.
+
+    Args:
+        ctx: MCP context
+
+    Returns:
+        JSON string with list of all pipes
+    """
+    try:
+        client = await get_opnsense_client()
+
+        response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_SEARCH_PIPES, operation="search_traffic_shaper_pipes")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_list_pipes", e)
+
+
+@mcp.tool(name="traffic_shaper_get_pipe", description="Get details of a specific traffic shaper pipe")
+async def traffic_shaper_get_pipe(ctx: Context, pipe_uuid: Optional[str] = None) -> str:
+    """Get details of a specific traffic shaper pipe or all pipes.
+
+    Args:
+        ctx: MCP context
+        pipe_uuid: UUID of specific pipe to retrieve (optional - if not provided, returns all pipes)
+
+    Returns:
+        JSON string with pipe details
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID if provided
+        if pipe_uuid:
+            validate_uuid(pipe_uuid, "pipe_uuid")
+            endpoint = f"{API_TRAFFICSHAPER_SETTINGS_GET_PIPE}/{pipe_uuid}"
+        else:
+            endpoint = API_TRAFFICSHAPER_SETTINGS_GET_PIPE
+
+        response = await client.request("GET", endpoint, operation="get_traffic_shaper_pipe")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_get_pipe", e)
+
+
+@mcp.tool(name="traffic_shaper_create_pipe", description="Create a new traffic shaper pipe for bandwidth limiting")
+async def traffic_shaper_create_pipe(
+    ctx: Context,
+    bandwidth: int,
+    bandwidth_metric: str = "Mbit/s",
+    queue_size: int = 50,
+    scheduler: str = "FIFO",
+    description: str = "",
+    enabled: bool = True
+) -> str:
+    """Create a new traffic shaper pipe with specified bandwidth limits.
+
+    Args:
+        ctx: MCP context
+        bandwidth: Bandwidth limit (positive integer)
+        bandwidth_metric: Bandwidth unit (bit/s, Kbit/s, Mbit/s, Gbit/s)
+        queue_size: Queue size in slots (2-100)
+        scheduler: Scheduler algorithm (FIFO, DRR, QFQ, FQ-CoDel, FQ-PIE)
+        description: Description for the pipe
+        enabled: Whether the pipe should be enabled
+
+    Returns:
+        JSON string with creation result and new pipe UUID
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate parameters
+        if bandwidth <= 0:
+            raise ValidationError("Bandwidth must be a positive integer",
+                                context={"bandwidth": bandwidth})
+
+        if bandwidth_metric not in ["bit/s", "Kbit/s", "Mbit/s", "Gbit/s"]:
+            raise ValidationError("Invalid bandwidth metric",
+                                context={"bandwidth_metric": bandwidth_metric,
+                                       "valid_options": ["bit/s", "Kbit/s", "Mbit/s", "Gbit/s"]})
+
+        if not (2 <= queue_size <= 100):
+            raise ValidationError("Queue size must be between 2 and 100",
+                                context={"queue_size": queue_size})
+
+        if scheduler not in ["FIFO", "DRR", "QFQ", "FQ-CoDel", "FQ-PIE"]:
+            raise ValidationError("Invalid scheduler",
+                                context={"scheduler": scheduler,
+                                       "valid_options": ["FIFO", "DRR", "QFQ", "FQ-CoDel", "FQ-PIE"]})
+
+        # Prepare pipe data
+        pipe_data = {
+            "pipe": {
+                "enabled": "1" if enabled else "0",
+                "bandwidth": str(bandwidth),
+                "bandwidthMetric": bandwidth_metric,
+                "queue": str(queue_size),
+                "scheduler": scheduler,
+                "description": description
+            }
+        }
+
+        # Create the pipe
+        response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_PIPE,
+                                      data=pipe_data, operation="create_traffic_shaper_pipe")
+
+        # Apply configuration if creation was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_pipe_create")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_create_pipe", e)
+
+
+@mcp.tool(name="traffic_shaper_update_pipe", description="Update an existing traffic shaper pipe configuration")
+async def traffic_shaper_update_pipe(
+    ctx: Context,
+    pipe_uuid: str,
+    bandwidth: Optional[int] = None,
+    bandwidth_metric: Optional[str] = None,
+    queue_size: Optional[int] = None,
+    scheduler: Optional[str] = None,
+    description: Optional[str] = None,
+    enabled: Optional[bool] = None
+) -> str:
+    """Update an existing traffic shaper pipe configuration.
+
+    Args:
+        ctx: MCP context
+        pipe_uuid: UUID of the pipe to update
+        bandwidth: Bandwidth limit (positive integer, optional)
+        bandwidth_metric: Bandwidth unit (bit/s, Kbit/s, Mbit/s, Gbit/s, optional)
+        queue_size: Queue size in slots (2-100, optional)
+        scheduler: Scheduler algorithm (FIFO, DRR, QFQ, FQ-CoDel, FQ-PIE, optional)
+        description: Description for the pipe (optional)
+        enabled: Whether the pipe should be enabled (optional)
+
+    Returns:
+        JSON string with update result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(pipe_uuid, "pipe_uuid")
+
+        # Get current pipe configuration
+        current_pipe_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_PIPE}/{pipe_uuid}",
+                                                   operation="get_pipe_for_update")
+
+        if "pipe" not in current_pipe_response:
+            raise ResourceNotFoundError(f"Pipe with UUID {pipe_uuid} not found")
+
+        current_pipe = current_pipe_response["pipe"]
+
+        # Update only provided fields
+        if bandwidth is not None:
+            if bandwidth <= 0:
+                raise ValidationError("Bandwidth must be a positive integer",
+                                    context={"bandwidth": bandwidth})
+            current_pipe["bandwidth"] = str(bandwidth)
+
+        if bandwidth_metric is not None:
+            if bandwidth_metric not in ["bit/s", "Kbit/s", "Mbit/s", "Gbit/s"]:
+                raise ValidationError("Invalid bandwidth metric",
+                                    context={"bandwidth_metric": bandwidth_metric})
+            current_pipe["bandwidthMetric"] = bandwidth_metric
+
+        if queue_size is not None:
+            if not (2 <= queue_size <= 100):
+                raise ValidationError("Queue size must be between 2 and 100",
+                                    context={"queue_size": queue_size})
+            current_pipe["queue"] = str(queue_size)
+
+        if scheduler is not None:
+            if scheduler not in ["FIFO", "DRR", "QFQ", "FQ-CoDel", "FQ-PIE"]:
+                raise ValidationError("Invalid scheduler",
+                                    context={"scheduler": scheduler})
+            current_pipe["scheduler"] = scheduler
+
+        if description is not None:
+            current_pipe["description"] = description
+
+        if enabled is not None:
+            current_pipe["enabled"] = "1" if enabled else "0"
+
+        # Prepare update data
+        pipe_data = {"pipe": current_pipe}
+
+        # Update the pipe
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_SET_PIPE}/{pipe_uuid}",
+                                      data=pipe_data, operation="update_traffic_shaper_pipe")
+
+        # Apply configuration if update was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_pipe_update")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_update_pipe", e)
+
+
+@mcp.tool(name="traffic_shaper_delete_pipe", description="Delete a traffic shaper pipe")
+async def traffic_shaper_delete_pipe(ctx: Context, pipe_uuid: str) -> str:
+    """Delete a traffic shaper pipe.
+
+    Note: This will also delete any queues and rules that reference this pipe.
+
+    Args:
+        ctx: MCP context
+        pipe_uuid: UUID of the pipe to delete
+
+    Returns:
+        JSON string with deletion result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(pipe_uuid, "pipe_uuid")
+
+        # Delete the pipe
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_DEL_PIPE}/{pipe_uuid}",
+                                      operation="delete_traffic_shaper_pipe")
+
+        # Apply configuration if deletion was successful
+        if response.get("result") == "deleted":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_pipe_delete")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_delete_pipe", e)
+
+
+@mcp.tool(name="traffic_shaper_toggle_pipe", description="Enable or disable a traffic shaper pipe")
+async def traffic_shaper_toggle_pipe(ctx: Context, pipe_uuid: str, enabled: bool) -> str:
+    """Enable or disable a traffic shaper pipe.
+
+    Args:
+        ctx: MCP context
+        pipe_uuid: UUID of the pipe to toggle
+        enabled: True to enable, False to disable
+
+    Returns:
+        JSON string with toggle result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(pipe_uuid, "pipe_uuid")
+
+        # Toggle the pipe
+        enabled_int = 1 if enabled else 0
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_TOGGLE_PIPE}/{pipe_uuid}/{enabled_int}",
+                                      operation="toggle_traffic_shaper_pipe")
+
+        # Apply configuration if toggle was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_pipe_toggle")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_toggle_pipe", e)
+
+
+# ========== QUEUE MANAGEMENT ==========
+
+@mcp.tool(name="traffic_shaper_list_queues", description="List all traffic shaper queues with optional filtering")
+async def traffic_shaper_list_queues(ctx: Context) -> str:
+    """List all traffic shaper queues with their configurations.
+
+    Args:
+        ctx: MCP context
+
+    Returns:
+        JSON string with list of all queues
+    """
+    try:
+        client = await get_opnsense_client()
+
+        response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_SEARCH_QUEUES, operation="search_traffic_shaper_queues")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_list_queues", e)
+
+
+@mcp.tool(name="traffic_shaper_get_queue", description="Get details of a specific traffic shaper queue")
+async def traffic_shaper_get_queue(ctx: Context, queue_uuid: Optional[str] = None) -> str:
+    """Get details of a specific traffic shaper queue or all queues.
+
+    Args:
+        ctx: MCP context
+        queue_uuid: UUID of specific queue to retrieve (optional - if not provided, returns all queues)
+
+    Returns:
+        JSON string with queue details
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID if provided
+        if queue_uuid:
+            validate_uuid(queue_uuid, "queue_uuid")
+            endpoint = f"{API_TRAFFICSHAPER_SETTINGS_GET_QUEUE}/{queue_uuid}"
+        else:
+            endpoint = API_TRAFFICSHAPER_SETTINGS_GET_QUEUE
+
+        response = await client.request("GET", endpoint, operation="get_traffic_shaper_queue")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_get_queue", e)
+
+
+@mcp.tool(name="traffic_shaper_create_queue", description="Create a new traffic shaper queue for weighted bandwidth sharing")
+async def traffic_shaper_create_queue(
+    ctx: Context,
+    pipe_uuid: str,
+    weight: int = 10,
+    description: str = "",
+    enabled: bool = True
+) -> str:
+    """Create a new traffic shaper queue for weighted bandwidth sharing within a pipe.
+
+    Args:
+        ctx: MCP context
+        pipe_uuid: UUID of the parent pipe that this queue belongs to
+        weight: Weight for bandwidth allocation within pipe (1-100)
+        description: Description for the queue
+        enabled: Whether the queue should be enabled
+
+    Returns:
+        JSON string with creation result and new queue UUID
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate parameters
+        validate_uuid(pipe_uuid, "pipe_uuid")
+
+        if not (1 <= weight <= 100):
+            raise ValidationError("Weight must be between 1 and 100",
+                                context={"weight": weight})
+
+        # Verify the pipe exists
+        pipe_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_PIPE}/{pipe_uuid}",
+                                           operation="verify_pipe_exists")
+        if "pipe" not in pipe_response:
+            raise ResourceNotFoundError(f"Parent pipe with UUID {pipe_uuid} not found")
+
+        # Prepare queue data
+        queue_data = {
+            "queue": {
+                "enabled": "1" if enabled else "0",
+                "pipe": pipe_uuid,
+                "weight": str(weight),
+                "description": description
+            }
+        }
+
+        # Create the queue
+        response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE,
+                                      data=queue_data, operation="create_traffic_shaper_queue")
+
+        # Apply configuration if creation was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_queue_create")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_create_queue", e)
+
+
+@mcp.tool(name="traffic_shaper_update_queue", description="Update an existing traffic shaper queue configuration")
+async def traffic_shaper_update_queue(
+    ctx: Context,
+    queue_uuid: str,
+    pipe_uuid: Optional[str] = None,
+    weight: Optional[int] = None,
+    description: Optional[str] = None,
+    enabled: Optional[bool] = None
+) -> str:
+    """Update an existing traffic shaper queue configuration.
+
+    Args:
+        ctx: MCP context
+        queue_uuid: UUID of the queue to update
+        pipe_uuid: UUID of the parent pipe (optional)
+        weight: Weight for bandwidth allocation within pipe (1-100, optional)
+        description: Description for the queue (optional)
+        enabled: Whether the queue should be enabled (optional)
+
+    Returns:
+        JSON string with update result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUIDs
+        validate_uuid(queue_uuid, "queue_uuid")
+        if pipe_uuid:
+            validate_uuid(pipe_uuid, "pipe_uuid")
+
+        # Get current queue configuration
+        current_queue_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_QUEUE}/{queue_uuid}",
+                                                    operation="get_queue_for_update")
+
+        if "queue" not in current_queue_response:
+            raise ResourceNotFoundError(f"Queue with UUID {queue_uuid} not found")
+
+        current_queue = current_queue_response["queue"]
+
+        # Update only provided fields
+        if pipe_uuid is not None:
+            # Verify the new pipe exists
+            pipe_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_PIPE}/{pipe_uuid}",
+                                               operation="verify_new_pipe_exists")
+            if "pipe" not in pipe_response:
+                raise ResourceNotFoundError(f"Parent pipe with UUID {pipe_uuid} not found")
+            current_queue["pipe"] = pipe_uuid
+
+        if weight is not None:
+            if not (1 <= weight <= 100):
+                raise ValidationError("Weight must be between 1 and 100",
+                                    context={"weight": weight})
+            current_queue["weight"] = str(weight)
+
+        if description is not None:
+            current_queue["description"] = description
+
+        if enabled is not None:
+            current_queue["enabled"] = "1" if enabled else "0"
+
+        # Prepare update data
+        queue_data = {"queue": current_queue}
+
+        # Update the queue
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_SET_QUEUE}/{queue_uuid}",
+                                      data=queue_data, operation="update_traffic_shaper_queue")
+
+        # Apply configuration if update was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_queue_update")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_update_queue", e)
+
+
+@mcp.tool(name="traffic_shaper_delete_queue", description="Delete a traffic shaper queue")
+async def traffic_shaper_delete_queue(ctx: Context, queue_uuid: str) -> str:
+    """Delete a traffic shaper queue.
+
+    Note: This will also delete any rules that reference this queue.
+
+    Args:
+        ctx: MCP context
+        queue_uuid: UUID of the queue to delete
+
+    Returns:
+        JSON string with deletion result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(queue_uuid, "queue_uuid")
+
+        # Delete the queue
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_DEL_QUEUE}/{queue_uuid}",
+                                      operation="delete_traffic_shaper_queue")
+
+        # Apply configuration if deletion was successful
+        if response.get("result") == "deleted":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_queue_delete")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_delete_queue", e)
+
+
+@mcp.tool(name="traffic_shaper_toggle_queue", description="Enable or disable a traffic shaper queue")
+async def traffic_shaper_toggle_queue(ctx: Context, queue_uuid: str, enabled: bool) -> str:
+    """Enable or disable a traffic shaper queue.
+
+    Args:
+        ctx: MCP context
+        queue_uuid: UUID of the queue to toggle
+        enabled: True to enable, False to disable
+
+    Returns:
+        JSON string with toggle result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(queue_uuid, "queue_uuid")
+
+        # Toggle the queue
+        enabled_int = 1 if enabled else 0
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_TOGGLE_QUEUE}/{queue_uuid}/{enabled_int}",
+                                      operation="toggle_traffic_shaper_queue")
+
+        # Apply configuration if toggle was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_queue_toggle")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_toggle_queue", e)
+
+
+# ========== RULE MANAGEMENT ==========
+
+@mcp.tool(name="traffic_shaper_list_rules", description="List all traffic shaper rules with optional filtering")
+async def traffic_shaper_list_rules(ctx: Context) -> str:
+    """List all traffic shaper rules with their configurations.
+
+    Args:
+        ctx: MCP context
+
+    Returns:
+        JSON string with list of all rules
+    """
+    try:
+        client = await get_opnsense_client()
+
+        response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_SEARCH_RULES, operation="search_traffic_shaper_rules")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_list_rules", e)
+
+
+@mcp.tool(name="traffic_shaper_get_rule", description="Get details of a specific traffic shaper rule")
+async def traffic_shaper_get_rule(ctx: Context, rule_uuid: Optional[str] = None) -> str:
+    """Get details of a specific traffic shaper rule or all rules.
+
+    Args:
+        ctx: MCP context
+        rule_uuid: UUID of specific rule to retrieve (optional - if not provided, returns all rules)
+
+    Returns:
+        JSON string with rule details
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID if provided
+        if rule_uuid:
+            validate_uuid(rule_uuid, "rule_uuid")
+            endpoint = f"{API_TRAFFICSHAPER_SETTINGS_GET_RULE}/{rule_uuid}"
+        else:
+            endpoint = API_TRAFFICSHAPER_SETTINGS_GET_RULE
+
+        response = await client.request("GET", endpoint, operation="get_traffic_shaper_rule")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_get_rule", e)
+
+
+@mcp.tool(name="traffic_shaper_create_rule", description="Create a new traffic shaper rule to apply QoS policies")
+async def traffic_shaper_create_rule(
+    ctx: Context,
+    target_uuid: str,
+    interface: str,
+    protocol: str = "IP",
+    source: str = "any",
+    destination: str = "any",
+    sequence: int = 1,
+    description: str = "",
+    enabled: bool = True
+) -> str:
+    """Create a new traffic shaper rule to apply QoS policies to specific traffic flows.
+
+    Args:
+        ctx: MCP context
+        target_uuid: UUID of the target pipe or queue to apply traffic shaping
+        interface: Interface name where rule applies (e.g., 'wan', 'lan')
+        protocol: Protocol to match (IP, TCP, UDP, ICMP, etc.)
+        source: Source network/address (default: 'any')
+        destination: Destination network/address (default: 'any')
+        sequence: Rule evaluation order (1-1000000)
+        description: Description for the rule
+        enabled: Whether the rule should be enabled
+
+    Returns:
+        JSON string with creation result and new rule UUID
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate parameters
+        validate_uuid(target_uuid, "target_uuid")
+
+        if not (1 <= sequence <= 1000000):
+            raise ValidationError("Sequence must be between 1 and 1000000",
+                                context={"sequence": sequence})
+
+        # Verify the target (pipe or queue) exists
+        target_exists = False
+        try:
+            pipe_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_PIPE}/{target_uuid}",
+                                               operation="verify_target_pipe")
+            if "pipe" in pipe_response:
+                target_exists = True
+        except ResourceNotFoundError:
+            pass
+
+        if not target_exists:
+            try:
+                queue_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_QUEUE}/{target_uuid}",
+                                                   operation="verify_target_queue")
+                if "queue" in queue_response:
+                    target_exists = True
+            except ResourceNotFoundError:
+                pass
+
+        if not target_exists:
+            raise ResourceNotFoundError(f"Target pipe or queue with UUID {target_uuid} not found")
+
+        # Prepare rule data
+        rule_data = {
+            "rule": {
+                "enabled": "1" if enabled else "0",
+                "sequence": str(sequence),
+                "interface": interface,
+                "protocol": protocol,
+                "source": source,
+                "destination": destination,
+                "target": target_uuid,
+                "description": description
+            }
+        }
+
+        # Create the rule
+        response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                      data=rule_data, operation="create_traffic_shaper_rule")
+
+        # Apply configuration if creation was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_rule_create")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_create_rule", e)
+
+
+@mcp.tool(name="traffic_shaper_update_rule", description="Update an existing traffic shaper rule configuration")
+async def traffic_shaper_update_rule(
+    ctx: Context,
+    rule_uuid: str,
+    target_uuid: Optional[str] = None,
+    interface: Optional[str] = None,
+    protocol: Optional[str] = None,
+    source: Optional[str] = None,
+    destination: Optional[str] = None,
+    sequence: Optional[int] = None,
+    description: Optional[str] = None,
+    enabled: Optional[bool] = None
+) -> str:
+    """Update an existing traffic shaper rule configuration.
+
+    Args:
+        ctx: MCP context
+        rule_uuid: UUID of the rule to update
+        target_uuid: UUID of the target pipe or queue (optional)
+        interface: Interface name (optional)
+        protocol: Protocol to match (optional)
+        source: Source network/address (optional)
+        destination: Destination network/address (optional)
+        sequence: Rule evaluation order (1-1000000, optional)
+        description: Description for the rule (optional)
+        enabled: Whether the rule should be enabled (optional)
+
+    Returns:
+        JSON string with update result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUIDs
+        validate_uuid(rule_uuid, "rule_uuid")
+        if target_uuid:
+            validate_uuid(target_uuid, "target_uuid")
+
+        # Get current rule configuration
+        current_rule_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_RULE}/{rule_uuid}",
+                                                   operation="get_rule_for_update")
+
+        if "rule" not in current_rule_response:
+            raise ResourceNotFoundError(f"Rule with UUID {rule_uuid} not found")
+
+        current_rule = current_rule_response["rule"]
+
+        # Update only provided fields
+        if target_uuid is not None:
+            # Verify the new target exists
+            target_exists = False
+            try:
+                pipe_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_PIPE}/{target_uuid}",
+                                                   operation="verify_new_target_pipe")
+                if "pipe" in pipe_response:
+                    target_exists = True
+            except ResourceNotFoundError:
+                pass
+
+            if not target_exists:
+                try:
+                    queue_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_QUEUE}/{target_uuid}",
+                                                        operation="verify_new_target_queue")
+                    if "queue" in queue_response:
+                        target_exists = True
+                except ResourceNotFoundError:
+                    pass
+
+            if not target_exists:
+                raise ResourceNotFoundError(f"Target pipe or queue with UUID {target_uuid} not found")
+
+            current_rule["target"] = target_uuid
+
+        if interface is not None:
+            current_rule["interface"] = interface
+
+        if protocol is not None:
+            current_rule["protocol"] = protocol
+
+        if source is not None:
+            current_rule["source"] = source
+
+        if destination is not None:
+            current_rule["destination"] = destination
+
+        if sequence is not None:
+            if not (1 <= sequence <= 1000000):
+                raise ValidationError("Sequence must be between 1 and 1000000",
+                                    context={"sequence": sequence})
+            current_rule["sequence"] = str(sequence)
+
+        if description is not None:
+            current_rule["description"] = description
+
+        if enabled is not None:
+            current_rule["enabled"] = "1" if enabled else "0"
+
+        # Prepare update data
+        rule_data = {"rule": current_rule}
+
+        # Update the rule
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_SET_RULE}/{rule_uuid}",
+                                      data=rule_data, operation="update_traffic_shaper_rule")
+
+        # Apply configuration if update was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_rule_update")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_update_rule", e)
+
+
+@mcp.tool(name="traffic_shaper_delete_rule", description="Delete a traffic shaper rule")
+async def traffic_shaper_delete_rule(ctx: Context, rule_uuid: str) -> str:
+    """Delete a traffic shaper rule.
+
+    Args:
+        ctx: MCP context
+        rule_uuid: UUID of the rule to delete
+
+    Returns:
+        JSON string with deletion result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(rule_uuid, "rule_uuid")
+
+        # Delete the rule
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_DEL_RULE}/{rule_uuid}",
+                                      operation="delete_traffic_shaper_rule")
+
+        # Apply configuration if deletion was successful
+        if response.get("result") == "deleted":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_rule_delete")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_delete_rule", e)
+
+
+@mcp.tool(name="traffic_shaper_toggle_rule", description="Enable or disable a traffic shaper rule")
+async def traffic_shaper_toggle_rule(ctx: Context, rule_uuid: str, enabled: bool) -> str:
+    """Enable or disable a traffic shaper rule.
+
+    Args:
+        ctx: MCP context
+        rule_uuid: UUID of the rule to toggle
+        enabled: True to enable, False to disable
+
+    Returns:
+        JSON string with toggle result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(rule_uuid, "rule_uuid")
+
+        # Toggle the rule
+        enabled_int = 1 if enabled else 0
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_TOGGLE_RULE}/{rule_uuid}/{enabled_int}",
+                                      operation="toggle_traffic_shaper_rule")
+
+        # Apply configuration if toggle was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_rule_toggle")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_toggle_rule", e)
+
+
+# ========== COMMON QOS USE CASE HELPERS ==========
+
+@mcp.tool(name="traffic_shaper_limit_user_bandwidth", description="Helper to create per-user bandwidth limiting setup")
+async def traffic_shaper_limit_user_bandwidth(
+    ctx: Context,
+    user_ip: str,
+    download_limit_mbps: int,
+    upload_limit_mbps: int,
+    interface: str = "lan",
+    description: str = ""
+) -> str:
+    """Helper tool to quickly set up per-user bandwidth limiting.
+
+    This creates a complete bandwidth limiting setup for a specific user:
+    - Download pipe (for traffic TO the user)
+    - Upload pipe (for traffic FROM the user)
+    - Download rule (targeting user as destination)
+    - Upload rule (targeting user as source)
+
+    Args:
+        ctx: MCP context
+        user_ip: IP address of the user to limit
+        download_limit_mbps: Download bandwidth limit in Mbps
+        upload_limit_mbps: Upload bandwidth limit in Mbps
+        interface: Interface where rules apply (default: 'lan')
+        description: Description prefix for created objects
+
+    Returns:
+        JSON string with created objects (pipes and rules)
+    """
+    try:
+        client = await get_opnsense_client()
+        results = {
+            "download_pipe": None,
+            "upload_pipe": None,
+            "download_rule": None,
+            "upload_rule": None
+        }
+
+        desc_prefix = description or f"User {user_ip} bandwidth limit"
+
+        # Create download pipe (traffic TO user)
+        download_pipe_data = {
+            "pipe": {
+                "enabled": "1",
+                "bandwidth": str(download_limit_mbps),
+                "bandwidthMetric": "Mbit/s",
+                "queue": "50",
+                "scheduler": "FQ-CoDel",
+                "description": f"{desc_prefix} - Download"
+            }
+        }
+
+        download_pipe_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_PIPE,
+                                                    data=download_pipe_data, operation="create_user_download_pipe")
+        results["download_pipe"] = download_pipe_response
+
+        # Create upload pipe (traffic FROM user)
+        upload_pipe_data = {
+            "pipe": {
+                "enabled": "1",
+                "bandwidth": str(upload_limit_mbps),
+                "bandwidthMetric": "Mbit/s",
+                "queue": "50",
+                "scheduler": "FQ-CoDel",
+                "description": f"{desc_prefix} - Upload"
+            }
+        }
+
+        upload_pipe_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_PIPE,
+                                                  data=upload_pipe_data, operation="create_user_upload_pipe")
+        results["upload_pipe"] = upload_pipe_response
+
+        # Get the UUIDs of the created pipes
+        download_pipe_uuid = download_pipe_response.get("uuid")
+        upload_pipe_uuid = upload_pipe_response.get("uuid")
+
+        if download_pipe_uuid and upload_pipe_uuid:
+            # Create download rule (traffic TO user as destination)
+            download_rule_data = {
+                "rule": {
+                    "enabled": "1",
+                    "sequence": "1000",
+                    "interface": interface,
+                    "protocol": "IP",
+                    "source": "any",
+                    "destination": user_ip,
+                    "target": download_pipe_uuid,
+                    "description": f"{desc_prefix} - Download Rule"
+                }
+            }
+
+            download_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                        data=download_rule_data, operation="create_user_download_rule")
+            results["download_rule"] = download_rule_response
+
+            # Create upload rule (traffic FROM user as source)
+            upload_rule_data = {
+                "rule": {
+                    "enabled": "1",
+                    "sequence": "1001",
+                    "interface": interface,
+                    "protocol": "IP",
+                    "source": user_ip,
+                    "destination": "any",
+                    "target": upload_pipe_uuid,
+                    "description": f"{desc_prefix} - Upload Rule"
+                }
+            }
+
+            upload_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                      data=upload_rule_data, operation="create_user_upload_rule")
+            results["upload_rule"] = upload_rule_response
+
+        # Apply configuration
+        await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_user_bandwidth_setup")
+
+        return json.dumps(results, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_limit_user_bandwidth", e)
+
+
+@mcp.tool(name="traffic_shaper_prioritize_voip", description="Helper to set up VoIP traffic prioritization")
+async def traffic_shaper_prioritize_voip(
+    ctx: Context,
+    total_bandwidth_mbps: int,
+    voip_bandwidth_mbps: int,
+    voip_ports: str = "5060,10000-20000",
+    interface: str = "wan"
+) -> str:
+    """Helper tool to set up VoIP traffic prioritization with guaranteed bandwidth.
+
+    This creates a complete VoIP QoS setup:
+    - Main bandwidth pipe for total connection
+    - High-priority queue for VoIP traffic
+    - Best-effort queue for other traffic
+    - Rules to classify VoIP traffic by port
+
+    Args:
+        ctx: MCP context
+        total_bandwidth_mbps: Total connection bandwidth in Mbps
+        voip_bandwidth_mbps: Guaranteed bandwidth for VoIP in Mbps
+        voip_ports: VoIP ports to prioritize (default: SIP + RTP range)
+        interface: Interface where rules apply (default: 'wan')
+
+    Returns:
+        JSON string with created objects (pipe, queues, rules)
+    """
+    try:
+        client = await get_opnsense_client()
+        results = {
+            "main_pipe": None,
+            "voip_queue": None,
+            "data_queue": None,
+            "voip_rule": None,
+            "data_rule": None
+        }
+
+        # Create main pipe with total bandwidth
+        main_pipe_data = {
+            "pipe": {
+                "enabled": "1",
+                "bandwidth": str(total_bandwidth_mbps),
+                "bandwidthMetric": "Mbit/s",
+                "queue": "100",
+                "scheduler": "FQ-CoDel",
+                "description": "VoIP Main Bandwidth Pipe"
+            }
+        }
+
+        main_pipe_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_PIPE,
+                                                data=main_pipe_data, operation="create_voip_main_pipe")
+        results["main_pipe"] = main_pipe_response
+        main_pipe_uuid = main_pipe_response.get("uuid")
+
+        if main_pipe_uuid:
+            # Create high-priority VoIP queue (weight 90)
+            voip_queue_data = {
+                "queue": {
+                    "enabled": "1",
+                    "pipe": main_pipe_uuid,
+                    "weight": "90",
+                    "description": f"VoIP Priority Queue ({voip_bandwidth_mbps} Mbps guaranteed)"
+                }
+            }
+
+            voip_queue_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE,
+                                                     data=voip_queue_data, operation="create_voip_priority_queue")
+            results["voip_queue"] = voip_queue_response
+            voip_queue_uuid = voip_queue_response.get("uuid")
+
+            # Create best-effort data queue (weight 10)
+            data_queue_data = {
+                "queue": {
+                    "enabled": "1",
+                    "pipe": main_pipe_uuid,
+                    "weight": "10",
+                    "description": "Best Effort Data Queue"
+                }
+            }
+
+            data_queue_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE,
+                                                     data=data_queue_data, operation="create_data_best_effort_queue")
+            results["data_queue"] = data_queue_response
+            data_queue_uuid = data_queue_response.get("uuid")
+
+            if voip_queue_uuid and data_queue_uuid:
+                # Create VoIP rule (high priority - sequence 100)
+                voip_rule_data = {
+                    "rule": {
+                        "enabled": "1",
+                        "sequence": "100",
+                        "interface": interface,
+                        "protocol": "UDP",
+                        "source": "any",
+                        "destination": f"any:{voip_ports}",
+                        "target": voip_queue_uuid,
+                        "description": f"VoIP Traffic Priority (ports {voip_ports})"
+                    }
+                }
+
+                voip_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                        data=voip_rule_data, operation="create_voip_priority_rule")
+                results["voip_rule"] = voip_rule_response
+
+                # Create catch-all data rule (low priority - sequence 9999)
+                data_rule_data = {
+                    "rule": {
+                        "enabled": "1",
+                        "sequence": "9999",
+                        "interface": interface,
+                        "protocol": "IP",
+                        "source": "any",
+                        "destination": "any",
+                        "target": data_queue_uuid,
+                        "description": "Default Data Traffic (Best Effort)"
+                    }
+                }
+
+                data_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                        data=data_rule_data, operation="create_data_best_effort_rule")
+                results["data_rule"] = data_rule_response
+
+        # Apply configuration
+        await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_voip_setup")
+
+        return json.dumps(results, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_prioritize_voip", e)
+
+
+@mcp.tool(name="traffic_shaper_setup_gaming_priority", description="Helper to optimize traffic for gaming")
+async def traffic_shaper_setup_gaming_priority(
+    ctx: Context,
+    total_bandwidth_mbps: int,
+    gaming_ports: str = "3478-3480,27000-27050",
+    interface: str = "wan"
+) -> str:
+    """Helper tool to set up gaming traffic optimization with low latency priority.
+
+    This creates a gaming-optimized QoS setup:
+    - Main bandwidth pipe with optimized scheduler
+    - High-priority queue for gaming traffic (low latency)
+    - Medium-priority queue for interactive traffic
+    - Low-priority queue for bulk downloads
+    - Rules to classify traffic appropriately
+
+    Args:
+        ctx: MCP context
+        total_bandwidth_mbps: Total connection bandwidth in Mbps
+        gaming_ports: Gaming ports to prioritize (default: Steam, Xbox Live, etc.)
+        interface: Interface where rules apply (default: 'wan')
+
+    Returns:
+        JSON string with created objects (pipe, queues, rules)
+    """
+    try:
+        client = await get_opnsense_client()
+        results = {
+            "main_pipe": None,
+            "gaming_queue": None,
+            "interactive_queue": None,
+            "bulk_queue": None,
+            "gaming_rule": None,
+            "interactive_rule": None,
+            "bulk_rule": None
+        }
+
+        # Create main pipe optimized for gaming (low latency scheduler)
+        main_pipe_data = {
+            "pipe": {
+                "enabled": "1",
+                "bandwidth": str(total_bandwidth_mbps),
+                "bandwidthMetric": "Mbit/s",
+                "queue": "25",  # Smaller queue for lower latency
+                "scheduler": "FQ-CoDel",  # Best for gaming latency
+                "description": "Gaming Optimized Main Pipe"
+            }
+        }
+
+        main_pipe_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_PIPE,
+                                                data=main_pipe_data, operation="create_gaming_main_pipe")
+        results["main_pipe"] = main_pipe_response
+        main_pipe_uuid = main_pipe_response.get("uuid")
+
+        if main_pipe_uuid:
+            # Create gaming queue (weight 70 - highest priority)
+            gaming_queue_data = {
+                "queue": {
+                    "enabled": "1",
+                    "pipe": main_pipe_uuid,
+                    "weight": "70",
+                    "description": "Gaming Traffic - Highest Priority"
+                }
+            }
+
+            gaming_queue_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE,
+                                                       data=gaming_queue_data, operation="create_gaming_priority_queue")
+            results["gaming_queue"] = gaming_queue_response
+            gaming_queue_uuid = gaming_queue_response.get("uuid")
+
+            # Create interactive queue (weight 25 - medium priority for web, SSH, etc.)
+            interactive_queue_data = {
+                "queue": {
+                    "enabled": "1",
+                    "pipe": main_pipe_uuid,
+                    "weight": "25",
+                    "description": "Interactive Traffic - Medium Priority"
+                }
+            }
+
+            interactive_queue_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE,
+                                                            data=interactive_queue_data, operation="create_interactive_priority_queue")
+            results["interactive_queue"] = interactive_queue_response
+            interactive_queue_uuid = interactive_queue_response.get("uuid")
+
+            # Create bulk download queue (weight 5 - lowest priority)
+            bulk_queue_data = {
+                "queue": {
+                    "enabled": "1",
+                    "pipe": main_pipe_uuid,
+                    "weight": "5",
+                    "description": "Bulk Downloads - Lowest Priority"
+                }
+            }
+
+            bulk_queue_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE,
+                                                     data=bulk_queue_data, operation="create_bulk_download_queue")
+            results["bulk_queue"] = bulk_queue_response
+            bulk_queue_uuid = bulk_queue_response.get("uuid")
+
+            if gaming_queue_uuid and interactive_queue_uuid and bulk_queue_uuid:
+                # Create gaming rule (highest priority - sequence 50)
+                gaming_rule_data = {
+                    "rule": {
+                        "enabled": "1",
+                        "sequence": "50",
+                        "interface": interface,
+                        "protocol": "UDP",
+                        "source": "any",
+                        "destination": f"any:{gaming_ports}",
+                        "target": gaming_queue_uuid,
+                        "description": f"Gaming Traffic Priority (ports {gaming_ports})"
+                    }
+                }
+
+                gaming_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                          data=gaming_rule_data, operation="create_gaming_priority_rule")
+                results["gaming_rule"] = gaming_rule_response
+
+                # Create interactive rule (medium priority - sequence 500)
+                interactive_rule_data = {
+                    "rule": {
+                        "enabled": "1",
+                        "sequence": "500",
+                        "interface": interface,
+                        "protocol": "TCP",
+                        "source": "any",
+                        "destination": "any:22,53,80,443",
+                        "target": interactive_queue_uuid,
+                        "description": "Interactive Traffic (SSH, DNS, HTTP, HTTPS)"
+                    }
+                }
+
+                interactive_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                               data=interactive_rule_data, operation="create_interactive_priority_rule")
+                results["interactive_rule"] = interactive_rule_response
+
+                # Create bulk download rule (lowest priority - sequence 9999)
+                bulk_rule_data = {
+                    "rule": {
+                        "enabled": "1",
+                        "sequence": "9999",
+                        "interface": interface,
+                        "protocol": "IP",
+                        "source": "any",
+                        "destination": "any",
+                        "target": bulk_queue_uuid,
+                        "description": "Bulk Downloads and Default Traffic"
+                    }
+                }
+
+                bulk_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                        data=bulk_rule_data, operation="create_bulk_download_rule")
+                results["bulk_rule"] = bulk_rule_response
+
+        # Apply configuration
+        await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_gaming_setup")
+
+        return json.dumps(results, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_setup_gaming_priority", e)
+
+
+@mcp.tool(name="traffic_shaper_create_guest_limits", description="Helper to set up guest network bandwidth limitations")
+async def traffic_shaper_create_guest_limits(
+    ctx: Context,
+    guest_network: str,
+    max_bandwidth_mbps: int,
+    per_user_limit_mbps: Optional[int] = None,
+    interface: str = "lan"
+) -> str:
+    """Helper tool to set up bandwidth limitations for guest networks.
+
+    This creates guest network QoS setup:
+    - Total bandwidth pipe for the entire guest network
+    - Per-user limitation queue (if specified)
+    - Rules to apply limits to guest network traffic
+
+    Args:
+        ctx: MCP context
+        guest_network: Guest network CIDR (e.g., "192.168.100.0/24")
+        max_bandwidth_mbps: Maximum total bandwidth for guest network in Mbps
+        per_user_limit_mbps: Optional per-user bandwidth limit in Mbps
+        interface: Interface where rules apply (default: 'lan')
+
+    Returns:
+        JSON string with created objects (pipes, queues, rules)
+    """
+    try:
+        client = await get_opnsense_client()
+        results = {
+            "guest_pipe": None,
+            "guest_queue": None,
+            "guest_download_rule": None,
+            "guest_upload_rule": None
+        }
+
+        # Create main guest network pipe
+        guest_pipe_data = {
+            "pipe": {
+                "enabled": "1",
+                "bandwidth": str(max_bandwidth_mbps),
+                "bandwidthMetric": "Mbit/s",
+                "queue": "50",
+                "scheduler": "FQ-CoDel",
+                "description": f"Guest Network Bandwidth Limit ({guest_network})"
+            }
+        }
+
+        guest_pipe_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_PIPE,
+                                                 data=guest_pipe_data, operation="create_guest_network_pipe")
+        results["guest_pipe"] = guest_pipe_response
+        guest_pipe_uuid = guest_pipe_response.get("uuid")
+
+        target_uuid = guest_pipe_uuid
+
+        # If per-user limits are specified, create a queue
+        if per_user_limit_mbps and guest_pipe_uuid:
+            guest_queue_data = {
+                "queue": {
+                    "enabled": "1",
+                    "pipe": guest_pipe_uuid,
+                    "weight": "50",
+                    "description": f"Guest Per-User Queue ({per_user_limit_mbps} Mbps limit)"
+                }
+            }
+
+            guest_queue_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE,
+                                                       data=guest_queue_data, operation="create_guest_user_queue")
+            results["guest_queue"] = guest_queue_response
+            target_uuid = guest_queue_response.get("uuid") or guest_pipe_uuid
+
+        if target_uuid:
+            # Create guest download rule (traffic TO guest network)
+            guest_download_rule_data = {
+                "rule": {
+                    "enabled": "1",
+                    "sequence": "200",
+                    "interface": interface,
+                    "protocol": "IP",
+                    "source": "any",
+                    "destination": guest_network,
+                    "target": target_uuid,
+                    "description": f"Guest Network Download Limit ({guest_network})"
+                }
+            }
+
+            guest_download_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                              data=guest_download_rule_data, operation="create_guest_download_rule")
+            results["guest_download_rule"] = guest_download_rule_response
+
+            # Create guest upload rule (traffic FROM guest network)
+            guest_upload_rule_data = {
+                "rule": {
+                    "enabled": "1",
+                    "sequence": "201",
+                    "interface": interface,
+                    "protocol": "IP",
+                    "source": guest_network,
+                    "destination": "any",
+                    "target": target_uuid,
+                    "description": f"Guest Network Upload Limit ({guest_network})"
+                }
+            }
+
+            guest_upload_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                             data=guest_upload_rule_data, operation="create_guest_upload_rule")
+            results["guest_upload_rule"] = guest_upload_rule_response
+
+        # Apply configuration
+        await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_guest_setup")
+
+        return json.dumps(results, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_create_guest_limits", e)
+
+
+# --- End Traffic Shaping and QoS Management ---
 
 
 # Entry point
