@@ -71,6 +71,10 @@ docker-compose up -d
 - **Firewall**: `firewall_get_rules`, `firewall_add_rule`, `firewall_delete_rule`, `firewall_toggle_rule`
 - **Network**: `get_interfaces`, `get_dhcp_leases`, `get_system_routes`
 - **Aliases**: `get_firewall_aliases`, `add_to_alias`, `delete_from_alias`
+- **NAT Management**:
+  - **Outbound NAT**: `nat_list_outbound_rules`, `nat_add_outbound_rule`, `nat_delete_outbound_rule`, `nat_toggle_outbound_rule`
+  - **One-to-One NAT**: `nat_list_one_to_one_rules`, `nat_add_one_to_one_rule`, `nat_delete_one_to_one_rule`
+  - **Port Forwarding Info**: `nat_get_port_forward_info` (explains current limitations)
 - **Services**: `restart_service`, `list_plugins`, `install_plugin`
 - **VPN**: `get_vpn_connections` (OpenVPN, IPsec, WireGuard)
 - **Logs**: `get_firewall_logs`
@@ -79,7 +83,9 @@ docker-compose up -d
 - **Custom**: `exec_api_call` for arbitrary API endpoints
 
 ### Security Audit Feature
+
 The `perform_firewall_audit` tool performs automated security checks:
+
 - Firmware/plugin update status
 - WAN management access exposure
 - Overly permissive firewall rules
