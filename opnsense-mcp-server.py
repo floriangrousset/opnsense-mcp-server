@@ -2554,6 +2554,579 @@ async def traffic_shaper_toggle_pipe(ctx: Context, pipe_uuid: str, enabled: bool
         return await handle_tool_error(ctx, "traffic_shaper_toggle_pipe", e)
 
 
+# ========== QUEUE MANAGEMENT ==========
+
+@mcp.tool(name="traffic_shaper_list_queues", description="List all traffic shaper queues with optional filtering")
+async def traffic_shaper_list_queues(ctx: Context) -> str:
+    """List all traffic shaper queues with their configurations.
+
+    Args:
+        ctx: MCP context
+
+    Returns:
+        JSON string with list of all queues
+    """
+    try:
+        client = await get_opnsense_client()
+
+        response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_SEARCH_QUEUES, operation="search_traffic_shaper_queues")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_list_queues", e)
+
+
+@mcp.tool(name="traffic_shaper_get_queue", description="Get details of a specific traffic shaper queue")
+async def traffic_shaper_get_queue(ctx: Context, queue_uuid: Optional[str] = None) -> str:
+    """Get details of a specific traffic shaper queue or all queues.
+
+    Args:
+        ctx: MCP context
+        queue_uuid: UUID of specific queue to retrieve (optional - if not provided, returns all queues)
+
+    Returns:
+        JSON string with queue details
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID if provided
+        if queue_uuid:
+            validate_uuid(queue_uuid, "queue_uuid")
+            endpoint = f"{API_TRAFFICSHAPER_SETTINGS_GET_QUEUE}/{queue_uuid}"
+        else:
+            endpoint = API_TRAFFICSHAPER_SETTINGS_GET_QUEUE
+
+        response = await client.request("GET", endpoint, operation="get_traffic_shaper_queue")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_get_queue", e)
+
+
+@mcp.tool(name="traffic_shaper_create_queue", description="Create a new traffic shaper queue for weighted bandwidth sharing")
+async def traffic_shaper_create_queue(
+    ctx: Context,
+    pipe_uuid: str,
+    weight: int = 10,
+    description: str = "",
+    enabled: bool = True
+) -> str:
+    """Create a new traffic shaper queue for weighted bandwidth sharing within a pipe.
+
+    Args:
+        ctx: MCP context
+        pipe_uuid: UUID of the parent pipe that this queue belongs to
+        weight: Weight for bandwidth allocation within pipe (1-100)
+        description: Description for the queue
+        enabled: Whether the queue should be enabled
+
+    Returns:
+        JSON string with creation result and new queue UUID
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate parameters
+        validate_uuid(pipe_uuid, "pipe_uuid")
+
+        if not (1 <= weight <= 100):
+            raise ValidationError("Weight must be between 1 and 100",
+                                context={"weight": weight})
+
+        # Verify the pipe exists
+        pipe_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_PIPE}/{pipe_uuid}",
+                                           operation="verify_pipe_exists")
+        if "pipe" not in pipe_response:
+            raise ResourceNotFoundError(f"Parent pipe with UUID {pipe_uuid} not found")
+
+        # Prepare queue data
+        queue_data = {
+            "queue": {
+                "enabled": "1" if enabled else "0",
+                "pipe": pipe_uuid,
+                "weight": str(weight),
+                "description": description
+            }
+        }
+
+        # Create the queue
+        response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE,
+                                      data=queue_data, operation="create_traffic_shaper_queue")
+
+        # Apply configuration if creation was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_queue_create")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_create_queue", e)
+
+
+@mcp.tool(name="traffic_shaper_update_queue", description="Update an existing traffic shaper queue configuration")
+async def traffic_shaper_update_queue(
+    ctx: Context,
+    queue_uuid: str,
+    pipe_uuid: Optional[str] = None,
+    weight: Optional[int] = None,
+    description: Optional[str] = None,
+    enabled: Optional[bool] = None
+) -> str:
+    """Update an existing traffic shaper queue configuration.
+
+    Args:
+        ctx: MCP context
+        queue_uuid: UUID of the queue to update
+        pipe_uuid: UUID of the parent pipe (optional)
+        weight: Weight for bandwidth allocation within pipe (1-100, optional)
+        description: Description for the queue (optional)
+        enabled: Whether the queue should be enabled (optional)
+
+    Returns:
+        JSON string with update result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUIDs
+        validate_uuid(queue_uuid, "queue_uuid")
+        if pipe_uuid:
+            validate_uuid(pipe_uuid, "pipe_uuid")
+
+        # Get current queue configuration
+        current_queue_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_QUEUE}/{queue_uuid}",
+                                                    operation="get_queue_for_update")
+
+        if "queue" not in current_queue_response:
+            raise ResourceNotFoundError(f"Queue with UUID {queue_uuid} not found")
+
+        current_queue = current_queue_response["queue"]
+
+        # Update only provided fields
+        if pipe_uuid is not None:
+            # Verify the new pipe exists
+            pipe_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_PIPE}/{pipe_uuid}",
+                                               operation="verify_new_pipe_exists")
+            if "pipe" not in pipe_response:
+                raise ResourceNotFoundError(f"Parent pipe with UUID {pipe_uuid} not found")
+            current_queue["pipe"] = pipe_uuid
+
+        if weight is not None:
+            if not (1 <= weight <= 100):
+                raise ValidationError("Weight must be between 1 and 100",
+                                    context={"weight": weight})
+            current_queue["weight"] = str(weight)
+
+        if description is not None:
+            current_queue["description"] = description
+
+        if enabled is not None:
+            current_queue["enabled"] = "1" if enabled else "0"
+
+        # Prepare update data
+        queue_data = {"queue": current_queue}
+
+        # Update the queue
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_SET_QUEUE}/{queue_uuid}",
+                                      data=queue_data, operation="update_traffic_shaper_queue")
+
+        # Apply configuration if update was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_queue_update")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_update_queue", e)
+
+
+@mcp.tool(name="traffic_shaper_delete_queue", description="Delete a traffic shaper queue")
+async def traffic_shaper_delete_queue(ctx: Context, queue_uuid: str) -> str:
+    """Delete a traffic shaper queue.
+
+    Note: This will also delete any rules that reference this queue.
+
+    Args:
+        ctx: MCP context
+        queue_uuid: UUID of the queue to delete
+
+    Returns:
+        JSON string with deletion result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(queue_uuid, "queue_uuid")
+
+        # Delete the queue
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_DEL_QUEUE}/{queue_uuid}",
+                                      operation="delete_traffic_shaper_queue")
+
+        # Apply configuration if deletion was successful
+        if response.get("result") == "deleted":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_queue_delete")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_delete_queue", e)
+
+
+@mcp.tool(name="traffic_shaper_toggle_queue", description="Enable or disable a traffic shaper queue")
+async def traffic_shaper_toggle_queue(ctx: Context, queue_uuid: str, enabled: bool) -> str:
+    """Enable or disable a traffic shaper queue.
+
+    Args:
+        ctx: MCP context
+        queue_uuid: UUID of the queue to toggle
+        enabled: True to enable, False to disable
+
+    Returns:
+        JSON string with toggle result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(queue_uuid, "queue_uuid")
+
+        # Toggle the queue
+        enabled_int = 1 if enabled else 0
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_TOGGLE_QUEUE}/{queue_uuid}/{enabled_int}",
+                                      operation="toggle_traffic_shaper_queue")
+
+        # Apply configuration if toggle was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_queue_toggle")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_toggle_queue", e)
+
+
+# ========== RULE MANAGEMENT ==========
+
+@mcp.tool(name="traffic_shaper_list_rules", description="List all traffic shaper rules with optional filtering")
+async def traffic_shaper_list_rules(ctx: Context) -> str:
+    """List all traffic shaper rules with their configurations.
+
+    Args:
+        ctx: MCP context
+
+    Returns:
+        JSON string with list of all rules
+    """
+    try:
+        client = await get_opnsense_client()
+
+        response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_SEARCH_RULES, operation="search_traffic_shaper_rules")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_list_rules", e)
+
+
+@mcp.tool(name="traffic_shaper_get_rule", description="Get details of a specific traffic shaper rule")
+async def traffic_shaper_get_rule(ctx: Context, rule_uuid: Optional[str] = None) -> str:
+    """Get details of a specific traffic shaper rule or all rules.
+
+    Args:
+        ctx: MCP context
+        rule_uuid: UUID of specific rule to retrieve (optional - if not provided, returns all rules)
+
+    Returns:
+        JSON string with rule details
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID if provided
+        if rule_uuid:
+            validate_uuid(rule_uuid, "rule_uuid")
+            endpoint = f"{API_TRAFFICSHAPER_SETTINGS_GET_RULE}/{rule_uuid}"
+        else:
+            endpoint = API_TRAFFICSHAPER_SETTINGS_GET_RULE
+
+        response = await client.request("GET", endpoint, operation="get_traffic_shaper_rule")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_get_rule", e)
+
+
+@mcp.tool(name="traffic_shaper_create_rule", description="Create a new traffic shaper rule to apply QoS policies")
+async def traffic_shaper_create_rule(
+    ctx: Context,
+    target_uuid: str,
+    interface: str,
+    protocol: str = "IP",
+    source: str = "any",
+    destination: str = "any",
+    sequence: int = 1,
+    description: str = "",
+    enabled: bool = True
+) -> str:
+    """Create a new traffic shaper rule to apply QoS policies to specific traffic flows.
+
+    Args:
+        ctx: MCP context
+        target_uuid: UUID of the target pipe or queue to apply traffic shaping
+        interface: Interface name where rule applies (e.g., 'wan', 'lan')
+        protocol: Protocol to match (IP, TCP, UDP, ICMP, etc.)
+        source: Source network/address (default: 'any')
+        destination: Destination network/address (default: 'any')
+        sequence: Rule evaluation order (1-1000000)
+        description: Description for the rule
+        enabled: Whether the rule should be enabled
+
+    Returns:
+        JSON string with creation result and new rule UUID
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate parameters
+        validate_uuid(target_uuid, "target_uuid")
+
+        if not (1 <= sequence <= 1000000):
+            raise ValidationError("Sequence must be between 1 and 1000000",
+                                context={"sequence": sequence})
+
+        # Verify the target (pipe or queue) exists
+        target_exists = False
+        try:
+            pipe_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_PIPE}/{target_uuid}",
+                                               operation="verify_target_pipe")
+            if "pipe" in pipe_response:
+                target_exists = True
+        except ResourceNotFoundError:
+            pass
+
+        if not target_exists:
+            try:
+                queue_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_QUEUE}/{target_uuid}",
+                                                   operation="verify_target_queue")
+                if "queue" in queue_response:
+                    target_exists = True
+            except ResourceNotFoundError:
+                pass
+
+        if not target_exists:
+            raise ResourceNotFoundError(f"Target pipe or queue with UUID {target_uuid} not found")
+
+        # Prepare rule data
+        rule_data = {
+            "rule": {
+                "enabled": "1" if enabled else "0",
+                "sequence": str(sequence),
+                "interface": interface,
+                "protocol": protocol,
+                "source": source,
+                "destination": destination,
+                "target": target_uuid,
+                "description": description
+            }
+        }
+
+        # Create the rule
+        response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                      data=rule_data, operation="create_traffic_shaper_rule")
+
+        # Apply configuration if creation was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_rule_create")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_create_rule", e)
+
+
+@mcp.tool(name="traffic_shaper_update_rule", description="Update an existing traffic shaper rule configuration")
+async def traffic_shaper_update_rule(
+    ctx: Context,
+    rule_uuid: str,
+    target_uuid: Optional[str] = None,
+    interface: Optional[str] = None,
+    protocol: Optional[str] = None,
+    source: Optional[str] = None,
+    destination: Optional[str] = None,
+    sequence: Optional[int] = None,
+    description: Optional[str] = None,
+    enabled: Optional[bool] = None
+) -> str:
+    """Update an existing traffic shaper rule configuration.
+
+    Args:
+        ctx: MCP context
+        rule_uuid: UUID of the rule to update
+        target_uuid: UUID of the target pipe or queue (optional)
+        interface: Interface name (optional)
+        protocol: Protocol to match (optional)
+        source: Source network/address (optional)
+        destination: Destination network/address (optional)
+        sequence: Rule evaluation order (1-1000000, optional)
+        description: Description for the rule (optional)
+        enabled: Whether the rule should be enabled (optional)
+
+    Returns:
+        JSON string with update result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUIDs
+        validate_uuid(rule_uuid, "rule_uuid")
+        if target_uuid:
+            validate_uuid(target_uuid, "target_uuid")
+
+        # Get current rule configuration
+        current_rule_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_RULE}/{rule_uuid}",
+                                                   operation="get_rule_for_update")
+
+        if "rule" not in current_rule_response:
+            raise ResourceNotFoundError(f"Rule with UUID {rule_uuid} not found")
+
+        current_rule = current_rule_response["rule"]
+
+        # Update only provided fields
+        if target_uuid is not None:
+            # Verify the new target exists
+            target_exists = False
+            try:
+                pipe_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_PIPE}/{target_uuid}",
+                                                   operation="verify_new_target_pipe")
+                if "pipe" in pipe_response:
+                    target_exists = True
+            except ResourceNotFoundError:
+                pass
+
+            if not target_exists:
+                try:
+                    queue_response = await client.request("GET", f"{API_TRAFFICSHAPER_SETTINGS_GET_QUEUE}/{target_uuid}",
+                                                        operation="verify_new_target_queue")
+                    if "queue" in queue_response:
+                        target_exists = True
+                except ResourceNotFoundError:
+                    pass
+
+            if not target_exists:
+                raise ResourceNotFoundError(f"Target pipe or queue with UUID {target_uuid} not found")
+
+            current_rule["target"] = target_uuid
+
+        if interface is not None:
+            current_rule["interface"] = interface
+
+        if protocol is not None:
+            current_rule["protocol"] = protocol
+
+        if source is not None:
+            current_rule["source"] = source
+
+        if destination is not None:
+            current_rule["destination"] = destination
+
+        if sequence is not None:
+            if not (1 <= sequence <= 1000000):
+                raise ValidationError("Sequence must be between 1 and 1000000",
+                                    context={"sequence": sequence})
+            current_rule["sequence"] = str(sequence)
+
+        if description is not None:
+            current_rule["description"] = description
+
+        if enabled is not None:
+            current_rule["enabled"] = "1" if enabled else "0"
+
+        # Prepare update data
+        rule_data = {"rule": current_rule}
+
+        # Update the rule
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_SET_RULE}/{rule_uuid}",
+                                      data=rule_data, operation="update_traffic_shaper_rule")
+
+        # Apply configuration if update was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_rule_update")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_update_rule", e)
+
+
+@mcp.tool(name="traffic_shaper_delete_rule", description="Delete a traffic shaper rule")
+async def traffic_shaper_delete_rule(ctx: Context, rule_uuid: str) -> str:
+    """Delete a traffic shaper rule.
+
+    Args:
+        ctx: MCP context
+        rule_uuid: UUID of the rule to delete
+
+    Returns:
+        JSON string with deletion result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(rule_uuid, "rule_uuid")
+
+        # Delete the rule
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_DEL_RULE}/{rule_uuid}",
+                                      operation="delete_traffic_shaper_rule")
+
+        # Apply configuration if deletion was successful
+        if response.get("result") == "deleted":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_rule_delete")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_delete_rule", e)
+
+
+@mcp.tool(name="traffic_shaper_toggle_rule", description="Enable or disable a traffic shaper rule")
+async def traffic_shaper_toggle_rule(ctx: Context, rule_uuid: str, enabled: bool) -> str:
+    """Enable or disable a traffic shaper rule.
+
+    Args:
+        ctx: MCP context
+        rule_uuid: UUID of the rule to toggle
+        enabled: True to enable, False to disable
+
+    Returns:
+        JSON string with toggle result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(rule_uuid, "rule_uuid")
+
+        # Toggle the rule
+        enabled_int = 1 if enabled else 0
+        response = await client.request("POST", f"{API_TRAFFICSHAPER_SETTINGS_TOGGLE_RULE}/{rule_uuid}/{enabled_int}",
+                                      operation="toggle_traffic_shaper_rule")
+
+        # Apply configuration if toggle was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_rule_toggle")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_toggle_rule", e)
+
+
 # Entry point
 if __name__ == "__main__":
     mcp.run()
