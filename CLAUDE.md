@@ -75,6 +75,13 @@ docker-compose up -d
   - **Outbound NAT**: `nat_list_outbound_rules`, `nat_add_outbound_rule`, `nat_delete_outbound_rule`, `nat_toggle_outbound_rule`
   - **One-to-One NAT**: `nat_list_one_to_one_rules`, `nat_add_one_to_one_rule`, `nat_delete_one_to_one_rule`
   - **Port Forwarding Info**: `nat_get_port_forward_info` (explains current limitations)
+- **User & Group Management**:
+  - **User CRUD**: `list_users`, `get_user`, `create_user`, `update_user`, `delete_user`, `toggle_user`
+  - **Group CRUD**: `list_groups`, `get_group`, `create_group`, `update_group`, `delete_group`
+  - **Group Membership**: `add_user_to_group`, `remove_user_from_group`
+  - **Authentication**: `list_privileges`, `get_user_effective_privileges`, `assign_privilege_to_user`, `revoke_privilege_from_user`
+  - **Auth Servers**: `list_auth_servers`, `test_user_authentication`
+  - **Helper Tools**: `create_admin_user`, `create_readonly_user`, `reset_user_password`, `bulk_user_creation`, `setup_user_group_template`
 - **Services**: `restart_service`, `list_plugins`, `install_plugin`
 - **VPN**: `get_vpn_connections` (OpenVPN, IPsec, WireGuard)
 - **Logs**: `get_firewall_logs`
@@ -91,6 +98,30 @@ The `perform_firewall_audit` tool performs automated security checks:
 - Overly permissive firewall rules
 - Insecure protocol usage
 - Logging configuration
+
+### User & Group Management
+
+Comprehensive user management system with RBAC (Role-Based Access Control) support:
+
+#### Core Features
+- **Full CRUD Operations**: Complete lifecycle management for users and groups
+- **Privilege System**: Fine-grained permission control with effective privilege calculation
+- **Group Membership**: Dynamic user-to-group assignment and removal
+- **Authentication Testing**: Validation against local and external auth servers (LDAP, RADIUS)
+
+#### Helper Tools for Common Scenarios
+- **`create_admin_user`**: One-step creation of administrative users with full system privileges
+- **`create_readonly_user`**: Creates monitoring users with predefined view-only permissions
+- **`reset_user_password`**: Secure password reset preserving all other user settings
+- **`bulk_user_creation`**: Template-driven mass user creation with JSON configuration
+- **`setup_user_group_template`**: Creates privilege groups for consistent role-based access
+
+#### Implementation Details
+- **UUID-based Resource Management**: All operations use OPNsense UUIDs for reliable identification
+- **Configuration Reload**: Automatic config reload after changes for immediate effect
+- **Error Handling**: Comprehensive validation with detailed error messages
+- **Duplicate Prevention**: Smart handling of redundant operations (already member, privilege already assigned)
+- **Effective Privileges**: Combines user and group privileges using set operations for accurate permission calculation
 
 ## Claude Desktop Integration
 
