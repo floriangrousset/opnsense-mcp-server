@@ -556,27 +556,60 @@ def validate_uuid(uuid: str, operation: str) -> None:
         )
 
 
+def validate_firewall_parameters(action: str, interface: str, direction: str,
+                               ipprotocol: str, protocol: str, operation: str) -> None:
+    """Validate common firewall rule parameters.
+
+    Args:
+        action: Rule action (pass, block, reject)
+        interface: Network interface
+        direction: Traffic direction (in, out)
+        ipprotocol: IP protocol (inet, inet6)
+        protocol: Transport protocol (tcp, udp, icmp, any)
+        operation: Operation name for error context
+
+    Raises:
+        ValidationError: If any parameter is invalid
+    """
+    valid_actions = ["pass", "block", "reject"]
+    valid_directions = ["in", "out"]
+    valid_ipprotocols = ["inet", "inet6"]
+    valid_protocols = ["tcp", "udp", "icmp", "any"]
+
+    if action not in valid_actions:
+        raise ValidationError(f"Invalid action '{action}'. Must be one of: {valid_actions}",
+                            context={"operation": operation, "parameter": "action", "value": action})
+    if direction not in valid_directions:
+        raise ValidationError(f"Invalid direction '{direction}'. Must be one of: {valid_directions}",
+                            context={"operation": operation, "parameter": "direction", "value": direction})
+    if ipprotocol not in valid_ipprotocols:
+        raise ValidationError(f"Invalid IP protocol '{ipprotocol}'. Must be one of: {valid_ipprotocols}",
+                            context={"operation": operation, "parameter": "ipprotocol", "value": ipprotocol})
+    if protocol not in valid_protocols:
+        raise ValidationError(f"Invalid protocol '{protocol}'. Must be one of: {valid_protocols}",
+                            context={"operation": operation, "parameter": "protocol", "value": protocol})
+
+
 @mcp.tool(name="get_api_endpoints", description="List available API endpoints from OPNsense")
 async def get_api_endpoints(
     ctx: Context,
     module: Optional[str] = None
 ) -> str:
     """List available API endpoints from OPNsense.
-    
+
     Args:
         ctx: MCP context
         module: Optional module name to filter endpoints
-        
+
     Returns:
         JSON string of available endpoints
     """
-    if not opnsense_client:
-        return "OPNsense client not initialized. Please configure the server first."
-    
     try:
+        check_client_configured()
+
         # Get all available modules first
-        response = await opnsense_client.request("GET", API_CORE_MENU_GET_ITEMS)
-        
+        response = await opnsense_client.request("GET", API_CORE_MENU_GET_ITEMS, operation="get_api_endpoints")
+
         if module:
             # Filter endpoints by module if specified
             if module in response:
@@ -588,50 +621,49 @@ async def get_api_endpoints(
             # Return all modules and endpoints
             return json.dumps(response, indent=2)
     except Exception as e:
-        logger.error(f"Error in get_api_endpoints: {str(e)}", exc_info=True)
-        await ctx.error(f"Error fetching API endpoints: {str(e)}")
-        return f"Error: {str(e)}"
+        return await handle_tool_error(ctx, "get_api_endpoints", e)
 
 
 @mcp.tool(name="get_system_status", description="Get OPNsense system status")
 async def get_system_status(ctx: Context) -> str:
     """Get OPNsense system status.
-    
+
     Args:
         ctx: MCP context
-        
+
     Returns:
         Formatted system status information
     """
-    if not opnsense_client:
-        return "OPNsense client not initialized. Please configure the server first."
-    
     try:
-        # Get firmware status
-        firmware = await opnsense_client.request("GET", API_CORE_FIRMWARE_STATUS)
-        
+        check_client_configured()
+
+        # Get firmware status with retry for resilience
+        retry_config = RetryConfig(max_attempts=2, base_delay=1.0)
+        firmware = await opnsense_client.request("GET", API_CORE_FIRMWARE_STATUS,
+                                                operation="get_firmware_status", retry_config=retry_config)
+
         # Get system information
-        system_info = await opnsense_client.request("GET", API_CORE_SYSTEM_INFO)
-        
+        system_info = await opnsense_client.request("GET", API_CORE_SYSTEM_INFO,
+                                                   operation="get_system_info")
+
         # Get service status
         services = await opnsense_client.request(
-            "POST", 
+            "POST",
             API_CORE_SERVICE_SEARCH,
-            data={"current": 1, "rowCount": -1, "searchPhrase": ""}
+            data={"current": 1, "rowCount": -1, "searchPhrase": ""},
+            operation="search_services"
         )
-        
+
         # Format and return the combined status
         status = {
             "firmware": firmware,
             "system": system_info,
             "services": services.get("rows", [])
         }
-        
+
         return json.dumps(status, indent=2)
     except Exception as e:
-        logger.error(f"Error in get_system_status: {str(e)}", exc_info=True)
-        await ctx.error(f"Error fetching system status: {str(e)}")
-        return f"Error: {str(e)}"
+        return await handle_tool_error(ctx, "get_system_status", e)
 
 
 @mcp.tool(name="firewall_get_rules", description="Get OPNsense firewall rules")
