@@ -82,9 +82,16 @@ docker-compose up -d
   - **Authentication**: `list_privileges`, `get_user_effective_privileges`, `assign_privilege_to_user`, `revoke_privilege_from_user`
   - **Auth Servers**: `list_auth_servers`, `test_user_authentication`
   - **Helper Tools**: `create_admin_user`, `create_readonly_user`, `reset_user_password`, `bulk_user_creation`, `setup_user_group_template`
+- **Logging & Log Management**:
+  - **Core Logging**: `get_system_logs`, `get_service_logs` (squid, haproxy, openvpn, ipsec, dhcp, dns)
+  - **Log Search**: `search_logs` (cross-log search with filtering)
+  - **Log Export**: `export_logs` (JSON, CSV, text formats with date ranges)
+  - **Log Statistics**: `get_log_statistics` (analysis with counts, patterns, trends)
+  - **Log Management**: `clear_logs`, `configure_logging` (levels, remote logging, rotation)
+  - **Security Analysis**: `analyze_security_events` (threat detection, pattern analysis)
+  - **Reporting**: `generate_log_report` (summary, detailed, security, compliance reports)
 - **Services**: `restart_service`, `list_plugins`, `install_plugin`
 - **VPN**: `get_vpn_connections` (OpenVPN, IPsec, WireGuard)
-- **Logs**: `get_firewall_logs`
 - **Backup**: `backup_config`
 - **Security**: `perform_firewall_audit`
 - **Custom**: `exec_api_call` for arbitrary API endpoints
@@ -122,6 +129,35 @@ Comprehensive user management system with RBAC (Role-Based Access Control) suppo
 - **Error Handling**: Comprehensive validation with detailed error messages
 - **Duplicate Prevention**: Smart handling of redundant operations (already member, privilege already assigned)
 - **Effective Privileges**: Combines user and group privileges using set operations for accurate permission calculation
+
+### Logging & Log Management
+
+Comprehensive logging system providing full visibility into OPNsense operations and security events:
+
+#### Core Logging Capabilities
+- **Multi-Source Log Access**: System, firewall, authentication, service-specific logs (DHCP, DNS, OpenVPN, IPsec, Squid, HAProxy)
+- **Advanced Filtering**: Severity levels, text filtering, date ranges, and cross-log search
+- **Real-time Analysis**: Live log streaming and pattern detection
+- **Export Functionality**: JSON, CSV, and text formats for external analysis
+
+#### Security & Analysis Tools
+- **`analyze_security_events`**: Automated threat detection for brute force attacks, port scans, failed authentication
+- **`search_logs`**: Cross-log search with case sensitivity controls and result limiting
+- **Pattern Recognition**: Built-in detection for security indicators and suspicious activities
+- **Statistical Analysis**: Entry counts, trends, and performance metrics across time periods
+
+#### Management & Configuration
+- **`configure_logging`**: Adjust log levels, enable remote syslog, configure rotation schedules
+- **`clear_logs`**: Secure log clearing with explicit confirmation requirements
+- **Compliance Reporting**: Generate reports for audit and compliance requirements
+- **Log Statistics**: Automated analysis of log volume, patterns, and system health
+
+#### Implementation Features
+- **API-First Design**: Uses native OPNsense logging APIs with intelligent fallbacks
+- **Graceful Degradation**: Falls back to log retrieval when specialized APIs unavailable
+- **Comprehensive Error Handling**: Validates parameters and provides clear error messages
+- **Security-Focused**: Built-in threat detection and high-risk indicator identification
+- **Scalable Architecture**: Handles large log volumes with pagination and limiting
 
 ## Claude Desktop Integration
 
