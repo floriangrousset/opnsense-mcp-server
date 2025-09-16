@@ -98,6 +98,12 @@ docker-compose up -d
   - **DNS Host Overrides**: `dns_resolver_list_host_overrides`, `dns_resolver_get_host_override`, `dns_resolver_add_host_override`, `dns_resolver_update_host_override`, `dns_resolver_delete_host_override`
   - **DNS Domain Overrides**: `dns_resolver_list_domain_overrides`, `dns_resolver_add_domain_override`
   - **DNS Forwarder (dnsmasq)**: `dns_forwarder_get_settings`, `dns_forwarder_set_settings`, `dns_forwarder_list_hosts`, `dns_forwarder_add_host`, `dns_forwarder_restart_service`
+- **Interface & VLAN Management**:
+  - **Interface Control**: `get_interface_details`, `reload_interface`, `export_interface_config`
+  - **VLAN Management**: `list_vlans`, `get_vlan`, `create_vlan_interface`, `update_vlan`, `delete_vlan`, `reconfigure_vlans`
+  - **Bridge Management**: `list_bridges`, `get_bridge`, `create_bridge`, `update_bridge`, `delete_bridge`
+  - **LAGG Management**: `list_lagg_interfaces`, `get_lagg`, `create_lagg`, `update_lagg`, `delete_lagg`, `reconfigure_lagg`
+  - **Virtual IP Management**: `list_virtual_ips`, `get_virtual_ip`, `create_virtual_ip`, `update_virtual_ip`, `delete_virtual_ip`, `reconfigure_virtual_ips`, `get_next_carp_vhid`
 - **Services**: `restart_service`, `list_plugins`, `install_plugin`
 - **VPN**: `get_vpn_connections` (OpenVPN, IPsec, WireGuard)
 - **Backup**: `backup_config`
@@ -199,6 +205,46 @@ Comprehensive network services management for DHCP server configuration and DNS 
 - **UUID Management**: Reliable resource identification for updates and deletions
 - **Comprehensive Validation**: Input validation and error handling for all operations
 - **Service Integration**: Seamless coordination between DHCP and DNS services
+
+### Interface & VLAN Management
+
+Comprehensive network interface management for physical interfaces, VLANs, bridges, LAGG, and virtual IPs:
+
+#### Interface Control
+- **Interface Details**: Detailed status and configuration information for specific interfaces
+- **Interface Reload**: On-demand interface reconfiguration and status refresh
+- **Configuration Export**: Export current interface configurations for backup/analysis
+
+#### VLAN Management
+- **VLAN CRUD Operations**: Complete lifecycle management for VLAN interfaces with tag validation (1-4094)
+- **Parent Interface Support**: Create VLANs on any physical or bridge interface
+- **Bulk Reconfiguration**: Apply all VLAN changes simultaneously for consistent network state
+
+#### Bridge Interface Management
+- **Bridge Creation**: Layer 2 bridge interfaces for network segmentation
+- **STP Support**: Spanning Tree Protocol configuration for loop prevention
+- **Member Management**: Add/remove physical and VLAN interfaces to bridges
+- **Advanced Settings**: Bridge priority, hello time, forward delay, max age configuration
+
+#### LAGG Interface Management
+- **Link Aggregation**: Combine multiple interfaces for redundancy and performance
+- **Protocol Support**: LACP, failover, loadbalance, roundrobin protocols
+- **Member Management**: Dynamic addition/removal of physical interfaces
+- **Load Balancing**: Advanced load balancing algorithms for optimal traffic distribution
+
+#### Virtual IP Management
+- **High Availability**: CARP (Common Address Redundancy Protocol) for failover
+- **Proxy ARP**: Transparent IP address handling for network services
+- **Auto-VHID Assignment**: Automatic CARP Virtual Host ID assignment with conflict detection
+- **Multi-Interface Support**: Virtual IPs across different network interfaces
+
+#### Implementation Features
+- **UUID-Based Management**: Reliable resource identification using OPNsense UUIDs
+- **Automatic Reconfiguration**: Configuration changes trigger automatic interface reload
+- **Comprehensive Validation**: VLAN tag ranges, protocol validation, IP address format checking
+- **Conflict Detection**: Prevents VLAN tag conflicts and CARP VHID collisions
+- **Graceful Error Handling**: Detailed error messages with context for troubleshooting
+- **Network Topology Awareness**: Understanding of interface relationships and dependencies
 
 ## Claude Desktop Integration
 
