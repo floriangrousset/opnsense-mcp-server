@@ -526,7 +526,10 @@ sudo yum install jq      # 🎩 RHEL/CentOS
 
 **🎊 That's it!** The script automatically:
 - ✅ Finds your Claude Desktop config
-- ✅ Adds the MCP server entry
+- ✅ **Smart Python detection** - Uses virtual environment (`.venv/bin/python`) if available
+- ✅ **Safe configuration** - Shows current vs new config before updating
+- ✅ **Automatic backups** - Creates timestamped backups before any changes
+- ✅ **Existing config detection** - Asks permission before overwriting existing entries
 - ✅ Creates proper file paths
 - ✅ Sets up everything perfectly
 
@@ -548,7 +551,7 @@ sudo yum install jq      # 🎩 RHEL/CentOS
 {
   "mcpServers": {
     "opnsense": {
-      "command": "python",
+      "command": "/FULL/PATH/TO/.venv/bin/python",
       "args": [
         "/FULL/PATH/TO/opnsense-mcp-server.py"
       ],
