@@ -511,6 +511,31 @@ API_FIREWALL_FILTER_BASE_APPLY = "/firewall/filter_base/apply"
 API_FIREWALL_FILTER_BASE_SAVEPOINT = "/firewall/filter_base/savepoint"
 API_FIREWALL_FILTER_BASE_REVERT = "/firewall/filter_base/revert"
 
+# ========== USER & GROUP MANAGEMENT API ENDPOINTS ==========
+
+# Core User Management
+API_CORE_USER_SEARCH = "/core/user/searchUser"
+API_CORE_USER_GET = "/core/user/getUser"  # Optional /{uuid}
+API_CORE_USER_ADD = "/core/user/addUser"
+API_CORE_USER_SET = "/core/user/setUser"  # Needs /{uuid}
+API_CORE_USER_DEL = "/core/user/delUser"  # Needs /{uuid}
+API_CORE_USER_TOGGLE = "/core/user/toggleUser"  # Needs /{uuid}/{enabled}
+
+# Core Group Management
+API_CORE_GROUP_SEARCH = "/core/group/searchGroup"
+API_CORE_GROUP_GET = "/core/group/getGroup"  # Optional /{uuid}
+API_CORE_GROUP_ADD = "/core/group/addGroup"
+API_CORE_GROUP_SET = "/core/group/setGroup"  # Needs /{uuid}
+API_CORE_GROUP_DEL = "/core/group/delGroup"  # Needs /{uuid}
+
+# Authentication & Privileges
+API_CORE_AUTH_PRIVILEGES = "/core/auth/privileges"
+API_CORE_AUTH_SERVERS = "/core/auth/authServers"
+API_CORE_AUTH_TEST = "/core/auth/testAuthentication"
+
+# Configuration Management
+API_CORE_CONFIG_RELOAD = "/core/config/reload"
+
 
 class OPNsenseClient:
     """Client for interacting with OPNsense API."""
@@ -2168,6 +2193,322 @@ async def nat_get_port_forward_info(ctx: Context) -> str:
 
 
 # --- End NAT Management ---
+
+
+# ========== USER MANAGEMENT ==========
+
+@mcp.tool(name="list_users", description="List all users in OPNsense")
+async def list_users(ctx: Context) -> str:
+    """List all users configured in OPNsense.
+
+    Args:
+        ctx: MCP context
+
+    Returns:
+        JSON string with list of all users
+    """
+    try:
+        client = await get_opnsense_client()
+
+        response = await client.request("POST", API_CORE_USER_SEARCH, operation="list_users")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "list_users", e)
+
+
+@mcp.tool(name="get_user", description="Get details of a specific user")
+async def get_user(ctx: Context, user_uuid: Optional[str] = None) -> str:
+    """Get details of a specific user or all users.
+
+    Args:
+        ctx: MCP context
+        user_uuid: UUID of specific user to retrieve (optional - if not provided, returns all users)
+
+    Returns:
+        JSON string with user details
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID if provided
+        if user_uuid:
+            validate_uuid(user_uuid, "user_uuid")
+            endpoint = f"{API_CORE_USER_GET}/{user_uuid}"
+        else:
+            endpoint = API_CORE_USER_GET
+
+        response = await client.request("GET", endpoint, operation="get_user")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "get_user", e)
+
+
+@mcp.tool(name="create_user", description="Create a new user account")
+async def create_user(
+    ctx: Context,
+    username: str,
+    password: str,
+    full_name: str = "",
+    email: str = "",
+    groups: Optional[str] = None,
+    privileges: Optional[str] = None,
+    enabled: bool = True,
+    expires: Optional[str] = None,
+    comment: str = ""
+) -> str:
+    """Create a new user account in OPNsense.
+
+    Args:
+        ctx: MCP context
+        username: Unique username for the account
+        password: Password for the user (will be hashed)
+        full_name: Full name of the user (optional)
+        email: Email address of the user (optional)
+        groups: Comma-separated list of group names (optional)
+        privileges: Comma-separated list of privilege names (optional)
+        enabled: Whether the account should be enabled (default: True)
+        expires: Expiration date in YYYY-MM-DD format (optional)
+        comment: Additional comments about the user (optional)
+
+    Returns:
+        JSON string with creation result and new user UUID
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate required parameters
+        if not username or not password:
+            raise ValidationError("Username and password are required",
+                                context={"username": username, "has_password": bool(password)})
+
+        if len(username) < 3:
+            raise ValidationError("Username must be at least 3 characters long",
+                                context={"username": username})
+
+        if len(password) < 6:
+            raise ValidationError("Password must be at least 6 characters long")
+
+        # Prepare user data
+        user_data = {
+            "user": {
+                "enabled": "1" if enabled else "0",
+                "name": username,
+                "password": password,
+                "full_name": full_name,
+                "email": email,
+                "comment": comment
+            }
+        }
+
+        # Add groups if specified
+        if groups:
+            # Convert comma-separated string to list and validate group names
+            group_list = [g.strip() for g in groups.split(",") if g.strip()]
+            user_data["user"]["groups"] = ",".join(group_list)
+
+        # Add privileges if specified
+        if privileges:
+            # Convert comma-separated string to list
+            priv_list = [p.strip() for p in privileges.split(",") if p.strip()]
+            user_data["user"]["priv"] = ",".join(priv_list)
+
+        # Add expiration if specified
+        if expires:
+            # Basic date format validation
+            import re
+            if not re.match(r'^\d{4}-\d{2}-\d{2}$', expires):
+                raise ValidationError("Expires must be in YYYY-MM-DD format",
+                                    context={"expires": expires})
+            user_data["user"]["expires"] = expires
+
+        # Create the user
+        response = await client.request("POST", API_CORE_USER_ADD,
+                                      data=user_data, operation="create_user")
+
+        # Reload configuration if creation was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_user_create")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "create_user", e)
+
+
+@mcp.tool(name="update_user", description="Update an existing user account")
+async def update_user(
+    ctx: Context,
+    user_uuid: str,
+    username: Optional[str] = None,
+    password: Optional[str] = None,
+    full_name: Optional[str] = None,
+    email: Optional[str] = None,
+    groups: Optional[str] = None,
+    privileges: Optional[str] = None,
+    enabled: Optional[bool] = None,
+    expires: Optional[str] = None,
+    comment: Optional[str] = None
+) -> str:
+    """Update an existing user account in OPNsense.
+
+    Args:
+        ctx: MCP context
+        user_uuid: UUID of the user to update
+        username: New username (optional)
+        password: New password (optional)
+        full_name: New full name (optional)
+        email: New email address (optional)
+        groups: Comma-separated list of group names (optional)
+        privileges: Comma-separated list of privilege names (optional)
+        enabled: Whether the account should be enabled (optional)
+        expires: Expiration date in YYYY-MM-DD format (optional)
+        comment: Additional comments about the user (optional)
+
+    Returns:
+        JSON string with update result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(user_uuid, "user_uuid")
+
+        # Get current user configuration
+        current_user_response = await client.request("GET", f"{API_CORE_USER_GET}/{user_uuid}",
+                                                   operation="get_user_for_update")
+
+        if "user" not in current_user_response:
+            raise ResourceNotFoundError(f"User with UUID {user_uuid} not found")
+
+        current_user = current_user_response["user"]
+
+        # Update only provided fields
+        if username is not None:
+            if len(username) < 3:
+                raise ValidationError("Username must be at least 3 characters long",
+                                    context={"username": username})
+            current_user["name"] = username
+
+        if password is not None:
+            if len(password) < 6:
+                raise ValidationError("Password must be at least 6 characters long")
+            current_user["password"] = password
+
+        if full_name is not None:
+            current_user["full_name"] = full_name
+
+        if email is not None:
+            current_user["email"] = email
+
+        if groups is not None:
+            # Convert comma-separated string to list and validate group names
+            group_list = [g.strip() for g in groups.split(",") if g.strip()]
+            current_user["groups"] = ",".join(group_list)
+
+        if privileges is not None:
+            # Convert comma-separated string to list
+            priv_list = [p.strip() for p in privileges.split(",") if p.strip()]
+            current_user["priv"] = ",".join(priv_list)
+
+        if enabled is not None:
+            current_user["enabled"] = "1" if enabled else "0"
+
+        if expires is not None:
+            if expires:  # Only validate if not empty
+                import re
+                if not re.match(r'^\d{4}-\d{2}-\d{2}$', expires):
+                    raise ValidationError("Expires must be in YYYY-MM-DD format or empty",
+                                        context={"expires": expires})
+            current_user["expires"] = expires
+
+        if comment is not None:
+            current_user["comment"] = comment
+
+        # Prepare update data
+        user_data = {"user": current_user}
+
+        # Update the user
+        response = await client.request("POST", f"{API_CORE_USER_SET}/{user_uuid}",
+                                      data=user_data, operation="update_user")
+
+        # Reload configuration if update was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_user_update")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "update_user", e)
+
+
+@mcp.tool(name="delete_user", description="Delete a user account")
+async def delete_user(ctx: Context, user_uuid: str) -> str:
+    """Delete a user account from OPNsense.
+
+    This will remove the user account and all associated data including API keys.
+
+    Args:
+        ctx: MCP context
+        user_uuid: UUID of the user to delete
+
+    Returns:
+        JSON string with deletion result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(user_uuid, "user_uuid")
+
+        # Delete the user
+        response = await client.request("POST", f"{API_CORE_USER_DEL}/{user_uuid}",
+                                      operation="delete_user")
+
+        # Reload configuration if deletion was successful
+        if response.get("result") == "deleted":
+            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_user_delete")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "delete_user", e)
+
+
+@mcp.tool(name="toggle_user", description="Enable or disable a user account")
+async def toggle_user(ctx: Context, user_uuid: str, enabled: bool) -> str:
+    """Enable or disable a user account.
+
+    Args:
+        ctx: MCP context
+        user_uuid: UUID of the user to toggle
+        enabled: True to enable, False to disable
+
+    Returns:
+        JSON string with toggle result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        # Validate UUID
+        validate_uuid(user_uuid, "user_uuid")
+
+        # Toggle the user
+        enabled_int = 1 if enabled else 0
+        response = await client.request("POST", f"{API_CORE_USER_TOGGLE}/{user_uuid}/{enabled_int}",
+                                      operation="toggle_user")
+
+        # Reload configuration if toggle was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_user_toggle")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "toggle_user", e)
 
 
 # Entry point
