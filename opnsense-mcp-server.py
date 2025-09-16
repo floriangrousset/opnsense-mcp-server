@@ -3127,6 +3127,541 @@ async def traffic_shaper_toggle_rule(ctx: Context, rule_uuid: str, enabled: bool
         return await handle_tool_error(ctx, "traffic_shaper_toggle_rule", e)
 
 
+# ========== COMMON QOS USE CASE HELPERS ==========
+
+@mcp.tool(name="traffic_shaper_limit_user_bandwidth", description="Helper to create per-user bandwidth limiting setup")
+async def traffic_shaper_limit_user_bandwidth(
+    ctx: Context,
+    user_ip: str,
+    download_limit_mbps: int,
+    upload_limit_mbps: int,
+    interface: str = "lan",
+    description: str = ""
+) -> str:
+    """Helper tool to quickly set up per-user bandwidth limiting.
+
+    This creates a complete bandwidth limiting setup for a specific user:
+    - Download pipe (for traffic TO the user)
+    - Upload pipe (for traffic FROM the user)
+    - Download rule (targeting user as destination)
+    - Upload rule (targeting user as source)
+
+    Args:
+        ctx: MCP context
+        user_ip: IP address of the user to limit
+        download_limit_mbps: Download bandwidth limit in Mbps
+        upload_limit_mbps: Upload bandwidth limit in Mbps
+        interface: Interface where rules apply (default: 'lan')
+        description: Description prefix for created objects
+
+    Returns:
+        JSON string with created objects (pipes and rules)
+    """
+    try:
+        client = await get_opnsense_client()
+        results = {
+            "download_pipe": None,
+            "upload_pipe": None,
+            "download_rule": None,
+            "upload_rule": None
+        }
+
+        desc_prefix = description or f"User {user_ip} bandwidth limit"
+
+        # Create download pipe (traffic TO user)
+        download_pipe_data = {
+            "pipe": {
+                "enabled": "1",
+                "bandwidth": str(download_limit_mbps),
+                "bandwidthMetric": "Mbit/s",
+                "queue": "50",
+                "scheduler": "FQ-CoDel",
+                "description": f"{desc_prefix} - Download"
+            }
+        }
+
+        download_pipe_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_PIPE,
+                                                    data=download_pipe_data, operation="create_user_download_pipe")
+        results["download_pipe"] = download_pipe_response
+
+        # Create upload pipe (traffic FROM user)
+        upload_pipe_data = {
+            "pipe": {
+                "enabled": "1",
+                "bandwidth": str(upload_limit_mbps),
+                "bandwidthMetric": "Mbit/s",
+                "queue": "50",
+                "scheduler": "FQ-CoDel",
+                "description": f"{desc_prefix} - Upload"
+            }
+        }
+
+        upload_pipe_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_PIPE,
+                                                  data=upload_pipe_data, operation="create_user_upload_pipe")
+        results["upload_pipe"] = upload_pipe_response
+
+        # Get the UUIDs of the created pipes
+        download_pipe_uuid = download_pipe_response.get("uuid")
+        upload_pipe_uuid = upload_pipe_response.get("uuid")
+
+        if download_pipe_uuid and upload_pipe_uuid:
+            # Create download rule (traffic TO user as destination)
+            download_rule_data = {
+                "rule": {
+                    "enabled": "1",
+                    "sequence": "1000",
+                    "interface": interface,
+                    "protocol": "IP",
+                    "source": "any",
+                    "destination": user_ip,
+                    "target": download_pipe_uuid,
+                    "description": f"{desc_prefix} - Download Rule"
+                }
+            }
+
+            download_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                        data=download_rule_data, operation="create_user_download_rule")
+            results["download_rule"] = download_rule_response
+
+            # Create upload rule (traffic FROM user as source)
+            upload_rule_data = {
+                "rule": {
+                    "enabled": "1",
+                    "sequence": "1001",
+                    "interface": interface,
+                    "protocol": "IP",
+                    "source": user_ip,
+                    "destination": "any",
+                    "target": upload_pipe_uuid,
+                    "description": f"{desc_prefix} - Upload Rule"
+                }
+            }
+
+            upload_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                      data=upload_rule_data, operation="create_user_upload_rule")
+            results["upload_rule"] = upload_rule_response
+
+        # Apply configuration
+        await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_user_bandwidth_setup")
+
+        return json.dumps(results, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_limit_user_bandwidth", e)
+
+
+@mcp.tool(name="traffic_shaper_prioritize_voip", description="Helper to set up VoIP traffic prioritization")
+async def traffic_shaper_prioritize_voip(
+    ctx: Context,
+    total_bandwidth_mbps: int,
+    voip_bandwidth_mbps: int,
+    voip_ports: str = "5060,10000-20000",
+    interface: str = "wan"
+) -> str:
+    """Helper tool to set up VoIP traffic prioritization with guaranteed bandwidth.
+
+    This creates a complete VoIP QoS setup:
+    - Main bandwidth pipe for total connection
+    - High-priority queue for VoIP traffic
+    - Best-effort queue for other traffic
+    - Rules to classify VoIP traffic by port
+
+    Args:
+        ctx: MCP context
+        total_bandwidth_mbps: Total connection bandwidth in Mbps
+        voip_bandwidth_mbps: Guaranteed bandwidth for VoIP in Mbps
+        voip_ports: VoIP ports to prioritize (default: SIP + RTP range)
+        interface: Interface where rules apply (default: 'wan')
+
+    Returns:
+        JSON string with created objects (pipe, queues, rules)
+    """
+    try:
+        client = await get_opnsense_client()
+        results = {
+            "main_pipe": None,
+            "voip_queue": None,
+            "data_queue": None,
+            "voip_rule": None,
+            "data_rule": None
+        }
+
+        # Create main pipe with total bandwidth
+        main_pipe_data = {
+            "pipe": {
+                "enabled": "1",
+                "bandwidth": str(total_bandwidth_mbps),
+                "bandwidthMetric": "Mbit/s",
+                "queue": "100",
+                "scheduler": "FQ-CoDel",
+                "description": "VoIP Main Bandwidth Pipe"
+            }
+        }
+
+        main_pipe_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_PIPE,
+                                                data=main_pipe_data, operation="create_voip_main_pipe")
+        results["main_pipe"] = main_pipe_response
+        main_pipe_uuid = main_pipe_response.get("uuid")
+
+        if main_pipe_uuid:
+            # Create high-priority VoIP queue (weight 90)
+            voip_queue_data = {
+                "queue": {
+                    "enabled": "1",
+                    "pipe": main_pipe_uuid,
+                    "weight": "90",
+                    "description": f"VoIP Priority Queue ({voip_bandwidth_mbps} Mbps guaranteed)"
+                }
+            }
+
+            voip_queue_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE,
+                                                     data=voip_queue_data, operation="create_voip_priority_queue")
+            results["voip_queue"] = voip_queue_response
+            voip_queue_uuid = voip_queue_response.get("uuid")
+
+            # Create best-effort data queue (weight 10)
+            data_queue_data = {
+                "queue": {
+                    "enabled": "1",
+                    "pipe": main_pipe_uuid,
+                    "weight": "10",
+                    "description": "Best Effort Data Queue"
+                }
+            }
+
+            data_queue_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE,
+                                                     data=data_queue_data, operation="create_data_best_effort_queue")
+            results["data_queue"] = data_queue_response
+            data_queue_uuid = data_queue_response.get("uuid")
+
+            if voip_queue_uuid and data_queue_uuid:
+                # Create VoIP rule (high priority - sequence 100)
+                voip_rule_data = {
+                    "rule": {
+                        "enabled": "1",
+                        "sequence": "100",
+                        "interface": interface,
+                        "protocol": "UDP",
+                        "source": "any",
+                        "destination": f"any:{voip_ports}",
+                        "target": voip_queue_uuid,
+                        "description": f"VoIP Traffic Priority (ports {voip_ports})"
+                    }
+                }
+
+                voip_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                        data=voip_rule_data, operation="create_voip_priority_rule")
+                results["voip_rule"] = voip_rule_response
+
+                # Create catch-all data rule (low priority - sequence 9999)
+                data_rule_data = {
+                    "rule": {
+                        "enabled": "1",
+                        "sequence": "9999",
+                        "interface": interface,
+                        "protocol": "IP",
+                        "source": "any",
+                        "destination": "any",
+                        "target": data_queue_uuid,
+                        "description": "Default Data Traffic (Best Effort)"
+                    }
+                }
+
+                data_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                        data=data_rule_data, operation="create_data_best_effort_rule")
+                results["data_rule"] = data_rule_response
+
+        # Apply configuration
+        await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_voip_setup")
+
+        return json.dumps(results, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_prioritize_voip", e)
+
+
+@mcp.tool(name="traffic_shaper_setup_gaming_priority", description="Helper to optimize traffic for gaming")
+async def traffic_shaper_setup_gaming_priority(
+    ctx: Context,
+    total_bandwidth_mbps: int,
+    gaming_ports: str = "3478-3480,27000-27050",
+    interface: str = "wan"
+) -> str:
+    """Helper tool to set up gaming traffic optimization with low latency priority.
+
+    This creates a gaming-optimized QoS setup:
+    - Main bandwidth pipe with optimized scheduler
+    - High-priority queue for gaming traffic (low latency)
+    - Medium-priority queue for interactive traffic
+    - Low-priority queue for bulk downloads
+    - Rules to classify traffic appropriately
+
+    Args:
+        ctx: MCP context
+        total_bandwidth_mbps: Total connection bandwidth in Mbps
+        gaming_ports: Gaming ports to prioritize (default: Steam, Xbox Live, etc.)
+        interface: Interface where rules apply (default: 'wan')
+
+    Returns:
+        JSON string with created objects (pipe, queues, rules)
+    """
+    try:
+        client = await get_opnsense_client()
+        results = {
+            "main_pipe": None,
+            "gaming_queue": None,
+            "interactive_queue": None,
+            "bulk_queue": None,
+            "gaming_rule": None,
+            "interactive_rule": None,
+            "bulk_rule": None
+        }
+
+        # Create main pipe optimized for gaming (low latency scheduler)
+        main_pipe_data = {
+            "pipe": {
+                "enabled": "1",
+                "bandwidth": str(total_bandwidth_mbps),
+                "bandwidthMetric": "Mbit/s",
+                "queue": "25",  # Smaller queue for lower latency
+                "scheduler": "FQ-CoDel",  # Best for gaming latency
+                "description": "Gaming Optimized Main Pipe"
+            }
+        }
+
+        main_pipe_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_PIPE,
+                                                data=main_pipe_data, operation="create_gaming_main_pipe")
+        results["main_pipe"] = main_pipe_response
+        main_pipe_uuid = main_pipe_response.get("uuid")
+
+        if main_pipe_uuid:
+            # Create gaming queue (weight 70 - highest priority)
+            gaming_queue_data = {
+                "queue": {
+                    "enabled": "1",
+                    "pipe": main_pipe_uuid,
+                    "weight": "70",
+                    "description": "Gaming Traffic - Highest Priority"
+                }
+            }
+
+            gaming_queue_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE,
+                                                       data=gaming_queue_data, operation="create_gaming_priority_queue")
+            results["gaming_queue"] = gaming_queue_response
+            gaming_queue_uuid = gaming_queue_response.get("uuid")
+
+            # Create interactive queue (weight 25 - medium priority for web, SSH, etc.)
+            interactive_queue_data = {
+                "queue": {
+                    "enabled": "1",
+                    "pipe": main_pipe_uuid,
+                    "weight": "25",
+                    "description": "Interactive Traffic - Medium Priority"
+                }
+            }
+
+            interactive_queue_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE,
+                                                            data=interactive_queue_data, operation="create_interactive_priority_queue")
+            results["interactive_queue"] = interactive_queue_response
+            interactive_queue_uuid = interactive_queue_response.get("uuid")
+
+            # Create bulk download queue (weight 5 - lowest priority)
+            bulk_queue_data = {
+                "queue": {
+                    "enabled": "1",
+                    "pipe": main_pipe_uuid,
+                    "weight": "5",
+                    "description": "Bulk Downloads - Lowest Priority"
+                }
+            }
+
+            bulk_queue_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE,
+                                                     data=bulk_queue_data, operation="create_bulk_download_queue")
+            results["bulk_queue"] = bulk_queue_response
+            bulk_queue_uuid = bulk_queue_response.get("uuid")
+
+            if gaming_queue_uuid and interactive_queue_uuid and bulk_queue_uuid:
+                # Create gaming rule (highest priority - sequence 50)
+                gaming_rule_data = {
+                    "rule": {
+                        "enabled": "1",
+                        "sequence": "50",
+                        "interface": interface,
+                        "protocol": "UDP",
+                        "source": "any",
+                        "destination": f"any:{gaming_ports}",
+                        "target": gaming_queue_uuid,
+                        "description": f"Gaming Traffic Priority (ports {gaming_ports})"
+                    }
+                }
+
+                gaming_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                          data=gaming_rule_data, operation="create_gaming_priority_rule")
+                results["gaming_rule"] = gaming_rule_response
+
+                # Create interactive rule (medium priority - sequence 500)
+                interactive_rule_data = {
+                    "rule": {
+                        "enabled": "1",
+                        "sequence": "500",
+                        "interface": interface,
+                        "protocol": "TCP",
+                        "source": "any",
+                        "destination": "any:22,53,80,443",
+                        "target": interactive_queue_uuid,
+                        "description": "Interactive Traffic (SSH, DNS, HTTP, HTTPS)"
+                    }
+                }
+
+                interactive_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                               data=interactive_rule_data, operation="create_interactive_priority_rule")
+                results["interactive_rule"] = interactive_rule_response
+
+                # Create bulk download rule (lowest priority - sequence 9999)
+                bulk_rule_data = {
+                    "rule": {
+                        "enabled": "1",
+                        "sequence": "9999",
+                        "interface": interface,
+                        "protocol": "IP",
+                        "source": "any",
+                        "destination": "any",
+                        "target": bulk_queue_uuid,
+                        "description": "Bulk Downloads and Default Traffic"
+                    }
+                }
+
+                bulk_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                        data=bulk_rule_data, operation="create_bulk_download_rule")
+                results["bulk_rule"] = bulk_rule_response
+
+        # Apply configuration
+        await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_gaming_setup")
+
+        return json.dumps(results, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_setup_gaming_priority", e)
+
+
+@mcp.tool(name="traffic_shaper_create_guest_limits", description="Helper to set up guest network bandwidth limitations")
+async def traffic_shaper_create_guest_limits(
+    ctx: Context,
+    guest_network: str,
+    max_bandwidth_mbps: int,
+    per_user_limit_mbps: Optional[int] = None,
+    interface: str = "lan"
+) -> str:
+    """Helper tool to set up bandwidth limitations for guest networks.
+
+    This creates guest network QoS setup:
+    - Total bandwidth pipe for the entire guest network
+    - Per-user limitation queue (if specified)
+    - Rules to apply limits to guest network traffic
+
+    Args:
+        ctx: MCP context
+        guest_network: Guest network CIDR (e.g., "192.168.100.0/24")
+        max_bandwidth_mbps: Maximum total bandwidth for guest network in Mbps
+        per_user_limit_mbps: Optional per-user bandwidth limit in Mbps
+        interface: Interface where rules apply (default: 'lan')
+
+    Returns:
+        JSON string with created objects (pipes, queues, rules)
+    """
+    try:
+        client = await get_opnsense_client()
+        results = {
+            "guest_pipe": None,
+            "guest_queue": None,
+            "guest_download_rule": None,
+            "guest_upload_rule": None
+        }
+
+        # Create main guest network pipe
+        guest_pipe_data = {
+            "pipe": {
+                "enabled": "1",
+                "bandwidth": str(max_bandwidth_mbps),
+                "bandwidthMetric": "Mbit/s",
+                "queue": "50",
+                "scheduler": "FQ-CoDel",
+                "description": f"Guest Network Bandwidth Limit ({guest_network})"
+            }
+        }
+
+        guest_pipe_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_PIPE,
+                                                 data=guest_pipe_data, operation="create_guest_network_pipe")
+        results["guest_pipe"] = guest_pipe_response
+        guest_pipe_uuid = guest_pipe_response.get("uuid")
+
+        target_uuid = guest_pipe_uuid
+
+        # If per-user limits are specified, create a queue
+        if per_user_limit_mbps and guest_pipe_uuid:
+            guest_queue_data = {
+                "queue": {
+                    "enabled": "1",
+                    "pipe": guest_pipe_uuid,
+                    "weight": "50",
+                    "description": f"Guest Per-User Queue ({per_user_limit_mbps} Mbps limit)"
+                }
+            }
+
+            guest_queue_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE,
+                                                       data=guest_queue_data, operation="create_guest_user_queue")
+            results["guest_queue"] = guest_queue_response
+            target_uuid = guest_queue_response.get("uuid") or guest_pipe_uuid
+
+        if target_uuid:
+            # Create guest download rule (traffic TO guest network)
+            guest_download_rule_data = {
+                "rule": {
+                    "enabled": "1",
+                    "sequence": "200",
+                    "interface": interface,
+                    "protocol": "IP",
+                    "source": "any",
+                    "destination": guest_network,
+                    "target": target_uuid,
+                    "description": f"Guest Network Download Limit ({guest_network})"
+                }
+            }
+
+            guest_download_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                              data=guest_download_rule_data, operation="create_guest_download_rule")
+            results["guest_download_rule"] = guest_download_rule_response
+
+            # Create guest upload rule (traffic FROM guest network)
+            guest_upload_rule_data = {
+                "rule": {
+                    "enabled": "1",
+                    "sequence": "201",
+                    "interface": interface,
+                    "protocol": "IP",
+                    "source": guest_network,
+                    "destination": "any",
+                    "target": target_uuid,
+                    "description": f"Guest Network Upload Limit ({guest_network})"
+                }
+            }
+
+            guest_upload_rule_response = await client.request("POST", API_TRAFFICSHAPER_SETTINGS_ADD_RULE,
+                                                             data=guest_upload_rule_data, operation="create_guest_upload_rule")
+            results["guest_upload_rule"] = guest_upload_rule_response
+
+        # Apply configuration
+        await client.request("POST", API_TRAFFICSHAPER_SERVICE_RECONFIGURE, operation="reconfigure_after_guest_setup")
+
+        return json.dumps(results, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "traffic_shaper_create_guest_limits", e)
+
+
+# --- End Traffic Shaping and QoS Management ---
+
+
 # Entry point
 if __name__ == "__main__":
     mcp.run()
