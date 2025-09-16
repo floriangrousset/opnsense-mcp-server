@@ -2855,6 +2855,307 @@ async def remove_user_from_group(ctx: Context, group_uuid: str, username: str) -
         return await handle_tool_error(ctx, "remove_user_from_group", e)
 
 
+# ========== AUTHENTICATION & PRIVILEGE MANAGEMENT ==========
+
+@mcp.tool(name="list_privileges", description="List all available privileges in OPNsense")
+async def list_privileges(ctx: Context) -> str:
+    """List all available privileges and their descriptions in OPNsense.
+
+    Args:
+        ctx: MCP context
+
+    Returns:
+        JSON string with list of all available privileges
+    """
+    try:
+        client = await get_opnsense_client()
+
+        response = await client.request("GET", API_CORE_AUTH_PRIVILEGES, operation="list_privileges")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "list_privileges", e)
+
+
+@mcp.tool(name="get_user_effective_privileges", description="Get effective privileges for a user")
+async def get_user_effective_privileges(ctx: Context, username: str) -> str:
+    """Get the effective privileges for a specific user (combines user and group privileges).
+
+    Args:
+        ctx: MCP context
+        username: Username to get privileges for
+
+    Returns:
+        JSON string with user's effective privileges
+    """
+    try:
+        client = await get_opnsense_client()
+
+        if not username:
+            raise ValidationError("Username is required", context={"username": username})
+
+        # First get the user details to find their UUID
+        users_response = await client.request("POST", API_CORE_USER_SEARCH, operation="search_user_for_privileges")
+
+        user_uuid = None
+        if "rows" in users_response:
+            for user in users_response["rows"]:
+                if user.get("name") == username:
+                    user_uuid = user.get("uuid")
+                    break
+
+        if not user_uuid:
+            raise ResourceNotFoundError(f"User '{username}' not found")
+
+        # Get detailed user information including groups and privileges
+        user_details_response = await client.request("GET", f"{API_CORE_USER_GET}/{user_uuid}",
+                                                   operation="get_user_privileges")
+
+        if "user" not in user_details_response:
+            raise ResourceNotFoundError(f"User details for '{username}' not found")
+
+        user_details = user_details_response["user"]
+
+        # Collect all privileges
+        effective_privileges = set()
+
+        # Add direct user privileges
+        if "priv" in user_details and user_details["priv"]:
+            user_privs = [p.strip() for p in user_details["priv"].split(",") if p.strip()]
+            effective_privileges.update(user_privs)
+
+        # Add group privileges
+        if "groups" in user_details and user_details["groups"]:
+            group_names = [g.strip() for g in user_details["groups"].split(",") if g.strip()]
+
+            # Get all groups to find UUIDs and privileges
+            groups_response = await client.request("POST", API_CORE_GROUP_SEARCH, operation="search_groups_for_user_privileges")
+
+            if "rows" in groups_response:
+                for group in groups_response["rows"]:
+                    if group.get("name") in group_names:
+                        # Get detailed group information
+                        group_uuid = group.get("uuid")
+                        if group_uuid:
+                            group_details_response = await client.request("GET", f"{API_CORE_GROUP_GET}/{group_uuid}",
+                                                                        operation="get_group_privileges")
+                            if "group" in group_details_response:
+                                group_details = group_details_response["group"]
+                                if "priv" in group_details and group_details["priv"]:
+                                    group_privs = [p.strip() for p in group_details["priv"].split(",") if p.strip()]
+                                    effective_privileges.update(group_privs)
+
+        # Format result
+        result = {
+            "username": username,
+            "user_uuid": user_uuid,
+            "direct_privileges": [p.strip() for p in user_details.get("priv", "").split(",") if p.strip()],
+            "group_memberships": [g.strip() for g in user_details.get("groups", "").split(",") if g.strip()],
+            "effective_privileges": sorted(list(effective_privileges)),
+            "privilege_count": len(effective_privileges)
+        }
+
+        return json.dumps(result, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "get_user_effective_privileges", e)
+
+
+@mcp.tool(name="assign_privilege_to_user", description="Assign a privilege directly to a user")
+async def assign_privilege_to_user(ctx: Context, username: str, privilege: str) -> str:
+    """Assign a specific privilege directly to a user.
+
+    Args:
+        ctx: MCP context
+        username: Username to assign privilege to
+        privilege: Privilege name to assign
+
+    Returns:
+        JSON string with assignment result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        if not username or not privilege:
+            raise ValidationError("Username and privilege are required",
+                                context={"username": username, "privilege": privilege})
+
+        # Find the user
+        users_response = await client.request("POST", API_CORE_USER_SEARCH, operation="search_user_for_privilege_assignment")
+
+        user_uuid = None
+        if "rows" in users_response:
+            for user in users_response["rows"]:
+                if user.get("name") == username:
+                    user_uuid = user.get("uuid")
+                    break
+
+        if not user_uuid:
+            raise ResourceNotFoundError(f"User '{username}' not found")
+
+        # Get current user details
+        user_details_response = await client.request("GET", f"{API_CORE_USER_GET}/{user_uuid}",
+                                                   operation="get_user_for_privilege_assignment")
+
+        if "user" not in user_details_response:
+            raise ResourceNotFoundError(f"User details for '{username}' not found")
+
+        current_user = user_details_response["user"]
+
+        # Get current privileges
+        current_privileges = []
+        if "priv" in current_user and current_user["priv"]:
+            current_privileges = [p.strip() for p in current_user["priv"].split(",") if p.strip()]
+
+        # Check if privilege is already assigned
+        if privilege in current_privileges:
+            return json.dumps({"result": "no_change", "message": f"Privilege '{privilege}' is already assigned to user '{username}'"}, indent=2)
+
+        # Add the new privilege
+        current_privileges.append(privilege)
+        current_user["priv"] = ",".join(current_privileges)
+
+        # Update the user
+        user_data = {"user": current_user}
+        response = await client.request("POST", f"{API_CORE_USER_SET}/{user_uuid}",
+                                      data=user_data, operation="assign_privilege_to_user")
+
+        # Reload configuration if update was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_privilege_assignment")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "assign_privilege_to_user", e)
+
+
+@mcp.tool(name="revoke_privilege_from_user", description="Revoke a privilege directly from a user")
+async def revoke_privilege_from_user(ctx: Context, username: str, privilege: str) -> str:
+    """Revoke a specific privilege directly from a user.
+
+    Args:
+        ctx: MCP context
+        username: Username to revoke privilege from
+        privilege: Privilege name to revoke
+
+    Returns:
+        JSON string with revocation result
+    """
+    try:
+        client = await get_opnsense_client()
+
+        if not username or not privilege:
+            raise ValidationError("Username and privilege are required",
+                                context={"username": username, "privilege": privilege})
+
+        # Find the user
+        users_response = await client.request("POST", API_CORE_USER_SEARCH, operation="search_user_for_privilege_revocation")
+
+        user_uuid = None
+        if "rows" in users_response:
+            for user in users_response["rows"]:
+                if user.get("name") == username:
+                    user_uuid = user.get("uuid")
+                    break
+
+        if not user_uuid:
+            raise ResourceNotFoundError(f"User '{username}' not found")
+
+        # Get current user details
+        user_details_response = await client.request("GET", f"{API_CORE_USER_GET}/{user_uuid}",
+                                                   operation="get_user_for_privilege_revocation")
+
+        if "user" not in user_details_response:
+            raise ResourceNotFoundError(f"User details for '{username}' not found")
+
+        current_user = user_details_response["user"]
+
+        # Get current privileges
+        current_privileges = []
+        if "priv" in current_user and current_user["priv"]:
+            current_privileges = [p.strip() for p in current_user["priv"].split(",") if p.strip()]
+
+        # Check if privilege is actually assigned
+        if privilege not in current_privileges:
+            return json.dumps({"result": "no_change", "message": f"Privilege '{privilege}' is not assigned to user '{username}'"}, indent=2)
+
+        # Remove the privilege
+        current_privileges.remove(privilege)
+        current_user["priv"] = ",".join(current_privileges)
+
+        # Update the user
+        user_data = {"user": current_user}
+        response = await client.request("POST", f"{API_CORE_USER_SET}/{user_uuid}",
+                                      data=user_data, operation="revoke_privilege_from_user")
+
+        # Reload configuration if update was successful
+        if response.get("result") == "saved":
+            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_privilege_revocation")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "revoke_privilege_from_user", e)
+
+
+@mcp.tool(name="list_auth_servers", description="List configured authentication servers")
+async def list_auth_servers(ctx: Context) -> str:
+    """List all configured authentication servers (LDAP, RADIUS, etc.).
+
+    Args:
+        ctx: MCP context
+
+    Returns:
+        JSON string with list of authentication servers
+    """
+    try:
+        client = await get_opnsense_client()
+
+        response = await client.request("GET", API_CORE_AUTH_SERVERS, operation="list_auth_servers")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "list_auth_servers", e)
+
+
+@mcp.tool(name="test_user_authentication", description="Test user authentication against configured servers")
+async def test_user_authentication(ctx: Context, username: str, auth_server: Optional[str] = None) -> str:
+    """Test user authentication against a specific authentication server or all servers.
+
+    Args:
+        ctx: MCP context
+        username: Username to test authentication for
+        auth_server: Specific authentication server to test against (optional)
+
+    Returns:
+        JSON string with authentication test results
+    """
+    try:
+        client = await get_opnsense_client()
+
+        if not username:
+            raise ValidationError("Username is required", context={"username": username})
+
+        # Prepare test data
+        test_data = {
+            "username": username
+        }
+
+        if auth_server:
+            test_data["auth_server"] = auth_server
+
+        response = await client.request("POST", API_CORE_AUTH_TEST,
+                                      data=test_data, operation="test_user_authentication")
+
+        return json.dumps(response, indent=2)
+
+    except Exception as e:
+        return await handle_tool_error(ctx, "test_user_authentication", e)
+
+
 # Entry point
 if __name__ == "__main__":
     mcp.run()
