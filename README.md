@@ -316,6 +316,51 @@ The **Model Context Protocol (MCP)** is a new standard that lets AI models (like
 |------|-------------|-----------------|
 | `get_vpn_connections` | VPN connection status | *"Show active VPN connections"* |
 
+### 🚦 **Traffic Shaping & QoS Management**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `traffic_shaper_get_status` | Service status and statistics | *"Show traffic shaper status"* |
+| `traffic_shaper_reconfigure` | Apply QoS configuration changes | *"Apply traffic shaping changes"* |
+| `traffic_shaper_get_settings` | General QoS configuration | *"Show traffic shaper settings"* |
+
+**🔧 Pipe Management (Bandwidth Limits)**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `traffic_shaper_list_pipes` | List all bandwidth pipes | *"Show all traffic shaper pipes"* |
+| `traffic_shaper_get_pipe` | Get pipe details | *"Get details for pipe abc123"* |
+| `traffic_shaper_create_pipe` | Create bandwidth limiting pipe | *"Create 100 Mbps pipe for guest network"* |
+| `traffic_shaper_update_pipe` | Modify pipe settings | *"Update pipe bandwidth to 50 Mbps"* |
+| `traffic_shaper_delete_pipe` | Remove bandwidth pipe | *"Delete unused traffic pipe"* |
+| `traffic_shaper_toggle_pipe` | Enable/disable pipe | *"Disable guest network pipe"* |
+
+**⚖️ Queue Management (Weighted Sharing)**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `traffic_shaper_list_queues` | List all traffic queues | *"Show all traffic shaper queues"* |
+| `traffic_shaper_get_queue` | Get queue details | *"Get queue configuration for VoIP"* |
+| `traffic_shaper_create_queue` | Create weighted sharing queue | *"Create high-priority VoIP queue"* |
+| `traffic_shaper_update_queue` | Modify queue settings | *"Change queue weight to 80"* |
+| `traffic_shaper_delete_queue` | Remove traffic queue | *"Delete old queue configuration"* |
+| `traffic_shaper_toggle_queue` | Enable/disable queue | *"Enable gaming priority queue"* |
+
+**📋 Rule Management (Traffic Classification)**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `traffic_shaper_list_rules` | List all QoS rules | *"Show all traffic shaping rules"* |
+| `traffic_shaper_get_rule` | Get rule details | *"Get rule configuration"* |
+| `traffic_shaper_create_rule` | Create traffic classification rule | *"Route gaming traffic to high-priority queue"* |
+| `traffic_shaper_update_rule` | Modify rule settings | *"Update rule to target new queue"* |
+| `traffic_shaper_delete_rule` | Remove QoS rule | *"Delete obsolete traffic rule"* |
+| `traffic_shaper_toggle_rule` | Enable/disable rule | *"Enable VoIP priority rule"* |
+
+**🎯 Common QoS Use Cases (Helpers)**
+| Tool | Description | Example Command |
+|------|-------------|-----------------|
+| `traffic_shaper_limit_user_bandwidth` | Per-user bandwidth limiting | *"Limit user 192.168.1.50 to 10 Mbps"* |
+| `traffic_shaper_prioritize_voip` | VoIP traffic prioritization | *"Setup VoIP priority with 5 Mbps guaranteed"* |
+| `traffic_shaper_setup_gaming_priority` | Gaming traffic optimization | *"Optimize 100 Mbps connection for gaming"* |
+| `traffic_shaper_create_guest_limits` | Guest network bandwidth limits | *"Limit guest network to 20 Mbps total"* |
+
 ### 🔧 **Advanced & Custom Tools**
 | Tool | Description | Example Command |
 |------|-------------|-----------------|
@@ -323,7 +368,7 @@ The **Model Context Protocol (MCP)** is a new standard that lets AI models (like
 
 </details>
 
-**🎯 Total: 110+ powerful tools** for complete OPNsense management through natural language!
+**🎯 Total: 166 powerful tools** for complete OPNsense management through natural language!
 
 ---
 
