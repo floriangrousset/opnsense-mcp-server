@@ -90,6 +90,14 @@ docker-compose up -d
   - **Log Management**: `clear_logs`, `configure_logging` (levels, remote logging, rotation)
   - **Security Analysis**: `analyze_security_events` (threat detection, pattern analysis)
   - **Reporting**: `generate_log_report` (summary, detailed, security, compliance reports)
+- **DNS & DHCP Management**:
+  - **DHCP Server**: `dhcp_list_servers`, `dhcp_get_server`, `dhcp_set_server`, `dhcp_restart_service`
+  - **DHCP Static Mappings**: `dhcp_list_static_mappings`, `dhcp_get_static_mapping`, `dhcp_add_static_mapping`, `dhcp_update_static_mapping`, `dhcp_delete_static_mapping`
+  - **DHCP Leases**: `dhcp_get_leases`, `dhcp_search_leases`, `dhcp_get_lease_statistics`
+  - **DNS Resolver (Unbound)**: `dns_resolver_get_settings`, `dns_resolver_set_settings`, `dns_resolver_restart_service`
+  - **DNS Host Overrides**: `dns_resolver_list_host_overrides`, `dns_resolver_get_host_override`, `dns_resolver_add_host_override`, `dns_resolver_update_host_override`, `dns_resolver_delete_host_override`
+  - **DNS Domain Overrides**: `dns_resolver_list_domain_overrides`, `dns_resolver_add_domain_override`
+  - **DNS Forwarder (dnsmasq)**: `dns_forwarder_get_settings`, `dns_forwarder_set_settings`, `dns_forwarder_list_hosts`, `dns_forwarder_add_host`, `dns_forwarder_restart_service`
 - **Services**: `restart_service`, `list_plugins`, `install_plugin`
 - **VPN**: `get_vpn_connections` (OpenVPN, IPsec, WireGuard)
 - **Backup**: `backup_config`
@@ -158,6 +166,39 @@ Comprehensive logging system providing full visibility into OPNsense operations 
 - **Comprehensive Error Handling**: Validates parameters and provides clear error messages
 - **Security-Focused**: Built-in threat detection and high-risk indicator identification
 - **Scalable Architecture**: Handles large log volumes with pagination and limiting
+
+### DNS & DHCP Management
+
+Comprehensive network services management for DHCP server configuration and DNS resolution services:
+
+#### DHCP Server Management
+- **Server Configuration**: Per-interface DHCP server setup with range, gateway, DNS, and lease time configuration
+- **Static Mappings**: MAC-to-IP address reservations for consistent device addressing
+- **Lease Management**: Real-time lease monitoring, statistics, and filtering capabilities
+- **Service Control**: DHCP service restart and configuration application
+
+#### DNS Resolver (Unbound) Management
+- **Core Settings**: DNSSEC, forwarding, caching, and interface binding configuration
+- **Host Overrides**: Custom hostname-to-IP mappings for local network resources
+- **Domain Overrides**: Forward specific domains to designated DNS servers
+- **Performance Tuning**: Cache size, TTL limits, and query optimization settings
+
+#### DNS Forwarder (dnsmasq) Management
+- **Legacy Support**: Alternative DNS service for specific use cases
+- **Host Management**: Simple hostname resolution for local devices
+- **Configuration Control**: Port, domain, and host file management
+
+#### DHCP Lease Analysis
+- **Real-time Monitoring**: Current lease status across all interfaces
+- **Statistical Analysis**: Active/expired lease counts and interface distribution
+- **Search Capabilities**: Filter leases by interface, state, or search terms
+
+#### Implementation Features
+- **Interface-Aware**: All operations respect network interface boundaries
+- **Automatic Application**: Configuration changes automatically reload services
+- **UUID Management**: Reliable resource identification for updates and deletions
+- **Comprehensive Validation**: Input validation and error handling for all operations
+- **Service Integration**: Seamless coordination between DHCP and DNS services
 
 ## Claude Desktop Integration
 
