@@ -11,8 +11,9 @@ from . import system
 from . import firewall
 from . import nat
 from . import network
+from . import dns_dhcp
 
 # Additional domain modules will be imported as they are created
 # etc.
 
-__all__ = ["configuration", "system", "firewall", "nat", "network"]
+__all__ = ["configuration", "system", "firewall", "nat", "network", "dns_dhcp"]
