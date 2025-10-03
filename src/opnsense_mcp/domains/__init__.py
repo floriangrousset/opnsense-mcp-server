@@ -7,10 +7,10 @@ Each module provides MCP tools for a specific aspect of OPNsense management.
 
 # Domain modules are imported here to register their MCP tools
 from . import configuration
+from . import system
 
 # Additional domain modules will be imported as they are created
-# from . import system
 # from . import firewall
 # etc.
 
-__all__ = ["configuration"]
+__all__ = ["configuration", "system"]
