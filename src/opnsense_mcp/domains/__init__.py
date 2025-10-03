@@ -10,9 +10,9 @@ from . import configuration
 from . import system
 from . import firewall
 from . import nat
+from . import network
 
 # Additional domain modules will be imported as they are created
-# from . import network
 # etc.
 
-__all__ = ["configuration", "system", "firewall", "nat"]
+__all__ = ["configuration", "system", "firewall", "nat", "network"]
