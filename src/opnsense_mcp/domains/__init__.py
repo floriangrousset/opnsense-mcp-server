@@ -9,10 +9,10 @@ Each module provides MCP tools for a specific aspect of OPNsense management.
 from . import configuration
 from . import system
 from . import firewall
+from . import nat
 
 # Additional domain modules will be imported as they are created
 # from . import network
-# from . import nat
 # etc.
 
-__all__ = ["configuration", "system", "firewall"]
+__all__ = ["configuration", "system", "firewall", "nat"]

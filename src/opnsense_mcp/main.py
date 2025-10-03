@@ -31,10 +31,10 @@ server_state = ServerState()
 from .domains import configuration
 from .domains import system      # Phase 3: System management tools
 from .domains import firewall    # Phase 4: Firewall rule and alias management
+from .domains import nat         # Phase 5: NAT management (outbound, one-to-one, port forwarding info)
 
 # Additional domain modules will be imported as they are created
 # from .domains import network
-# from .domains import nat
 # etc.
 
 
