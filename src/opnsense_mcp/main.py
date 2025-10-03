@@ -29,10 +29,12 @@ server_state = ServerState()
 # Each domain module uses the global `mcp` instance to register its tools
 # using decorators like: @mcp.tool(name="tool_name", description="...")
 from .domains import configuration
-from .domains import system  # Phase 3: System management tools
+from .domains import system      # Phase 3: System management tools
+from .domains import firewall    # Phase 4: Firewall rule and alias management
 
 # Additional domain modules will be imported as they are created
-# from .domains import firewall
+# from .domains import network
+# from .domains import nat
 # etc.
 
 
