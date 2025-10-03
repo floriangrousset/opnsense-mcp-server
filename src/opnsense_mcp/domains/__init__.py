@@ -5,11 +5,12 @@ This package contains domain-specific tool implementations organized by feature 
 Each module provides MCP tools for a specific aspect of OPNsense management.
 """
 
-# Domain modules will be imported here as they are created
-# Example:
-# from . import configuration
+# Domain modules are imported here to register their MCP tools
+from . import configuration
+
+# Additional domain modules will be imported as they are created
 # from . import system
 # from . import firewall
 # etc.
 
-__all__ = []
+__all__ = ["configuration"]

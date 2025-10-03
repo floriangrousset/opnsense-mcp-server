@@ -152,7 +152,7 @@ opnsense-mcp-server/
 - Create PLAN.md
 - **Commit**: "docs: add comprehensive modular architecture plan"
 
-### Phase 1: Foundation
+### ✅ Phase 1: Foundation
 **Goal**: Set up project structure and core infrastructure
 - Create directory structure
 - Extract and modularize:

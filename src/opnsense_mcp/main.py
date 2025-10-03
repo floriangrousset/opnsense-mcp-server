@@ -25,15 +25,15 @@ mcp = FastMCP("OPNsense MCP Server", description="Manage OPNsense firewalls via 
 server_state = ServerState()
 
 
-# Domain modules will be imported and registered here as they are created
-# Example:
-# from .domains import configuration
+# Import domain modules to register their MCP tools
+# Each domain module uses the global `mcp` instance to register its tools
+# using decorators like: @mcp.tool(name="tool_name", description="...")
+from .domains import configuration
+
+# Additional domain modules will be imported as they are created
 # from .domains import system
 # from .domains import firewall
 # etc.
-#
-# Each domain module will use the global `mcp` instance to register its tools
-# using decorators like: @mcp.tool(name="tool_name", description="...")
 
 
 # Entry point for running the server
