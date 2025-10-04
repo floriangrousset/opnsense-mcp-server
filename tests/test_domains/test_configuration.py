@@ -7,13 +7,12 @@ and API endpoint discovery.
 
 import pytest
 import json
-from unittest.mock import AsyncMock, Mock, patch
+import sys
+from unittest.mock import AsyncMock, Mock, patch, MagicMock
 
-from src.opnsense_mcp.domains.configuration import (
-    configure_opnsense_connection,
-    get_api_endpoints,
-    get_opnsense_client
-)
+# Mock the circular import to avoid issues during test collection
+sys.modules['src.opnsense_mcp.main'] = MagicMock()
+
 from src.opnsense_mcp.core.exceptions import (
     ConfigurationError,
     AuthenticationError,

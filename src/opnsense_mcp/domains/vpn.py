@@ -10,9 +10,9 @@ import json
 import logging
 from typing import Optional
 
-from fastmcp import Context
-from ..core.client import get_opnsense_client
-from ..core.mcp_server import mcp
+from mcp.server.fastmcp import Context
+from .configuration import get_opnsense_client
+from ..main import mcp
 
 # Configure logging
 logger = logging.getLogger(__name__)

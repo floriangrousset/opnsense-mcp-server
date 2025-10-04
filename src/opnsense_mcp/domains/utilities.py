@@ -9,9 +9,9 @@ import json
 import logging
 from typing import Optional
 
-from fastmcp import Context
-from ..core.client import get_opnsense_client
-from ..core.mcp_server import mcp
+from mcp.server.fastmcp import Context
+from .configuration import get_opnsense_client
+from ..main import mcp
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -77,7 +77,11 @@ async def exec_api_call(
         - Some endpoints require specific POST data formats
         - Refer to OPNsense API documentation for endpoint details
     """
-    client = get_opnsense_client()
+    try:
+        client = await get_opnsense_client()
+    except Exception:
+        return "OPNsense client not initialized. Please configure the server first."
+
     if not client:
         return "OPNsense client not initialized. Please configure the server first."
 

@@ -7,7 +7,11 @@ health metrics, service management, and security auditing.
 
 import pytest
 import json
-from unittest.mock import AsyncMock, Mock, patch
+import sys
+from unittest.mock import AsyncMock, Mock, patch, MagicMock
+
+# Mock the circular import to avoid issues during test collection
+sys.modules['src.opnsense_mcp.main'] = MagicMock()
 
 from src.opnsense_mcp.domains.system import (
     get_system_status,
