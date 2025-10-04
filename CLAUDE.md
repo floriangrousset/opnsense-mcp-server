@@ -8,11 +8,45 @@ This is an OPNsense MCP (Model Context Protocol) Server - a Python application t
 
 ## Key Architecture
 
-- **Single Python file**: `opnsense-mcp-server.py` contains the entire MCP server implementation
+The project uses a **modular, domain-driven architecture** with 166 tools organized across 12 specialized domain modules:
+
+```
+src/opnsense_mcp/
+├── main.py                    # FastMCP server initialization & entry point
+├── core/                      # Core infrastructure
+│   ├── client.py              # OPNsenseClient (HTTP client, authentication)
+│   ├── connection.py          # ConnectionPool & rate limiting
+│   ├── exceptions.py          # Exception hierarchy
+│   ├── models.py              # Pydantic models
+│   ├── retry.py               # Retry mechanisms
+│   └── state.py               # ServerState management
+├── shared/                    # Shared utilities
+│   ├── constants.py           # API endpoint constants
+│   ├── error_handlers.py      # Error handling helpers
+│   └── validators.py          # Input validators
+└── domains/                   # Feature-specific modules (166 tools)
+    ├── configuration.py       # Connection setup (2 tools)
+    ├── system.py              # System management (8 tools)
+    ├── firewall.py            # Firewall rules & aliases (8 tools)
+    ├── nat.py                 # NAT management (7 tools)
+    ├── network.py             # Interfaces, VLANs, bridges, LAGG, VIPs (20 tools)
+    ├── dns_dhcp.py            # DNS & DHCP services (28 tools)
+    ├── certificates.py        # Certificate lifecycle (25 tools)
+    ├── users.py               # User & group management (31 tools)
+    ├── logging.py             # Log management & analysis (11 tools)
+    ├── traffic_shaping.py     # QoS & traffic shaping (23 tools)
+    ├── vpn.py                 # VPN connections (1 tool)
+    └── utilities.py           # Custom API calls & utilities (4 tools)
+```
+
+### Core Design Principles
+
+- **Domain-driven structure**: Tools grouped by functional area for maintainability
 - **FastMCP framework**: Uses Anthropic's FastMCP library for MCP protocol handling
-- **OPNsenseClient class**: Handles authentication and API communication with OPNsense firewalls
-- **Tool-based architecture**: Each function decorated with `@mcp.tool()` represents a capability exposed to AI clients
-- **Global client**: Uses a global `opnsense_client` instance that gets configured via the `configure_opnsense_connection` tool
+- **Centralized client**: `OPNsenseClient` in `core/client.py` handles all API communication
+- **Global state**: `ServerState` in `core/state.py` manages connection lifecycle
+- **Tool registration**: Each domain module imports `mcp` from `main.py` and uses `@mcp.tool()` decorators
+- **Backward compatibility**: Root `opnsense-mcp-server.py` wrapper maintains compatibility with older setups
 
 ## Development Commands
 
@@ -32,11 +66,41 @@ uv pip install -r requirements.txt
 
 ### Running the Server
 ```bash
-# Make executable (Linux/macOS)
-chmod +x opnsense-mcp-server.py
+# Run as Python module (recommended)
+python -m src.opnsense_mcp.main
 
-# Run directly
+# Or run via entry point (if installed)
+opnsense-mcp-server
+
+# Or use backward compatibility wrapper
 python opnsense-mcp-server.py
+```
+
+### Testing
+```bash
+# Install dev dependencies
+uv pip install -e ".[dev]"
+
+# Run tests
+pytest
+
+# Run with coverage
+pytest --cov=src/opnsense_mcp
+
+# Run specific test module
+pytest tests/test_core/test_client.py
+```
+
+### Code Quality
+```bash
+# Format code with black
+black src/ tests/
+
+# Lint with ruff
+ruff check src/ tests/
+
+# Type checking with mypy
+mypy src/
 ```
 
 ### Docker Support
@@ -50,281 +114,161 @@ docker-compose up -d
 
 ## Key Implementation Details
 
+### Working with Domain Modules
+
+When adding or modifying tools, follow this pattern:
+
+1. **Locate the appropriate domain module** in `src/opnsense_mcp/domains/`
+2. **Import required dependencies**:
+   ```python
+   from ..core.client import get_opnsense_client
+   from ..core.exceptions import OPNsenseClientError
+   from ..shared.constants import API_ENDPOINTS
+   from ..main import mcp
+   ```
+3. **Define tools with decorators**:
+   ```python
+   @mcp.tool(name="tool_name", description="Tool description")
+   async def tool_name(param: str) -> dict:
+       client = get_opnsense_client()
+       result = await client.request("GET", API_ENDPOINTS["endpoint"])
+       return result
+   ```
+
 ### Authentication
 - Uses HTTP Basic Auth with base64-encoded API key/secret
-- Configured via `configure_opnsense_connection` tool at runtime
-- No persistent configuration storage
+- Configured via `configure_opnsense_connection` tool at runtime (in `domains/configuration.py`)
+- Connection state managed by `ServerState` in `core/state.py`
+- No persistent configuration storage for security
 
 ### Error Handling
-- All tools check for initialized client before proceeding
-- Comprehensive exception logging with context
-- Returns user-friendly error messages
+- Exception hierarchy defined in `core/exceptions.py`
+- All tools check for initialized client via `get_opnsense_client()`
+- Error handling helpers in `shared/error_handlers.py`
+- Comprehensive logging via `core/client.py`
 
 ### API Patterns
-- Constants defined for all OPNsense API endpoints
-- Consistent request/response handling in `OPNsenseClient.request()`
+- Constants defined in `shared/constants.py` for all OPNsense API endpoints
+- Consistent request/response handling in `OPNsenseClient.request()` method
 - POST requests for configuration changes are followed by "apply" calls where needed
+- Retry logic with exponential backoff in `core/retry.py`
+- Connection pooling and rate limiting in `core/connection.py`
 
-### Tool Categories
-- **Configuration**: `configure_opnsense_connection`
-- **System Info**: `get_system_status`, `get_system_health`, `get_api_endpoints`
-- **Firewall**: `firewall_get_rules`, `firewall_add_rule`, `firewall_delete_rule`, `firewall_toggle_rule`
-- **Network**: `get_interfaces`, `get_dhcp_leases`, `get_system_routes`
-- **Aliases**: `get_firewall_aliases`, `add_to_alias`, `delete_from_alias`
-- **NAT Management**:
-  - **Outbound NAT**: `nat_list_outbound_rules`, `nat_add_outbound_rule`, `nat_delete_outbound_rule`, `nat_toggle_outbound_rule`
-  - **One-to-One NAT**: `nat_list_one_to_one_rules`, `nat_add_one_to_one_rule`, `nat_delete_one_to_one_rule`
-  - **Port Forwarding Info**: `nat_get_port_forward_info` (explains current limitations)
-- **User & Group Management**:
-  - **User CRUD**: `list_users`, `get_user`, `create_user`, `update_user`, `delete_user`, `toggle_user`
-  - **Group CRUD**: `list_groups`, `get_group`, `create_group`, `update_group`, `delete_group`
-  - **Group Membership**: `add_user_to_group`, `remove_user_from_group`
-  - **Authentication**: `list_privileges`, `get_user_effective_privileges`, `assign_privilege_to_user`, `revoke_privilege_from_user`
-  - **Auth Servers**: `list_auth_servers`, `test_user_authentication`
-  - **Helper Tools**: `create_admin_user`, `create_readonly_user`, `reset_user_password`, `bulk_user_creation`, `setup_user_group_template`
-- **Logging & Log Management**:
-  - **Core Logging**: `get_system_logs`, `get_service_logs` (squid, haproxy, openvpn, ipsec, dhcp, dns)
-  - **Log Search**: `search_logs` (cross-log search with filtering)
-  - **Log Export**: `export_logs` (JSON, CSV, text formats with date ranges)
-  - **Log Statistics**: `get_log_statistics` (analysis with counts, patterns, trends)
-  - **Log Management**: `clear_logs`, `configure_logging` (levels, remote logging, rotation)
-  - **Security Analysis**: `analyze_security_events` (threat detection, pattern analysis)
-  - **Reporting**: `generate_log_report` (summary, detailed, security, compliance reports)
-- **DNS & DHCP Management**:
-  - **DHCP Server**: `dhcp_list_servers`, `dhcp_get_server`, `dhcp_set_server`, `dhcp_restart_service`
-  - **DHCP Static Mappings**: `dhcp_list_static_mappings`, `dhcp_get_static_mapping`, `dhcp_add_static_mapping`, `dhcp_update_static_mapping`, `dhcp_delete_static_mapping`
-  - **DHCP Leases**: `dhcp_get_leases`, `dhcp_search_leases`, `dhcp_get_lease_statistics`
-  - **DNS Resolver (Unbound)**: `dns_resolver_get_settings`, `dns_resolver_set_settings`, `dns_resolver_restart_service`
-  - **DNS Host Overrides**: `dns_resolver_list_host_overrides`, `dns_resolver_get_host_override`, `dns_resolver_add_host_override`, `dns_resolver_update_host_override`, `dns_resolver_delete_host_override`
-  - **DNS Domain Overrides**: `dns_resolver_list_domain_overrides`, `dns_resolver_add_domain_override`
-  - **DNS Forwarder (dnsmasq)**: `dns_forwarder_get_settings`, `dns_forwarder_set_settings`, `dns_forwarder_list_hosts`, `dns_forwarder_add_host`, `dns_forwarder_restart_service`
-- **Interface & VLAN Management**:
-  - **Interface Control**: `get_interface_details`, `reload_interface`, `export_interface_config`
-  - **VLAN Management**: `list_vlans`, `get_vlan`, `create_vlan_interface`, `update_vlan`, `delete_vlan`, `reconfigure_vlans`
-  - **Bridge Management**: `list_bridges`, `get_bridge`, `create_bridge`, `update_bridge`, `delete_bridge`
-  - **LAGG Management**: `list_lagg_interfaces`, `get_lagg`, `create_lagg`, `update_lagg`, `delete_lagg`, `reconfigure_lagg`
-  - **Virtual IP Management**: `list_virtual_ips`, `get_virtual_ip`, `create_virtual_ip`, `update_virtual_ip`, `delete_virtual_ip`, `reconfigure_virtual_ips`, `get_next_carp_vhid`
-- **Certificate Management**:
-  - **Certificate Authority (CA)**: `list_certificate_authorities`, `get_certificate_authority`, `create_certificate_authority`, `delete_certificate_authority`, `export_certificate_authority`
-  - **Certificates**: `list_certificates`, `get_certificate`, `import_certificate`, `delete_certificate`, `export_certificate`
-  - **Certificate Signing Requests (CSR)**: `list_certificate_signing_requests`, `get_certificate_signing_request`, `create_certificate_signing_request`, `delete_certificate_signing_request`
-  - **ACME (Let's Encrypt) Accounts**: `list_acme_accounts`, `get_acme_account`, `create_acme_account`, `delete_acme_account`
-  - **ACME Certificates**: `list_acme_certificates`, `get_acme_certificate`, `create_acme_certificate`, `sign_acme_certificate`, `revoke_acme_certificate`, `delete_acme_certificate`
-  - **Certificate Validation**: `analyze_certificate_expiration`, `validate_certificate_chain`, `get_certificate_usage`
-- **Services**: `restart_service`, `list_plugins`, `install_plugin`
-- **VPN**: `get_vpn_connections` (OpenVPN, IPsec, WireGuard)
-- **Backup**: `backup_config`
-- **Security**: `perform_firewall_audit`
-- **Traffic Shaping & QoS**:
-  - **Core Management**: `traffic_shaper_get_status`, `traffic_shaper_reconfigure`, `traffic_shaper_get_settings`
-  - **Pipe Management**: `traffic_shaper_list_pipes`, `traffic_shaper_get_pipe`, `traffic_shaper_create_pipe`, `traffic_shaper_update_pipe`, `traffic_shaper_delete_pipe`, `traffic_shaper_toggle_pipe`
-  - **Queue Management**: `traffic_shaper_list_queues`, `traffic_shaper_get_queue`, `traffic_shaper_create_queue`, `traffic_shaper_update_queue`, `traffic_shaper_delete_queue`, `traffic_shaper_toggle_queue`
-  - **Rule Management**: `traffic_shaper_list_rules`, `traffic_shaper_get_rule`, `traffic_shaper_create_rule`, `traffic_shaper_update_rule`, `traffic_shaper_delete_rule`, `traffic_shaper_toggle_rule`
-  - **Common Use Cases**: `traffic_shaper_limit_user_bandwidth`, `traffic_shaper_prioritize_voip`, `traffic_shaper_setup_gaming_priority`, `traffic_shaper_create_guest_limits`
-- **Custom**: `exec_api_call` for arbitrary API endpoints
+### Tool Organization by Domain
 
-### Traffic Shaping & QoS Architecture
+Each domain module contains related tools and is independently testable:
 
-The traffic shaping implementation follows OPNsense's hierarchical QoS model:
+- **`domains/configuration.py`** (2 tools): Connection setup, API endpoint discovery
+- **`domains/system.py`** (8 tools): System status, health monitoring, services, plugins, backup, audit
+- **`domains/firewall.py`** (8 tools): Firewall rules CRUD, aliases management, rule toggling
+- **`domains/nat.py`** (7 tools): Outbound NAT, one-to-one NAT, port forwarding guidance
+- **`domains/network.py`** (20 tools): Interfaces, VLANs, bridges, LAGG, virtual IPs
+- **`domains/dns_dhcp.py`** (28 tools): DHCP server/leases/mappings, DNS resolver/forwarder, host/domain overrides
+- **`domains/certificates.py`** (25 tools): CA management, certificate lifecycle, CSRs, ACME/Let's Encrypt, validation
+- **`domains/users.py`** (31 tools): User/group CRUD, privileges, authentication, role-based helpers
+- **`domains/logging.py`** (11 tools): Log access, search, export, statistics, security analysis, reporting
+- **`domains/traffic_shaping.py`** (23 tools): Pipes, queues, rules, QoS helpers for common scenarios
+- **`domains/vpn.py`** (1 tool): VPN connection status monitoring
+- **`domains/utilities.py`** (4 tools): Custom API calls, backup, service management
 
-**Architecture Hierarchy:**
-- **Pipes**: Define hard bandwidth limits with configurable schedulers (FIFO, DRR, QFQ, FQ-CoDel, FQ-PIE)
-- **Queues**: Provide weighted bandwidth sharing within pipes (1-100 weight)
-- **Rules**: Apply shaping policies to specific traffic flows based on interface, protocol, source/destination
+See README.md for complete tool listings and capabilities within each domain (166 tools total).
 
-**Key Features:**
-- **Comprehensive Validation**: Parameter validation for bandwidth metrics, queue sizes, schedulers
-- **Relationship Management**: Automatic validation of pipe-queue-rule dependencies
-- **Flexible Targeting**: Rules can target either pipes (hard limits) or queues (weighted sharing)
-- **Auto-Configuration**: Automatic service reconfiguration after all changes
-- **Common Use Cases**: High-level helpers for typical scenarios (per-user limits, VoIP priority, gaming optimization, guest networks)
+### Module Development Guidelines
 
-**Supported Bandwidth Metrics:** bit/s, Kbit/s, Mbit/s, Gbit/s
-**Supported Schedulers:** FIFO, DRR, QFQ, FQ-CoDel (recommended), FQ-PIE
+When extending functionality:
 
-### Security Audit Feature
+1. **Choose the right domain**: Add tools to the most relevant domain module
+2. **Follow naming conventions**: Use descriptive snake_case names prefixed with domain context
+3. **Maintain consistency**: Follow existing patterns within the domain
+4. **Document thoroughly**: Include comprehensive docstrings with parameter descriptions
+5. **Handle errors gracefully**: Use custom exceptions from `core/exceptions.py`
+6. **Log appropriately**: Use the logger for debugging and error tracking
+7. **Test independently**: Each domain should have corresponding tests in `tests/test_domains/`
 
-The `perform_firewall_audit` tool performs automated security checks:
+### Adding a New Domain Module
 
-- Firmware/plugin update status
-- WAN management access exposure
-- Overly permissive firewall rules
-- Insecure protocol usage
-- Logging configuration
+If creating a completely new domain (rare):
 
-### User & Group Management
+1. Create `src/opnsense_mcp/domains/new_domain.py`
+2. Import `mcp` from `..main`
+3. Import required core/shared utilities
+4. Define tools with `@mcp.tool()` decorators
+5. Import the module in `src/opnsense_mcp/main.py`
+6. Create corresponding test file in `tests/test_domains/test_new_domain.py`
+7. Update CLAUDE.md and README.md documentation
 
-Comprehensive user management system with RBAC (Role-Based Access Control) support:
+### Key Domain-Specific Implementation Notes
 
-#### Core Features
-- **Full CRUD Operations**: Complete lifecycle management for users and groups
-- **Privilege System**: Fine-grained permission control with effective privilege calculation
-- **Group Membership**: Dynamic user-to-group assignment and removal
-- **Authentication Testing**: Validation against local and external auth servers (LDAP, RADIUS)
+#### Traffic Shaping (`domains/traffic_shaping.py`)
+Hierarchical QoS model: Pipes (hard limits) → Queues (weighted sharing) → Rules (traffic classification). Supports multiple schedulers (FQ-CoDel recommended) and includes high-level helpers for common scenarios.
 
-#### Helper Tools for Common Scenarios
-- **`create_admin_user`**: One-step creation of administrative users with full system privileges
-- **`create_readonly_user`**: Creates monitoring users with predefined view-only permissions
-- **`reset_user_password`**: Secure password reset preserving all other user settings
-- **`bulk_user_creation`**: Template-driven mass user creation with JSON configuration
-- **`setup_user_group_template`**: Creates privilege groups for consistent role-based access
+#### Certificate Management (`domains/certificates.py`)
+Full PKI lifecycle support including CA management, CSR generation, and ACME/Let's Encrypt automation. UUID-based resource management with automatic service reconfiguration.
 
-#### Implementation Details
-- **UUID-based Resource Management**: All operations use OPNsense UUIDs for reliable identification
-- **Configuration Reload**: Automatic config reload after changes for immediate effect
-- **Error Handling**: Comprehensive validation with detailed error messages
-- **Duplicate Prevention**: Smart handling of redundant operations (already member, privilege already assigned)
-- **Effective Privileges**: Combines user and group privileges using set operations for accurate permission calculation
+#### User Management (`domains/users.py`)
+RBAC-based system with UUID resource identification. Includes helper tools for common scenarios (admin creation, bulk imports, group templates). Effective privileges calculated by combining user and group permissions.
 
-### Logging & Log Management
+#### Logging (`domains/logging.py`)
+Multi-source log access with API-first design and graceful fallbacks. Built-in security event analysis and threat detection patterns. Supports export to JSON/CSV/text formats.
 
-Comprehensive logging system providing full visibility into OPNsense operations and security events:
+#### Network (`domains/network.py`)
+Manages interfaces, VLANs (tag validation 1-4094), bridges (STP support), LAGG (LACP/failover/loadbalance), and virtual IPs (CARP for HA). Automatic conflict detection and topology-aware validation.
 
-#### Core Logging Capabilities
-- **Multi-Source Log Access**: System, firewall, authentication, service-specific logs (DHCP, DNS, OpenVPN, IPsec, Squid, HAProxy)
-- **Advanced Filtering**: Severity levels, text filtering, date ranges, and cross-log search
-- **Real-time Analysis**: Live log streaming and pattern detection
-- **Export Functionality**: JSON, CSV, and text formats for external analysis
+#### DNS & DHCP (`domains/dns_dhcp.py`)
+Interface-aware DHCP server management with static mappings and lease analysis. DNS resolver (Unbound) and forwarder (dnsmasq) configuration with host/domain overrides.
 
-#### Security & Analysis Tools
-- **`analyze_security_events`**: Automated threat detection for brute force attacks, port scans, failed authentication
-- **`search_logs`**: Cross-log search with case sensitivity controls and result limiting
-- **Pattern Recognition**: Built-in detection for security indicators and suspicious activities
-- **Statistical Analysis**: Entry counts, trends, and performance metrics across time periods
+For comprehensive feature details, refer to README.md.
 
-#### Management & Configuration
-- **`configure_logging`**: Adjust log levels, enable remote syslog, configure rotation schedules
-- **`clear_logs`**: Secure log clearing with explicit confirmation requirements
-- **Compliance Reporting**: Generate reports for audit and compliance requirements
-- **Log Statistics**: Automated analysis of log volume, patterns, and system health
+## Architecture History & Migration
 
-#### Implementation Features
-- **API-First Design**: Uses native OPNsense logging APIs with intelligent fallbacks
-- **Graceful Degradation**: Falls back to log retrieval when specialized APIs unavailable
-- **Comprehensive Error Handling**: Validates parameters and provides clear error messages
-- **Security-Focused**: Built-in threat detection and high-risk indicator identification
-- **Scalable Architecture**: Handles large log volumes with pagination and limiting
+This project was completely restructured from a monolithic 9,529-line single file (`opnsense-mcp-server.py`) into a modern modular architecture. The transformation is documented in `PLAN.md`.
 
-### DNS & DHCP Management
+### Before (Monolithic)
+- Single file: 9,529 lines, 341.5KB
+- 166 tools in one namespace
+- Difficult to test, navigate, and maintain
 
-Comprehensive network services management for DHCP server configuration and DNS resolution services:
+### After (Modular)
+- 25+ files across core/shared/domains
+- Same 166 tools organized by domain
+- Independent testing and development
+- Backward compatible via wrapper
 
-#### DHCP Server Management
-- **Server Configuration**: Per-interface DHCP server setup with range, gateway, DNS, and lease time configuration
-- **Static Mappings**: MAC-to-IP address reservations for consistent device addressing
-- **Lease Management**: Real-time lease monitoring, statistics, and filtering capabilities
-- **Service Control**: DHCP service restart and configuration application
+### Package Structure
 
-#### DNS Resolver (Unbound) Management
-- **Core Settings**: DNSSEC, forwarding, caching, and interface binding configuration
-- **Host Overrides**: Custom hostname-to-IP mappings for local network resources
-- **Domain Overrides**: Forward specific domains to designated DNS servers
-- **Performance Tuning**: Cache size, TTL limits, and query optimization settings
+The project follows modern Python packaging standards:
 
-#### DNS Forwarder (dnsmasq) Management
-- **Legacy Support**: Alternative DNS service for specific use cases
-- **Host Management**: Simple hostname resolution for local devices
-- **Configuration Control**: Port, domain, and host file management
+- **`pyproject.toml`**: Primary project configuration (PEP 517/518 compliant)
+- **`setup.py`**: Minimal compatibility shim for older tools
+- **`requirements.txt`**: Production dependencies
+- **`src/` layout**: Prevents accidental imports of local modules
+- **Entry point**: `opnsense-mcp-server` command after installation
 
-#### DHCP Lease Analysis
-- **Real-time Monitoring**: Current lease status across all interfaces
-- **Statistical Analysis**: Active/expired lease counts and interface distribution
-- **Search Capabilities**: Filter leases by interface, state, or search terms
-
-#### Implementation Features
-- **Interface-Aware**: All operations respect network interface boundaries
-- **Automatic Application**: Configuration changes automatically reload services
-- **UUID Management**: Reliable resource identification for updates and deletions
-- **Comprehensive Validation**: Input validation and error handling for all operations
-- **Service Integration**: Seamless coordination between DHCP and DNS services
-
-### Interface & VLAN Management
-
-Comprehensive network interface management for physical interfaces, VLANs, bridges, LAGG, and virtual IPs:
-
-#### Interface Control
-- **Interface Details**: Detailed status and configuration information for specific interfaces
-- **Interface Reload**: On-demand interface reconfiguration and status refresh
-- **Configuration Export**: Export current interface configurations for backup/analysis
-
-#### VLAN Management
-- **VLAN CRUD Operations**: Complete lifecycle management for VLAN interfaces with tag validation (1-4094)
-- **Parent Interface Support**: Create VLANs on any physical or bridge interface
-- **Bulk Reconfiguration**: Apply all VLAN changes simultaneously for consistent network state
-
-#### Bridge Interface Management
-- **Bridge Creation**: Layer 2 bridge interfaces for network segmentation
-- **STP Support**: Spanning Tree Protocol configuration for loop prevention
-- **Member Management**: Add/remove physical and VLAN interfaces to bridges
-- **Advanced Settings**: Bridge priority, hello time, forward delay, max age configuration
-
-#### LAGG Interface Management
-- **Link Aggregation**: Combine multiple interfaces for redundancy and performance
-- **Protocol Support**: LACP, failover, loadbalance, roundrobin protocols
-- **Member Management**: Dynamic addition/removal of physical interfaces
-- **Load Balancing**: Advanced load balancing algorithms for optimal traffic distribution
-
-#### Virtual IP Management
-- **High Availability**: CARP (Common Address Redundancy Protocol) for failover
-- **Proxy ARP**: Transparent IP address handling for network services
-- **Auto-VHID Assignment**: Automatic CARP Virtual Host ID assignment with conflict detection
-- **Multi-Interface Support**: Virtual IPs across different network interfaces
-
-#### Implementation Features
-- **UUID-Based Management**: Reliable resource identification using OPNsense UUIDs
-- **Automatic Reconfiguration**: Configuration changes trigger automatic interface reload
-- **Comprehensive Validation**: VLAN tag ranges, protocol validation, IP address format checking
-- **Conflict Detection**: Prevents VLAN tag conflicts and CARP VHID collisions
-- **Graceful Error Handling**: Detailed error messages with context for troubleshooting
-- **Network Topology Awareness**: Understanding of interface relationships and dependencies
-
-### Certificate Management
-
-Comprehensive SSL/TLS certificate lifecycle management including Certificate Authorities, certificates, CSRs, and Let's Encrypt automation:
-
-#### Certificate Authority Management
-- **CA Lifecycle**: Create, manage, and export Certificate Authorities with configurable parameters
-- **Distinguished Name Support**: Full DN configuration with country, state, city, organization details
-- **Cryptographic Options**: Configurable digest algorithms (SHA-256/384/512) and key lengths (2048/4096 bits)
-- **Certificate Lifetime**: Customizable CA certificate validity periods
-
-#### Certificate Management
-- **Certificate Import/Export**: Support for PEM format certificate and private key import/export
-- **Certificate Lifecycle**: Complete CRUD operations for certificate management
-- **Format Validation**: Built-in PEM format validation for certificates and private keys
-- **Certificate Details**: Comprehensive certificate information including issuer, subject, and validity dates
-
-#### Certificate Signing Request (CSR) Management
-- **CSR Generation**: Create certificate signing requests with full DN support
-- **Cryptographic Configuration**: Configurable digest algorithms and RSA key lengths
-- **External CA Integration**: Generate CSRs for external Certificate Authority signing
-
-#### ACME (Let's Encrypt) Integration
-- **Account Management**: Create and manage Let's Encrypt accounts with email validation
-- **Certificate Automation**: Automated certificate issuance and renewal for domain validation
-- **Multi-Domain Support**: Support for Subject Alternative Names (SANs) in certificates
-- **Auto-Renewal**: Configurable automatic certificate renewal to prevent expiration
-- **Certificate Lifecycle**: Complete ACME certificate signing, revocation, and deletion
-
-#### Certificate Validation & Monitoring
-- **Expiration Analysis**: Automated certificate expiration monitoring with configurable warning thresholds
-- **Chain Validation**: Certificate trust chain validation and completeness checking
-- **Usage Analysis**: Certificate inventory and usage recommendations for cleanup
-- **Self-Signed Detection**: Identification of self-signed certificates with security recommendations
-- **Private Key Validation**: Verification of certificate-private key pairs for SSL/TLS services
-
-#### Implementation Features
-- **UUID-Based Management**: Reliable resource identification using OPNsense UUIDs
-- **Automatic Service Integration**: Configuration changes automatically trigger service reconfiguration
-- **Comprehensive Validation**: Input validation for all certificate parameters including email formats, country codes, and key lengths
-- **Security Best Practices**: Built-in security recommendations and validation for production environments
-- **Error Handling**: Detailed error messages with context for certificate management troubleshooting
-- **PEM Format Support**: Native support for industry-standard PEM certificate and key formats
+Install in development mode:
+```bash
+uv pip install -e ".[dev]"
+```
 
 ## Claude Desktop Integration
 
-The `setup-claude.sh` script automatically configures Claude Desktop to use this MCP server by modifying the `claude_desktop_config.json` file with the appropriate server entry.
+The `setup-claude.sh` script automatically configures Claude Desktop to use this MCP server by modifying the `claude_desktop_config.json` file with the appropriate server entry. It intelligently detects virtual environments and creates backups before modifications.
 
-## Workflow Reminder
+## Development Workflow
 
-- For every new feature development iteration: 1. move to develop branch and pull the latest 2. create a new branch for the feature to implement 3. implement and make multiple commits to that branch during the implementation of the feature 4. once done with implementing create a pull request of feature branch to develop branch 5. ask me to merge the pull request before you can move to the next feature to implement.
+When developing new features:
+
+1. **Switch to develop branch**: `git checkout develop && git pull`
+2. **Create feature branch**: `git checkout -b feat/your-feature-name`
+3. **Implement with commits**: Make multiple logical commits during development
+4. **Run tests**: `pytest tests/` before creating PR
+5. **Create pull request**: PR from feature branch to develop branch
+6. **Request review**: Ask for PR merge approval before proceeding to next feature
+
+### Commit Message Conventions
+
+- `feat:` - New feature or enhancement
+- `fix:` - Bug fix
+- `docs:` - Documentation changes
+- `refactor:` - Code restructuring without behavior change
+- `test:` - Adding or updating tests
+- `chore:` - Build process, dependencies, tooling
