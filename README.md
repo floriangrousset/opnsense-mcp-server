@@ -65,7 +65,7 @@ The **Model Context Protocol (MCP)** is a new standard that lets AI models (like
 
 ---
 
-## 🛠️ Complete Feature Set (110+ Tools!)
+## 🛠️ Complete Feature Set (166 Tools!)
 
 <details>
 <summary>🎯 <strong>Click to expand the FULL toolkit</strong> - We've got everything you need!</summary>
