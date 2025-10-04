@@ -3,6 +3,7 @@
 > **🚀 Transform your OPNsense firewall management with AI-powered natural language commands!**
 
 [![MseeP.ai Security Assessment Badge](https://mseep.net/pr/floriangrousset-opnsense-mcp-server-badge.png)](https://mseep.ai/app/floriangrousset-opnsense-mcp-server)
+
 [![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/5d4ff4d2-2e80-4925-b287-2911721107f0)
 [![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-blue.svg)](LICENSE)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/)
@@ -65,7 +66,7 @@ The **Model Context Protocol (MCP)** is a new standard that lets AI models (like
 
 ---
 
-## 🛠️ Complete Feature Set (110+ Tools!)
+## 🛠️ Complete Feature Set (166 Tools!)
 
 <details>
 <summary>🎯 <strong>Click to expand the FULL toolkit</strong> - We've got everything you need!</summary>

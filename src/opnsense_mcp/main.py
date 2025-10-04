@@ -45,6 +45,11 @@ from .domains import utilities       # Phase 12b: Utility tools (custom API call
 # etc.
 
 
+def main():
+    """Entry point for the opnsense-mcp-server command."""
+    mcp.run()
+
+
 # Entry point for running the server
 if __name__ == "__main__":
-    mcp.run()
+    main()
