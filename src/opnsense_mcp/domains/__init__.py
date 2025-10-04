@@ -16,8 +16,23 @@ from . import certificates
 from . import users
 from . import logging
 from . import traffic_shaping
+from . import vpn
+from . import utilities
 
 # Additional domain modules will be imported as they are created
 # etc.
 
-__all__ = ["configuration", "system", "firewall", "nat", "network", "dns_dhcp", "certificates", "users", "logging", "traffic_shaping"]
+__all__ = [
+    "configuration",
+    "system",
+    "firewall",
+    "nat",
+    "network",
+    "dns_dhcp",
+    "certificates",
+    "users",
+    "logging",
+    "traffic_shaping",
+    "vpn",
+    "utilities"
+]

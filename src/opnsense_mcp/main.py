@@ -38,6 +38,8 @@ from .domains import certificates    # Phase 8: Certificate management (CA, cert
 from .domains import users           # Phase 9: User & group management (CRUD, privileges, authentication)
 from .domains import logging         # Phase 10: Logging & log management
 from .domains import traffic_shaping # Phase 11: Traffic shaping & QoS management (pipes, queues, rules, helpers)
+from .domains import vpn             # Phase 12a: VPN management (OpenVPN, IPsec, WireGuard)
+from .domains import utilities       # Phase 12b: Utility tools (custom API calls)
 
 # Additional domain modules will be imported as they are created
 # etc.
