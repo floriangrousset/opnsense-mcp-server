@@ -1,0 +1,93 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "opnsense-mcp-server"
+version = "1.0.0"
+description = "Model Context Protocol server for managing OPNsense firewalls"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "AGPL-3.0"}
+authors = [
+    {name = "Florian Grousset", email = "florian@grousset.fr"}
+]
+keywords = [
+    "opnsense",
+    "firewall",
+    "mcp",
+    "model-context-protocol",
+    "ai",
+    "automation",
+    "network-management"
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: GNU Affero General Public License v3",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: System :: Networking :: Firewalls",
+    "Topic :: System :: Systems Administration",
+]
+
+dependencies = [
+    "mcp>=0.1.0",
+    "httpx>=0.24.0",
+    "pydantic>=2.0.0",
+    "keyring>=24.0.0",
+    "aiolimiter>=1.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "black>=23.0.0",
+    "ruff>=0.1.0",
+    "mypy>=1.5.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/floriangrousset/opnsense-mcp-server"
+Documentation = "https://github.com/floriangrousset/opnsense-mcp-server/blob/main/README.md"
+Repository = "https://github.com/floriangrousset/opnsense-mcp-server"
+Issues = "https://github.com/floriangrousset/opnsense-mcp-server/issues"
+
+[project.scripts]
+opnsense-mcp-server = "src.opnsense_mcp.main:main"
+
+[tool.setuptools]
+packages = ["src.opnsense_mcp", "src.opnsense_mcp.core", "src.opnsense_mcp.shared", "src.opnsense_mcp.domains"]
+
+[tool.setuptools.package-data]
+"src.opnsense_mcp" = ["py.typed"]
+
+[tool.black]
+line-length = 100
+target-version = ['py310', 'py311', 'py312']
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "DTZ", "T10", "ICN", "PIE", "PYI", "PT", "Q", "RSE", "RET", "SIM", "TID", "ARG", "PLE", "PLW", "RUF"]
+ignore = ["E501"]
+
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
