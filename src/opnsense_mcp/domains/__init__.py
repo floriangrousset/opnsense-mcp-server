@@ -14,8 +14,9 @@ from . import network
 from . import dns_dhcp
 from . import certificates
 from . import users
+from . import logging
 
 # Additional domain modules will be imported as they are created
 # etc.
 
-__all__ = ["configuration", "system", "firewall", "nat", "network", "dns_dhcp", "certificates", "users"]
+__all__ = ["configuration", "system", "firewall", "nat", "network", "dns_dhcp", "certificates", "users", "logging"]
