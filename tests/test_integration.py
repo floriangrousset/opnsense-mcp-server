@@ -67,13 +67,13 @@ class TestEndToEndWorkflows:
 
             add_result = await firewall_add_rule(
                 ctx=mock_mcp_context,
+                description="Test rule",
+                action="pass",
                 interface="lan",
                 direction="in",
-                action="pass",
                 protocol="tcp",
-                source="any",
-                destination="any",
-                description="Test rule"
+                source_net="any",
+                destination_net="any"
             )
 
             assert "success" in add_result.lower() or "saved" in add_result.lower()

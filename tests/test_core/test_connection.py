@@ -95,7 +95,7 @@ class TestConnectionPool:
             verify_ssl=False
         )
 
-        with patch('src.opnsense_mcp.core.connection.OPNsenseClient') as MockClient:
+        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
             mock_client = Mock()
             MockClient.return_value = mock_client
 
@@ -115,7 +115,7 @@ class TestConnectionPool:
             verify_ssl=False
         )
 
-        with patch('src.opnsense_mcp.core.connection.OPNsenseClient') as MockClient:
+        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
             mock_client = Mock()
             MockClient.return_value = mock_client
 
@@ -138,7 +138,7 @@ class TestConnectionPool:
             verify_ssl=False
         )
 
-        with patch('src.opnsense_mcp.core.connection.OPNsenseClient') as MockClient:
+        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
             mock_client1 = Mock()
             mock_client1.close = AsyncMock()
             mock_client2 = Mock()
@@ -172,7 +172,7 @@ class TestConnectionPool:
             for i in range(3)
         ]
 
-        with patch('src.opnsense_mcp.core.connection.OPNsenseClient') as MockClient:
+        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
             mock_clients = []
             for i in range(3):
                 mock_client = Mock()
@@ -206,7 +206,7 @@ class TestConnectionPool:
             verify_ssl=False
         )
 
-        with patch('src.opnsense_mcp.core.connection.OPNsenseClient') as MockClient:
+        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
             mock_client = Mock()
             mock_client.close = AsyncMock()
             MockClient.return_value = mock_client
@@ -255,7 +255,7 @@ class TestConnectionPool:
             for i in range(3)
         ]
 
-        with patch('src.opnsense_mcp.core.connection.OPNsenseClient') as MockClient:
+        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
             mock_clients = []
             for _ in range(3):
                 mock_client = Mock()
@@ -298,7 +298,7 @@ class TestConnectionPool:
             verify_ssl=False
         )
 
-        with patch('src.opnsense_mcp.core.connection.OPNsenseClient') as MockClient:
+        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
             mock_client = Mock()
             MockClient.return_value = mock_client
 
@@ -333,7 +333,7 @@ class TestConnectionPool:
         config1 = OPNsenseConfig(url="https://192.168.1.1", api_key="key1", api_secret="secret1", verify_ssl=False)
         config2 = OPNsenseConfig(url="https://192.168.1.2", api_key="key2", api_secret="secret2", verify_ssl=False)
 
-        with patch('src.opnsense_mcp.core.connection.OPNsenseClient') as MockClient:
+        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
             mock_client1 = Mock()
             mock_client2 = Mock()
             MockClient.side_effect = [mock_client1, mock_client2]
@@ -366,7 +366,7 @@ class TestConnectionPool:
         assert pool.lock is not None
         assert isinstance(pool.lock, asyncio.Lock)
 
-        with patch('src.opnsense_mcp.core.connection.OPNsenseClient') as MockClient:
+        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
             mock_client = Mock()
             MockClient.return_value = mock_client
 

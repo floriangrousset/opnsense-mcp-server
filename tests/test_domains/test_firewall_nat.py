@@ -44,13 +44,13 @@ class TestFirewallDomain:
 
             result = await firewall_add_rule(
                 ctx=mock_mcp_context,
+                description="Test rule",
+                action="pass",
                 interface="lan",
                 direction="in",
-                action="pass",
                 protocol="tcp",
-                source="any",
-                destination="any",
-                description="Test rule"
+                source_net="any",
+                destination_net="any"
             )
 
             assert "success" in result.lower() or "saved" in result.lower()
@@ -66,7 +66,7 @@ class TestFirewallDomain:
 
             result = await firewall_delete_rule(
                 ctx=mock_mcp_context,
-                rule_uuid="rule-uuid-123"
+                uuid="rule-uuid-123"
             )
 
             assert "success" in result.lower() or "deleted" in result.lower()
@@ -159,12 +159,13 @@ class TestValidation:
             # Invalid action
             result = await firewall_add_rule(
                 ctx=mock_mcp_context,
+                description="Invalid test",
+                action="invalid_action",
                 interface="lan",
                 direction="in",
-                action="invalid_action",
                 protocol="tcp",
-                source="any",
-                destination="any"
+                source_net="any",
+                destination_net="any"
             )
 
             assert "error" in result.lower() or "invalid" in result.lower()
