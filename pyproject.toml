@@ -41,6 +41,7 @@ dependencies = [
     "pydantic>=2.0.0",
     "keyring>=24.0.0",
     "aiolimiter>=1.1.0",
+    "typer>=0.9.0",
 ]
 
 [project.optional-dependencies]
@@ -61,9 +62,10 @@ Issues = "https://github.com/floriangrousset/opnsense-mcp-server/issues"
 
 [project.scripts]
 opnsense-mcp-server = "src.opnsense_mcp.main:main"
+opnsense-mcp = "src.opnsense_mcp.cli:main"
 
 [tool.setuptools]
-packages = ["src.opnsense_mcp", "src.opnsense_mcp.core", "src.opnsense_mcp.shared", "src.opnsense_mcp.domains"]
+packages = ["src.opnsense_mcp", "src.opnsense_mcp.core", "src.opnsense_mcp.shared", "src.opnsense_mcp.domains", "src.opnsense_mcp.cli"]
 
 [tool.setuptools.package-data]
 "src.opnsense_mcp" = ["py.typed"]

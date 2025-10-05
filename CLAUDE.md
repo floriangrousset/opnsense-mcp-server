@@ -45,8 +45,41 @@ src/opnsense_mcp/
 - **FastMCP framework**: Uses Anthropic's FastMCP library for MCP protocol handling
 - **Centralized client**: `OPNsenseClient` in `core/client.py` handles all API communication
 - **Global state**: `ServerState` in `core/state.py` manages connection lifecycle
+- **Secure credential storage**: `ConfigLoader` in `core/config_loader.py` handles local-only credential storage
+- **CLI management**: `cli/` directory provides secure credential setup and management commands
 - **Tool registration**: Each domain module imports `mcp` from `main.py` and uses `@mcp.tool()` decorators
 - **Backward compatibility**: Root `opnsense-mcp-server.py` wrapper maintains compatibility with older setups
+
+### Security Architecture
+
+**Local-Only Credential Storage**: As of v1.1.0, the server implements secure credential storage where credentials are never sent to the LLM.
+
+**Credential Sources (Priority Order)**:
+1. **Environment Variables** (highest priority) - for CI/CD and containers
+   - `OPNSENSE_URL`, `OPNSENSE_API_KEY`, `OPNSENSE_API_SECRET`, `OPNSENSE_VERIFY_SSL`
+2. **Config File** (~/.opnsense-mcp/config.json) - for local development with profile support
+3. **System Keyring** (backward compatibility) - legacy method for existing installations
+
+**ConfigLoader** (`core/config_loader.py`):
+- Manages cascading credential loading from multiple sources
+- Enforces secure file permissions (0600)
+- Provides profile management for multiple firewalls
+- Never exposes credentials in logs or tool responses
+
+**CLI Tools** (`cli/` directory):
+- `opnsense-mcp setup` - Interactive credential configuration
+- `opnsense-mcp list-profiles` - List configured profiles
+- `opnsense-mcp test-connection` - Test firewall connectivity
+- `opnsense-mcp delete-profile` - Remove credential profiles
+
+**Tool Signature Change**:
+```python
+# OLD (Insecure - credentials exposed to LLM)
+configure_opnsense_connection(url, api_key, api_secret, verify_ssl)
+
+# NEW (Secure - only profile name sent to LLM)
+configure_opnsense_connection(profile="default")
+```
 
 ## Development Commands
 
