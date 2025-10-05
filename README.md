@@ -10,6 +10,185 @@
 [![MCP Compatible](https://img.shields.io/badge/MCP-Compatible-green.svg)](https://modelcontextprotocol.io)
 [![OPNsense](https://img.shields.io/badge/OPNsense-Ready-orange.svg)](https://opnsense.org)
 
+---
+
+## ⚠️ CRITICAL: Security & Usage Disclaimer
+
+> **🚨 THIS TOOL SHOULD NEVER BE USED IN PRODUCTION ENVIRONMENTS 🚨**
+
+### ⛔ Production Use: STRICTLY PROHIBITED
+
+**This project is ONLY for:**
+- 🧪 **Laboratory environments** - Isolated test networks
+- 📚 **Educational purposes** - Learning about AI and network automation
+- 🔬 **Experimentation** - Exploring agentic AI capabilities
+- 🎯 **Research** - Understanding AI-controlled infrastructure
+
+**This project is NOT for:**
+- ❌ Production firewalls (business or personal)
+- ❌ Any environment where downtime matters
+- ❌ Networks protecting real assets or data
+- ❌ Internet-facing or critical infrastructure
+
+### 🤖 Why This Restriction?
+
+**Large Language Models (LLMs) are fundamentally unpredictable:**
+
+1. **Non-Deterministic Behavior**
+   - Same prompt can produce different results
+   - No guarantees on output correctness
+   - Can hallucinate configurations that seem correct but aren't
+
+2. **Firewall Management is Critical**
+   - Mistakes expose your network to attacks
+   - Misconfigurations can block all traffic
+   - Recovery may require physical console access
+   - Security implications are severe
+
+3. **AI Technology Maturity**
+   - Current state (2025): Powerful but unreliable for critical systems
+   - LLMs can confidently give wrong answers
+   - Intent interpretation is imperfect
+   - No formal verification of outputs
+
+**Example risks:**
+- "Block suspicious traffic" → Blocks everything
+- "Open port for SSH" → Exposes unintended services
+- "Configure VPN" → Creates insecure tunnel
+- AI hallucinates non-existent APIs or parameters
+
+### 🎓 Intended Audience
+
+**This project is for curious professionals and enthusiasts who want to explore:**
+- How AI agents interact with network equipment
+- Capabilities and limitations of LLM-driven automation
+- Future possibilities of AI in infrastructure management
+- Natural language interfaces for complex systems
+
+**You should:**
+- Have networking knowledge to recognize bad configurations
+- Use completely isolated lab environments
+- Understand you're experimenting with emerging technology
+- Be prepared for unexpected behaviors and errors
+
+### 🏠 Recommended: Self-Hosted LLMs
+
+**For maximum safety and privacy, use local LLMs like [Ollama](https://ollama.ai):**
+
+**Why local models:**
+- 🔒 **Privacy**: Network configurations never leave your lab
+- 🎛️ **Control**: Specific model versions, reproducible behavior
+- 💰 **Cost**: No API fees
+- 📡 **Offline**: No internet dependency
+- 🔍 **Transparency**: Inspect and modify model behavior
+
+**Setup with Ollama:**
+```bash
+# Install Ollama
+curl -fsSL https://ollama.ai/install.sh | sh
+
+# Pull a model (e.g., llama3.2)
+ollama pull llama3.2
+
+# Use with MCP (configure in Claude Desktop or equivalent)
+```
+
+**Note:** Even with local models, use ONLY in lab environments. The unpredictability comes from the AI technology itself, not the hosting method.
+
+### 🤖 AI-Generated Code Transparency
+
+**This codebase was created with AI assistance:**
+- 🔧 **~90% generated** using [Claude Code](https://claude.com/claude-code)
+- 👁️ **Reviewed** by both AI agents and humans
+- ✅ **Tested** with 296+ automated tests (100% pass rate)
+- 📋 **Security audited** for credential handling
+
+**What this means:**
+- ✅ Rapid development of complex functionality
+- ⚠️ Possible bugs despite thorough review
+- 🔍 Complete transparency about code origin
+- 🧪 **Your responsibility** to test before trusting
+
+**Both AI reviewers and humans can miss issues.** Treat this code as you would any open-source project: inspect it, test it thoroughly in safe environments, and report issues.
+
+### 🛡️ Safety Guidelines for Lab Use
+
+**If using in your lab environment:**
+
+1. **Isolation is Critical**
+   - Use completely separate networks
+   - No connection to production systems
+   - Preferably virtual environments (VMs, containers)
+   - Air-gapped from sensitive data
+
+2. **Backup Before Every Change**
+   - Export OPNsense configuration before experiments
+   - Test backup restoration procedures
+   - Keep multiple backup generations
+
+3. **Monitor Everything**
+   - Watch firewall logs in real-time
+   - Set up alerts for unexpected changes
+   - Have console access ready for recovery
+
+4. **Start with Read-Only**
+   - Begin with status queries and information gathering
+   - Review code for write operations before enabling
+   - Gradually increase complexity as you understand behavior
+
+5. **Expect Failures**
+   - AI will make mistakes - plan for it
+   - Have rollback procedures documented
+   - Know how to recover from console if locked out
+   - Consider it a learning experience, not a reliable tool
+
+6. **Never Trust, Always Verify**
+   - Review every AI suggestion before applying
+   - Understand what changes will do
+   - Check for unintended side effects
+   - Use dry-run modes when available
+
+### 🔮 Future of AI Infrastructure Management
+
+**This project explores the future, not the present:**
+
+We're in the **early experimental phase** of AI-controlled infrastructure. This technology will mature, but today:
+- ❌ Not reliable enough for production
+- ✅ Excellent for research and learning
+- 🔬 Helps identify what's needed for production-readiness
+
+**Future developments needed:**
+- Formal verification of AI outputs
+- Deterministic reasoning for critical operations
+- Sandbox/simulation modes
+- Safety guardrails and constraints
+- Specialized models trained on network operations
+
+**By experimenting responsibly in labs, you contribute to understanding how this technology should evolve.**
+
+### ⚖️ Legal Disclaimer
+
+**BY USING THIS SOFTWARE YOU ACKNOWLEDGE:**
+- This is experimental software for laboratory use only
+- Authors assume NO responsibility for damages, outages, or security breaches
+- You accept ALL risk when running this on any firewall
+- Production use violates the intended purpose of this project
+- You will not hold authors liable for any consequences
+
+**Use at your own risk. You have been warned.**
+
+---
+
+### 📞 Questions or Report Issues?
+
+- 📖 Security best practices: [SECURITY.md](SECURITY.md)
+- 🐛 Report bugs: [GitHub Issues](https://github.com/floriangrousset/opnsense-mcp-server/issues)
+- 💬 Discuss: [GitHub Discussions](https://github.com/floriangrousset/opnsense-mcp-server/discussions)
+
+**Remember: This is a research project for curious professionals exploring AI capabilities in network automation. Keep it in the lab.**
+
+---
+
 🎯 **Quick Example:** *"Block all traffic from Russia and add those IPs to my threat list"* → **Done!** ✅
 
 [OPNsense®](https://opnsense.org) is a powerful open-source firewall and routing platform built on FreeBSD. This project transforms traditional firewall management by enabling **natural language control** through AI clients like Claude Desktop. Simply speak to your firewall as you would to a network engineer, and watch complex configurations happen automatically!
