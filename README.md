@@ -32,14 +32,21 @@ curl -LsSf https://astral.sh/uv/install.sh | sh
 uv venv && source .venv/bin/activate
 uv pip install -r requirements.txt
 
-# 3. ⚙️ Configure Claude Desktop (Automatic!)
+# 3. 🔐 Configure Your OPNsense Credentials (Secure - Local Only!)
+opnsense-mcp setup
+# Enter your OPNsense URL, API key, and secret interactively
+# 🔒 Credentials stored locally ONLY - never sent to AI models!
+
+# 4. ⚙️ Configure Claude Desktop (Automatic!)
 ./setup-claude.sh  # 🎉 Magic happens here!
 
-# 4. 🚀 Start Managing!
-# Open Claude Desktop and say: "Configure my OPNsense at 192.168.1.1"
+# 5. 🚀 Start Managing!
+# Open Claude Desktop and say: "Configure OPNsense connection"
 ```
 
 **🎊 That's it!** You're now managing your firewall with natural language!
+
+**🔒 Security Note:** Your credentials are stored locally in `~/.opnsense-mcp/config.json` with secure permissions (0600). They are never sent to Claude or any AI model. See [SECURITY.md](SECURITY.md) for details.
 
 ---
 

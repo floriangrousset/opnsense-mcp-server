@@ -21,6 +21,7 @@ from ..core import (
     APIError,
     ValidationError,
 )
+from ..core.config_loader import ConfigLoader
 from ..shared.constants import API_CORE_MENU_GET_ITEMS
 
 logger = logging.getLogger("opnsense-mcp")
@@ -35,64 +36,107 @@ async def get_opnsense_client() -> OPNsenseClient:
 
 # ========== CONFIGURATION TOOLS ==========
 
-@mcp.tool(name="configure_opnsense_connection", description="Configure the OPNsense connection with enhanced security")
+@mcp.tool(name="configure_opnsense_connection", description="Configure OPNsense connection using locally stored credentials (secure - never sends credentials to LLM)")
 async def configure_opnsense_connection(
     ctx: Context,
-    url: str,
-    api_key: str,
-    api_secret: str,
-    verify_ssl: bool = True
+    profile: str = "default"
 ) -> str:
-    """Configure the OPNsense connection with enhanced security and validation.
+    """Configure the OPNsense connection using locally stored credentials.
+
+    **SECURITY:** Credentials are loaded from local storage only and never sent to the LLM.
+    This ensures your firewall credentials remain secure and private.
+
+    **Setup Required:** Before using this tool, credentials must be configured using:
+    1. CLI command: `opnsense-mcp setup` (recommended)
+    2. Environment variables: OPNSENSE_URL, OPNSENSE_API_KEY, OPNSENSE_API_SECRET
+    3. Config file: ~/.opnsense-mcp/config.json
+
+    **Profile Support:** Multiple firewall profiles can be configured (default, production, staging, etc.)
+    and selected by name. This enables managing multiple OPNsense instances securely.
 
     Args:
         ctx: MCP context
-        url: OPNsense base URL (e.g., "https://192.168.1.1")
-        api_key: API key
-        api_secret: API secret
-        verify_ssl: Whether to verify SSL certificates
+        profile: Profile name to load credentials from (default: "default")
+                 Must be configured via 'opnsense-mcp setup --profile <name>'
 
     Returns:
-        Success message
+        Success message with connection details (no credentials exposed)
+
+    Examples:
+        - "Configure OPNsense connection" → loads 'default' profile
+        - "Configure OPNsense connection using profile production" → loads 'production' profile
+        - "Connect to my staging OPNsense" → loads 'staging' profile
     """
     try:
-        # Validate configuration using Pydantic
-        config = OPNsenseConfig(
-            url=url,
-            api_key=api_key,
-            api_secret=api_secret,
-            verify_ssl=verify_ssl
-        )
+        # Load configuration from secure local storage
+        logger.info(f"Loading OPNsense configuration for profile: {profile}")
+        config = ConfigLoader.load(profile)
 
-        # Initialize server state with new configuration
+        # Get non-sensitive profile info for logging
+        profile_info = ConfigLoader.get_profile_info(profile)
+        logger.info(f"Loaded profile '{profile}' - URL: {profile_info['url']}")
+
+        # Initialize server state with loaded configuration
         await server_state.initialize(config)
 
-        await ctx.info("OPNsense connection configured and validated successfully")
-        return "OPNsense connection configured successfully with enhanced security"
+        await ctx.info(f"OPNsense connection configured successfully using profile '{profile}'")
+
+        return (
+            f"✅ OPNsense connection configured successfully!\n\n"
+            f"Profile: {profile}\n"
+            f"URL: {profile_info['url']}\n"
+            f"SSL Verification: {'Enabled' if profile_info['verify_ssl'] else 'Disabled'}\n\n"
+            f"🔒 Security: Credentials loaded from local storage (never exposed to LLM)\n"
+            f"📍 Source: {ConfigLoader.DEFAULT_CONFIG_FILE}"
+        )
+
+    except ConfigurationError as e:
+        error_msg = f"Configuration error: {str(e)}"
+        logger.error(error_msg, exc_info=True)
+        await ctx.error(error_msg)
+
+        # Provide helpful guidance
+        return (
+            f"❌ Configuration Error: {str(e)}\n\n"
+            f"📖 Setup Instructions:\n"
+            f"1. Run: opnsense-mcp setup --profile {profile}\n"
+            f"2. Or set environment variables: OPNSENSE_URL, OPNSENSE_API_KEY, OPNSENSE_API_SECRET\n"
+            f"3. Or create config file: {ConfigLoader.DEFAULT_CONFIG_FILE}\n\n"
+            f"💡 Tip: Use 'opnsense-mcp list-profiles' to see configured profiles"
+        )
 
     except AuthenticationError as e:
         error_msg = f"Authentication failed: {str(e)}"
         logger.error(error_msg, exc_info=True)
         await ctx.error(error_msg)
-        return f"Authentication Error: {str(e)}"
+        return (
+            f"❌ Authentication Error: {str(e)}\n\n"
+            f"The credentials for profile '{profile}' appear to be invalid.\n"
+            f"Please verify:\n"
+            f"• API key and secret are correct\n"
+            f"• API user has necessary permissions\n\n"
+            f"Run: opnsense-mcp setup --profile {profile} (to update credentials)"
+        )
 
     except NetworkError as e:
         error_msg = f"Network error: {str(e)}"
         logger.error(error_msg, exc_info=True)
         await ctx.error(error_msg)
-        return f"Network Error: {str(e)}"
-
-    except ValidationError as e:
-        error_msg = f"Configuration validation failed: {str(e)}"
-        logger.error(error_msg, exc_info=True)
-        await ctx.error(error_msg)
-        return f"Configuration Error: {str(e)}"
+        return (
+            f"❌ Network Error: {str(e)}\n\n"
+            f"Could not reach OPNsense at the configured URL.\n"
+            f"Please verify:\n"
+            f"• OPNsense URL is correct and accessible\n"
+            f"• Firewall is online and reachable\n"
+            f"• Network connectivity is working\n\n"
+            f"Run: opnsense-mcp test-connection --profile {profile} (to diagnose)"
+        )
 
     except Exception as e:
-        error_msg = f"Error configuring OPNsense connection: {str(e)}"
-        logger.error(f"Unexpected error in configure_opnsense_connection (url: {url}): {str(e)}", exc_info=True)
+        error_msg = f"Unexpected error configuring OPNsense connection: {str(e)}"
+        logger.error(f"Unexpected error for profile '{profile}': {str(e)}", exc_info=True)
         await ctx.error(error_msg)
-        return f"Error: {str(e)}"
+        return f"❌ Error: {str(e)}"
 
 
 @mcp.tool(name="get_api_endpoints", description="List available API endpoints from OPNsense")
