@@ -264,14 +264,16 @@ Before production use, verify:
 For security vulnerabilities or concerns, please:
 
 1. **Do NOT open a public GitHub issue**
-2. Email: florian@grousset.fr
-3. Include:
-   - Description of vulnerability
-   - Steps to reproduce
-   - Potential impact
-   - Suggested fix (if any)
+2. **Use GitHub Security Advisories** to report vulnerabilities privately:
+   - Go to the [Security tab](https://github.com/floriangrousset/opnsense-mcp-server/security)
+   - Click "Report a vulnerability"
+   - Include:
+     - Description of vulnerability
+     - Steps to reproduce
+     - Potential impact
+     - Suggested fix (if any)
 
-We take security seriously and will respond within 48 hours.
+Security reports are reviewed by project maintainers.
 
 ## 🔍 Security Testing
 
