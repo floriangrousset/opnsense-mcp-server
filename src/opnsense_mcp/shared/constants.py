@@ -374,3 +374,65 @@ API_SYSTEM_USER_SEARCH = "/system/user/searchUsers"
 API_SYSTEM_USER_ADD = "/system/user/addUser"
 API_SYSTEM_USER_GET = "/system/user/getUser"
 API_SYSTEM_GROUP_SEARCH = "/system/group/searchGroups"
+
+
+# ==============================================================================
+# DANGEROUS ENDPOINT CLASSIFICATION
+# ==============================================================================
+# This section classifies OPNsense API endpoints by risk level.
+# Used by exec_api_call tool to prevent accidental destructive operations.
+#
+# Risk Levels:
+# - CRITICAL: Irreversible system-wide changes (reboot, poweroff, factory reset)
+# - HIGH: Destructive operations affecting multiple components (delete rules, restore backup)
+# - MEDIUM: Changes requiring careful review (service restarts, apply changes)
+
+DANGEROUS_ENDPOINTS = {
+    # CRITICAL: System-wide destructive operations
+    "/core/firmware/reinstall": "CRITICAL",
+    "/core/firmware/poweroff": "CRITICAL",
+    "/core/firmware/reboot": "CRITICAL",
+    "/core/backup/restore": "CRITICAL",
+    "/system/reset": "CRITICAL",
+    "/system/factory": "CRITICAL",
+    "/system/halt": "CRITICAL",
+
+    # HIGH: Destructive operations
+    "/firewall/filter/delRule": "HIGH",
+    "/firewall/alias/delItem": "HIGH",
+    "/nat/portforward/delRule": "HIGH",
+    "/nat/outbound/delRule": "HIGH",
+    "/nat/onetoone/delRule": "HIGH",
+    "/interfaces/overview/deleteInterface": "HIGH",
+    "/interfaces/vlan_settings/del_item": "HIGH",
+    "/interfaces/bridge_settings/del_item": "HIGH",
+    "/interfaces/lagg_settings/del_item": "HIGH",
+    "/dhcpv4/leases/del": "HIGH",
+    "/system/user/delUser": "HIGH",
+    "/system/group/delGroup": "HIGH",
+    "/trust/ca/delCA": "HIGH",
+    "/trust/cert/delCertificate": "HIGH",
+    "/trafficshaper/pipe/delPipe": "HIGH",
+    "/trafficshaper/queue/delQueue": "HIGH",
+
+    # MEDIUM: Operations requiring careful review
+    "/firewall/filter/apply": "MEDIUM",
+    "/firewall/alias/reconfigure": "MEDIUM",
+    "/nat/settings/reconfigure": "MEDIUM",
+    "/core/service/restart": "MEDIUM",
+    "/core/service/stop": "MEDIUM",
+    "/core/firmware/upgrade": "MEDIUM",
+    "/core/firmware/install": "MEDIUM",
+    "/interfaces/overview/reloadInterface": "MEDIUM",
+    "/interfaces/overview/reconfigureInterface": "MEDIUM",
+}
+
+# Endpoints that are always safe (read-only operations)
+SAFE_ENDPOINTS_PATTERNS = [
+    "/diagnostics/",      # Diagnostic tools (read-only)
+    "/status/",          # Status information (read-only)
+    "/search",           # Search operations (read-only)
+    "/get",              # Get operations (read-only)
+    "/info",             # Info endpoints (read-only)
+    "/export",           # Export operations (read-only)
+]

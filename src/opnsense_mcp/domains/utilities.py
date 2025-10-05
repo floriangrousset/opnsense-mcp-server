@@ -12,12 +12,89 @@ from typing import Optional
 from mcp.server.fastmcp import Context
 from .configuration import get_opnsense_client
 from ..main import mcp
+from ..shared.constants import DANGEROUS_ENDPOINTS, SAFE_ENDPOINTS_PATTERNS
+from ..shared.error_sanitizer import log_error_safely
+from ..core.exceptions import ValidationError
 
 # Configure logging
 logger = logging.getLogger(__name__)
 
 
-@mcp.tool(name="exec_api_call", description="Execute a custom API call to OPNsense")
+def validate_endpoint_safety(endpoint: str, method: str) -> None:
+    """
+    Validate API endpoint for safety before execution.
+
+    Prevents accidental execution of dangerous endpoints that could cause:
+    - System reboots/poweroff
+    - Factory resets
+    - Bulk deletions
+    - Irreversible configuration changes
+
+    Args:
+        endpoint: API endpoint path to validate
+        method: HTTP method (GET, POST, etc.)
+
+    Raises:
+        ValidationError: If endpoint is classified as dangerous
+
+    Notes:
+        - CRITICAL endpoints are always blocked
+        - HIGH/MEDIUM endpoints are blocked for POST/PUT/DELETE methods
+        - Read-only operations (GET) are generally allowed
+        - Use dedicated tools for dangerous operations instead
+    """
+    # Normalize endpoint (remove /api prefix if present, ensure starts with /)
+    normalized = endpoint
+    if normalized.startswith("/api/"):
+        normalized = normalized[4:]  # Remove "/api" prefix
+    if not normalized.startswith("/"):
+        normalized = "/" + normalized
+
+    # Check if endpoint matches safe patterns (read-only operations)
+    if method.upper() == "GET":
+        for pattern in SAFE_ENDPOINTS_PATTERNS:
+            if pattern in normalized:
+                return  # Safe read-only operation
+
+    # Check against dangerous endpoints
+    for dangerous_endpoint, risk_level in DANGEROUS_ENDPOINTS.items():
+        if normalized.startswith(dangerous_endpoint) or dangerous_endpoint in normalized:
+            # CRITICAL endpoints are never allowed
+            if risk_level == "CRITICAL":
+                raise ValidationError(
+                    f"Endpoint '{endpoint}' is classified as {risk_level} risk and cannot "
+                    f"be called via exec_api_call. This endpoint performs irreversible "
+                    f"system-wide changes. Use OPNsense web interface for this operation.",
+                    context={
+                        "endpoint": endpoint,
+                        "risk_level": risk_level,
+                        "reason": "Prevents accidental system-wide destructive actions"
+                    }
+                )
+
+            # HIGH/MEDIUM endpoints are blocked for write operations
+            if method.upper() in ["POST", "PUT", "DELETE", "PATCH"]:
+                raise ValidationError(
+                    f"Endpoint '{endpoint}' is classified as {risk_level} risk and cannot "
+                    f"be called with {method} via exec_api_call. Use dedicated MCP tools "
+                    f"for this operation (e.g., firewall_delete_rule, delete_user, etc.).",
+                    context={
+                        "endpoint": endpoint,
+                        "method": method,
+                        "risk_level": risk_level,
+                        "reason": "Prevents accidental destructive operations"
+                    }
+                )
+
+    # Warn about write operations to unknown endpoints
+    if method.upper() in ["POST", "PUT", "DELETE", "PATCH"]:
+        logger.warning(
+            f"Executing {method} to unclassified endpoint {endpoint}. "
+            f"This may modify firewall configuration. Use with caution."
+        )
+
+
+@mcp.tool(name="exec_api_call", description="Execute a custom API call to OPNsense. ⚠️ ADVANCED: Use with caution")
 async def exec_api_call(
     ctx: Context,
     method: str,
@@ -85,6 +162,15 @@ async def exec_api_call(
     if not client:
         return "OPNsense client not initialized. Please configure the server first."
 
+    # Validate endpoint safety before execution
+    try:
+        validate_endpoint_safety(endpoint, method)
+    except ValidationError as e:
+        error_msg = f"Safety validation failed: {e.message}"
+        logger.warning(f"Blocked dangerous endpoint: {endpoint} ({method})")
+        await ctx.error(error_msg)
+        return f"Error: {error_msg}"
+
     data_dict = None
     params_dict = None
     try:
@@ -109,6 +195,7 @@ async def exec_api_call(
         await ctx.error(error_msg)
         return f"Error: {error_msg}"
     except Exception as e:
-        logger.error(f"Error in exec_api_call (method: {method}, endpoint: {endpoint}): {str(e)}", exc_info=True)
-        await ctx.error(f"Error executing API call: {str(e)}")
-        return f"Error: {str(e)}"
+        # Use error sanitizer for safe error messages
+        safe_msg = log_error_safely(logger, e, "exec_api_call")
+        await ctx.error(safe_msg)
+        return f"Error: {safe_msg}"
