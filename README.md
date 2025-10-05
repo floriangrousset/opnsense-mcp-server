@@ -785,6 +785,53 @@ Check if all required services are running on the firewall
 
 ---
 
+## 🧪 **Testing**
+
+### ✅ **Test Suite Status**
+
+The project includes a comprehensive test suite with **296 tests** covering all core functionality:
+
+```bash
+# Run all tests
+pytest
+
+# Run with verbose output
+pytest -v
+
+# Run with coverage report
+pytest --cov=src/opnsense_mcp --cov-report=html
+
+# Run specific test file
+pytest tests/test_core/test_client_basic.py
+```
+
+**Current Status:** ✅ **296/296 tests passing (100%)**
+
+For detailed test results and coverage information, see [`TEST_RESULTS.md`](TEST_RESULTS.md).
+
+### 🔧 **Development Testing**
+
+```bash
+# Install development dependencies
+uv pip install -e ".[dev]"
+
+# Run tests with detailed output
+pytest -vv --tb=short
+
+# Run only fast tests (exclude integration)
+pytest -m "not integration"
+
+# Run failed tests from last run
+pytest --lf
+
+# Check code quality
+black src/ tests/        # Format code
+ruff check src/ tests/   # Lint code
+mypy src/                # Type checking
+```
+
+---
+
 ## 🤝 **Contributing & Community**
 
 ### 💡 **Want to Contribute?**
@@ -796,6 +843,7 @@ We love contributions! Here's how you can help:
 - 🔧 **Fixed something?** Create a pull request
 - 📚 **Improved docs?** Documentation PRs are welcome!
 - ⭐ **Like the project?** Give us a star on GitHub!
+- ✅ **All PRs must pass tests** - Run `pytest` before submitting
 
 See `CONTRIBUTING.md` for detailed contribution guidelines.
 

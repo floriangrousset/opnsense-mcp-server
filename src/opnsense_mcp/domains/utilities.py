@@ -9,9 +9,9 @@ import json
 import logging
 from typing import Optional
 
-from fastmcp import Context
-from ..core.client import get_opnsense_client
-from ..core.mcp_server import mcp
+from mcp.server.fastmcp import Context
+from .configuration import get_opnsense_client
+from ..main import mcp
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -77,10 +77,16 @@ async def exec_api_call(
         - Some endpoints require specific POST data formats
         - Refer to OPNsense API documentation for endpoint details
     """
-    client = get_opnsense_client()
+    try:
+        client = await get_opnsense_client()
+    except Exception:
+        return "OPNsense client not initialized. Please configure the server first."
+
     if not client:
         return "OPNsense client not initialized. Please configure the server first."
 
+    data_dict = None
+    params_dict = None
     try:
         # Parse JSON strings if provided
         data_dict = json.loads(data) if data else None
@@ -96,7 +102,9 @@ async def exec_api_call(
 
         return json.dumps(response, indent=2)
     except json.JSONDecodeError as e:
-        error_msg = f"Invalid JSON in {'data' if data and not data_dict else 'params'}: {str(e)}"
+        # Determine which parameter caused the error
+        failed_param = 'data' if (data and data_dict is None) else 'params'
+        error_msg = f"Invalid JSON in {failed_param}: {str(e)}"
         logger.error(f"Error in exec_api_call: {error_msg}")
         await ctx.error(error_msg)
         return f"Error: {error_msg}"
