@@ -19,12 +19,12 @@ Supported Features:
 
 import json
 from typing import Optional
-from mcp import Context
+from mcp.server.fastmcp import Context
 
-from ..core.mcp_server import mcp
-from ..core.client_manager import get_opnsense_client
-from ..shared.exceptions import ValidationError, ResourceNotFoundError
-from ..shared.utils import handle_tool_error, validate_uuid
+from ..main import mcp
+from .configuration import get_opnsense_client
+from ..core.exceptions import ValidationError, ResourceNotFoundError
+from ..shared.error_handlers import handle_tool_error, validate_uuid
 from ..shared.constants import (
     # Service endpoints
     API_TRAFFICSHAPER_SERVICE_RECONFIGURE,

@@ -1,0 +1,37 @@
+[run]
+# Coverage.py configuration for OPNsense MCP Server
+
+source = src/opnsense_mcp
+omit =
+    */tests/*
+    */test_*
+    */__pycache__/*
+    */venv/*
+    */.venv/*
+
+[report]
+# Report configuration
+precision = 2
+show_missing = True
+skip_covered = False
+
+exclude_lines =
+    # Standard pragma
+    pragma: no cover
+
+    # Don't complain about missing debug code
+    def __repr__
+
+    # Don't complain if tests don't hit defensive assertion code
+    raise AssertionError
+    raise NotImplementedError
+
+    # Don't complain if non-runnable code isn't run
+    if __name__ == .__main__.:
+    if TYPE_CHECKING:
+
+    # Don't complain about abstract methods
+    @abstractmethod
+
+[html]
+directory = htmlcov

@@ -107,6 +107,9 @@ API_CERTIFICATES_CA_SET = "/certificates/ca/set"  # /{uuid}
 API_CERTIFICATES_CA_DEL = "/certificates/ca/del"  # /{uuid}
 API_CERTIFICATES_CA_EXPORT = "/certificates/ca/export"  # /{uuid}
 
+# Aliases for backward compatibility
+API_TRUST_CA_SEARCH = API_CERTIFICATES_CA_SEARCH
+
 # Certificate Management
 API_CERTIFICATES_CERT_SEARCH = "/certificates/cert/search"
 API_CERTIFICATES_CERT_GET = "/certificates/cert/get"  # /{uuid}
@@ -114,6 +117,9 @@ API_CERTIFICATES_CERT_ADD = "/certificates/cert/add"
 API_CERTIFICATES_CERT_SET = "/certificates/cert/set"  # /{uuid}
 API_CERTIFICATES_CERT_DEL = "/certificates/cert/del"  # /{uuid}
 API_CERTIFICATES_CERT_EXPORT = "/certificates/cert/export"  # /{uuid}
+
+# Alias for backward compatibility
+API_TRUST_CERT_SEARCH = "/trust/cert/search"
 
 # Certificate Signing Request (CSR) Management
 API_CERTIFICATES_CSR_SEARCH = "/certificates/csr/search"
@@ -274,12 +280,18 @@ API_FIREWALL_SOURCE_NAT_SET_RULE = "/firewall/source_nat/set_rule"  # Needs /{uu
 API_FIREWALL_SOURCE_NAT_DEL_RULE = "/firewall/source_nat/del_rule"  # Needs /{uuid}
 API_FIREWALL_SOURCE_NAT_TOGGLE_RULE = "/firewall/source_nat/toggle_rule"  # Needs /{uuid}/{enabled}
 
+# Alias for backward compatibility
+API_FIREWALL_NAT_OUTBOUND_SEARCH = API_FIREWALL_SOURCE_NAT_SEARCH_RULE
+
 # NAT - One-to-One NAT
 API_FIREWALL_ONE_TO_ONE_SEARCH_RULE = "/firewall/one_to_one/search_rule"
 API_FIREWALL_ONE_TO_ONE_GET_RULE = "/firewall/one_to_one/get_rule"  # Needs /{uuid}
 API_FIREWALL_ONE_TO_ONE_ADD_RULE = "/firewall/one_to_one/add_rule"
 API_FIREWALL_ONE_TO_ONE_SET_RULE = "/firewall/one_to_one/set_rule"  # Needs /{uuid}
 API_FIREWALL_ONE_TO_ONE_DEL_RULE = "/firewall/one_to_one/del_rule"  # Needs /{uuid}
+
+# Alias for backward compatibility
+API_FIREWALL_NAT_ONETOONE_SEARCH = API_FIREWALL_ONE_TO_ONE_SEARCH_RULE
 API_FIREWALL_ONE_TO_ONE_TOGGLE_RULE = "/firewall/one_to_one/toggle_rule"  # Needs /{uuid}/{enabled}
 
 # Firewall Configuration Management
@@ -319,7 +331,7 @@ API_TRAFFICSHAPER_SETTINGS_DEL_PIPE = "/trafficshaper/settings/del_pipe"  # Need
 API_TRAFFICSHAPER_SETTINGS_GET_PIPE = "/trafficshaper/settings/get_pipe"  # Optional /{uuid}
 API_TRAFFICSHAPER_SETTINGS_SET_PIPE = "/trafficshaper/settings/set_pipe"  # Needs /{uuid}
 API_TRAFFICSHAPER_SETTINGS_TOGGLE_PIPE = "/trafficshaper/settings/toggle_pipe"  # Needs /{uuid}/{enabled}
-API_TRAFFICSHAPER_SETTINGS_SEARCH_PIPES = "/trafficshaper/settings/search_pipes"
+API_TRAFFICSHAPER_SETTINGS_SEARCH_PIPES = "/trafficshaper/settings/searchPipes"
 
 # Traffic Shaper - Queue Management
 API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE = "/trafficshaper/settings/add_queue"
@@ -340,3 +352,25 @@ API_TRAFFICSHAPER_SETTINGS_SEARCH_RULES = "/trafficshaper/settings/search_rules"
 # Traffic Shaper - General Settings
 API_TRAFFICSHAPER_SETTINGS_GET = "/trafficshaper/settings/get"
 API_TRAFFICSHAPER_SETTINGS_SET = "/trafficshaper/settings/set"
+
+# ============================================================================
+# Backward Compatibility Aliases
+# ============================================================================
+
+# DHCP aliases
+API_DHCPV4_LEASES_SEARCH = "/dhcpv4/leases/searchLease"
+API_DHCPV4_SERVICE_GET = "/dhcpv4/service/get"
+
+# DNS (Unbound) aliases - need to check if these exist in actual OPNsense API
+API_UNBOUND_SETTINGS_GET = "/unbound/settings/get"
+API_UNBOUND_SERVICE_RESTART = "/unbound/service/restart"
+
+# VPN aliases
+API_OPENVPN_SERVICE_SEARCH_SESSIONS = API_OPENVPN_SERVICE_STATUS
+API_IPSEC_SESSIONS = API_IPSEC_SERVICE_STATUS
+
+# User Management aliases
+API_SYSTEM_USER_SEARCH = "/system/user/searchUsers"
+API_SYSTEM_USER_ADD = "/system/user/addUser"
+API_SYSTEM_USER_GET = "/system/user/getUser"
+API_SYSTEM_GROUP_SEARCH = "/system/group/searchGroups"

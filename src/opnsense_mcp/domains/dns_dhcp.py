@@ -14,13 +14,13 @@ Features:
 """
 
 import json
+import re
 from typing import Optional
 
-from mcp import RequestContext
-from ..core.mcp_server import mcp
-from ..domains.configuration import get_opnsense_client
-from ..shared.error_handler import handle_tool_error
-from ..shared.validation import is_valid_uuid
+from mcp.server.fastmcp import Context
+from ..main import mcp
+from .configuration import get_opnsense_client
+from ..shared.error_handlers import handle_tool_error, validate_uuid
 from ..shared.constants import (
     # DHCP Server
     API_DHCP_SERVER_SEARCH,
@@ -62,10 +62,27 @@ from ..shared.constants import (
 )
 
 
+# ========== HELPER FUNCTIONS ==========
+
+def is_valid_uuid(uuid: str) -> bool:
+    """Check if string is a valid UUID format.
+
+    Args:
+        uuid: String to validate
+
+    Returns:
+        True if valid UUID format, False otherwise
+    """
+    if not uuid:
+        return False
+    uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+    return bool(uuid_pattern.match(uuid))
+
+
 # ========== DHCP SERVER MANAGEMENT ==========
 
 @mcp.tool(name="dhcp_list_servers", description="List all DHCP server configurations")
-async def dhcp_list_servers(ctx: RequestContext) -> str:
+async def dhcp_list_servers(ctx: Context) -> str:
     """List all DHCP server configurations.
 
     Returns:
@@ -90,7 +107,7 @@ async def dhcp_list_servers(ctx: RequestContext) -> str:
 
 @mcp.tool(name="dhcp_get_server", description="Get a specific DHCP server configuration")
 async def dhcp_get_server(
-    ctx: RequestContext,
+    ctx: Context,
     interface: str
 ) -> str:
     """Get a specific DHCP server configuration by interface.
@@ -124,7 +141,7 @@ async def dhcp_get_server(
 
 @mcp.tool(name="dhcp_set_server", description="Configure DHCP server settings for an interface")
 async def dhcp_set_server(
-    ctx: RequestContext,
+    ctx: Context,
     interface: str,
     enabled: bool = True,
     range_from: str = "",
@@ -202,7 +219,7 @@ async def dhcp_set_server(
 
 
 @mcp.tool(name="dhcp_restart_service", description="Restart the DHCP service")
-async def dhcp_restart_service(ctx: RequestContext) -> str:
+async def dhcp_restart_service(ctx: Context) -> str:
     """Restart the DHCP service.
 
     Returns:
@@ -229,7 +246,7 @@ async def dhcp_restart_service(ctx: RequestContext) -> str:
 
 @mcp.tool(name="dhcp_list_static_mappings", description="List DHCP static mappings (reservations)")
 async def dhcp_list_static_mappings(
-    ctx: RequestContext,
+    ctx: Context,
     search_phrase: str = ""
 ) -> str:
     """List all DHCP static mappings (reservations).
@@ -265,7 +282,7 @@ async def dhcp_list_static_mappings(
 
 @mcp.tool(name="dhcp_get_static_mapping", description="Get a specific DHCP static mapping")
 async def dhcp_get_static_mapping(
-    ctx: RequestContext,
+    ctx: Context,
     uuid: str
 ) -> str:
     """Get a specific DHCP static mapping by UUID.
@@ -299,7 +316,7 @@ async def dhcp_get_static_mapping(
 
 @mcp.tool(name="dhcp_add_static_mapping", description="Add a new DHCP static mapping (reservation)")
 async def dhcp_add_static_mapping(
-    ctx: RequestContext,
+    ctx: Context,
     interface: str,
     mac_address: str,
     ip_address: str,
@@ -363,7 +380,7 @@ async def dhcp_add_static_mapping(
 
 @mcp.tool(name="dhcp_update_static_mapping", description="Update an existing DHCP static mapping")
 async def dhcp_update_static_mapping(
-    ctx: RequestContext,
+    ctx: Context,
     uuid: str,
     interface: str = "",
     mac_address: str = "",
@@ -439,7 +456,7 @@ async def dhcp_update_static_mapping(
 
 @mcp.tool(name="dhcp_delete_static_mapping", description="Delete a DHCP static mapping")
 async def dhcp_delete_static_mapping(
-    ctx: RequestContext,
+    ctx: Context,
     uuid: str
 ) -> str:
     """Delete a DHCP static mapping by UUID.
@@ -483,7 +500,7 @@ async def dhcp_delete_static_mapping(
 
 @mcp.tool(name="dhcp_get_leases", description="Get current DHCP leases")
 async def dhcp_get_leases(
-    ctx: RequestContext,
+    ctx: Context,
     interface: str = ""
 ) -> str:
     """Get current DHCP leases from the server.
@@ -517,7 +534,7 @@ async def dhcp_get_leases(
 
 @mcp.tool(name="dhcp_search_leases", description="Search DHCP leases with filters")
 async def dhcp_search_leases(
-    ctx: RequestContext,
+    ctx: Context,
     search_phrase: str = "",
     interface: str = "",
     state: str = ""
@@ -560,7 +577,7 @@ async def dhcp_search_leases(
 
 
 @mcp.tool(name="dhcp_get_lease_statistics", description="Get DHCP lease statistics")
-async def dhcp_get_lease_statistics(ctx: RequestContext) -> str:
+async def dhcp_get_lease_statistics(ctx: Context) -> str:
     """Get statistics about DHCP leases across all interfaces.
 
     Returns:
@@ -631,7 +648,7 @@ async def dhcp_get_lease_statistics(ctx: RequestContext) -> str:
 # ========== DNS RESOLVER (UNBOUND) MANAGEMENT ==========
 
 @mcp.tool(name="dns_resolver_get_settings", description="Get DNS resolver (Unbound) settings")
-async def dns_resolver_get_settings(ctx: RequestContext) -> str:
+async def dns_resolver_get_settings(ctx: Context) -> str:
     """Get DNS resolver (Unbound) configuration settings.
 
     Returns:
@@ -656,7 +673,7 @@ async def dns_resolver_get_settings(ctx: RequestContext) -> str:
 
 @mcp.tool(name="dns_resolver_set_settings", description="Configure DNS resolver (Unbound) settings")
 async def dns_resolver_set_settings(
-    ctx: RequestContext,
+    ctx: Context,
     enabled: bool = True,
     port: int = 53,
     dnssec: bool = True,
@@ -731,7 +748,7 @@ async def dns_resolver_set_settings(
 
 
 @mcp.tool(name="dns_resolver_restart_service", description="Restart the DNS resolver service")
-async def dns_resolver_restart_service(ctx: RequestContext) -> str:
+async def dns_resolver_restart_service(ctx: Context) -> str:
     """Restart the DNS resolver (Unbound) service.
 
     Returns:
@@ -758,7 +775,7 @@ async def dns_resolver_restart_service(ctx: RequestContext) -> str:
 
 @mcp.tool(name="dns_resolver_list_host_overrides", description="List DNS resolver host overrides")
 async def dns_resolver_list_host_overrides(
-    ctx: RequestContext,
+    ctx: Context,
     search_phrase: str = ""
 ) -> str:
     """List all DNS resolver host overrides.
@@ -794,7 +811,7 @@ async def dns_resolver_list_host_overrides(
 
 @mcp.tool(name="dns_resolver_get_host_override", description="Get a specific DNS resolver host override")
 async def dns_resolver_get_host_override(
-    ctx: RequestContext,
+    ctx: Context,
     uuid: str
 ) -> str:
     """Get a specific DNS resolver host override by UUID.
@@ -828,7 +845,7 @@ async def dns_resolver_get_host_override(
 
 @mcp.tool(name="dns_resolver_add_host_override", description="Add a new DNS resolver host override")
 async def dns_resolver_add_host_override(
-    ctx: RequestContext,
+    ctx: Context,
     hostname: str,
     domain: str,
     ip_address: str,
@@ -886,7 +903,7 @@ async def dns_resolver_add_host_override(
 
 @mcp.tool(name="dns_resolver_update_host_override", description="Update an existing DNS resolver host override")
 async def dns_resolver_update_host_override(
-    ctx: RequestContext,
+    ctx: Context,
     uuid: str,
     hostname: str = "",
     domain: str = "",
@@ -958,7 +975,7 @@ async def dns_resolver_update_host_override(
 
 @mcp.tool(name="dns_resolver_delete_host_override", description="Delete a DNS resolver host override")
 async def dns_resolver_delete_host_override(
-    ctx: RequestContext,
+    ctx: Context,
     uuid: str
 ) -> str:
     """Delete a DNS resolver host override by UUID.
@@ -1002,7 +1019,7 @@ async def dns_resolver_delete_host_override(
 
 @mcp.tool(name="dns_resolver_list_domain_overrides", description="List DNS resolver domain overrides")
 async def dns_resolver_list_domain_overrides(
-    ctx: RequestContext,
+    ctx: Context,
     search_phrase: str = ""
 ) -> str:
     """List all DNS resolver domain overrides.
@@ -1038,7 +1055,7 @@ async def dns_resolver_list_domain_overrides(
 
 @mcp.tool(name="dns_resolver_add_domain_override", description="Add a new DNS resolver domain override")
 async def dns_resolver_add_domain_override(
-    ctx: RequestContext,
+    ctx: Context,
     domain: str,
     server: str,
     description: str = ""
@@ -1094,7 +1111,7 @@ async def dns_resolver_add_domain_override(
 # ========== DNS FORWARDER (DNSMASQ) MANAGEMENT ==========
 
 @mcp.tool(name="dns_forwarder_get_settings", description="Get DNS forwarder (dnsmasq) settings")
-async def dns_forwarder_get_settings(ctx: RequestContext) -> str:
+async def dns_forwarder_get_settings(ctx: Context) -> str:
     """Get DNS forwarder (dnsmasq) configuration settings.
 
     Returns:
@@ -1119,7 +1136,7 @@ async def dns_forwarder_get_settings(ctx: RequestContext) -> str:
 
 @mcp.tool(name="dns_forwarder_set_settings", description="Configure DNS forwarder (dnsmasq) settings")
 async def dns_forwarder_set_settings(
-    ctx: RequestContext,
+    ctx: Context,
     enabled: bool = True,
     port: int = 53,
     domain: str = "",
@@ -1183,7 +1200,7 @@ async def dns_forwarder_set_settings(
 
 @mcp.tool(name="dns_forwarder_list_hosts", description="List DNS forwarder host overrides")
 async def dns_forwarder_list_hosts(
-    ctx: RequestContext,
+    ctx: Context,
     search_phrase: str = ""
 ) -> str:
     """List all DNS forwarder host overrides.
@@ -1219,7 +1236,7 @@ async def dns_forwarder_list_hosts(
 
 @mcp.tool(name="dns_forwarder_add_host", description="Add a new DNS forwarder host override")
 async def dns_forwarder_add_host(
-    ctx: RequestContext,
+    ctx: Context,
     hostname: str,
     domain: str,
     ip_address: str,
@@ -1276,7 +1293,7 @@ async def dns_forwarder_add_host(
 
 
 @mcp.tool(name="dns_forwarder_restart_service", description="Restart the DNS forwarder service")
-async def dns_forwarder_restart_service(ctx: RequestContext) -> str:
+async def dns_forwarder_restart_service(ctx: Context) -> str:
     """Restart the DNS forwarder (dnsmasq) service.
 
     Returns:
