@@ -51,7 +51,7 @@ async def get_vpn_connections(ctx: Context, vpn_type: str = "OpenVPN") -> str:
           "status": "active"
         }
     """
-    client = get_opnsense_client()
+    client = await get_opnsense_client()
     if not client:
         return "OPNsense client not initialized. Please configure the server first."
 

@@ -6,7 +6,17 @@ This module tests firewall rule management and NAT configuration tools.
 
 import pytest
 import json
-from unittest.mock import AsyncMock, Mock, patch
+import sys
+from unittest.mock import AsyncMock, Mock, patch, MagicMock
+from mcp.server.fastmcp import FastMCP
+
+# Mock the circular import with proper FastMCP instance
+mock_mcp = FastMCP("test-server")
+mock_server_state = MagicMock()
+mock_main = MagicMock()
+mock_main.mcp = mock_mcp
+mock_main.server_state = mock_server_state
+sys.modules['src.opnsense_mcp.main'] = mock_main
 
 from src.opnsense_mcp.core.exceptions import ValidationError, APIError
 
@@ -66,7 +76,7 @@ class TestFirewallDomain:
 
             result = await firewall_delete_rule(
                 ctx=mock_mcp_context,
-                uuid="rule-uuid-123"
+                uuid="12345678-1234-1234-1234-123456789abc"
             )
 
             assert "success" in result.lower() or "deleted" in result.lower()

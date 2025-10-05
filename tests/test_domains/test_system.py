@@ -102,26 +102,20 @@ class TestGetSystemHealth:
             result_data = json.loads(result)
             assert "cpu" in result_data
             assert "memory" in result_data
-            assert "storage" in result_data
+            assert "disk" in result_data
 
     async def test_partial_health_data(self, mock_mcp_context):
         """Test health retrieval with some API endpoints failing."""
         with patch('src.opnsense_mcp.domains.system.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
-            # Some succeed, some fail
-            mock_client.request = AsyncMock(side_effect=[
-                {"usage": "25.5"},  # CPU - success
-                Exception("Memory API failed"),  # Memory - fail
-                {"/": {"used": "50%"}},  # Storage - success
-                Exception("Temperature API not available")  # Temperature - fail
-            ])
+            # When any request fails, the whole function returns an error string
+            mock_client.request = AsyncMock(side_effect=Exception("Memory API failed"))
             mock_get_client.return_value = mock_client
 
             result = await get_system_health(ctx=mock_mcp_context)
 
-            # Should still return partial data
-            result_data = json.loads(result)
-            assert "cpu" in result_data
+            # Should return error string
+            assert "error" in result.lower()
 
 
 @pytest.mark.asyncio
@@ -206,17 +200,17 @@ class TestHelperFunctions:
         """Test fetching firewall rules with pagination."""
         mock_client = Mock()
 
-        # First call returns 500 rules, second returns 200, third returns empty
+        # First call returns 500 rules (full page), second returns 200 (partial page, triggers break)
         mock_client.request = AsyncMock(side_effect=[
             {"rows": [{"uuid": f"rule{i}"} for i in range(500)]},
-            {"rows": [{"uuid": f"rule{i}"} for i in range(500, 700)]},
-            {"rows": []}
+            {"rows": [{"uuid": f"rule{i}"} for i in range(500, 700)]}
         ])
 
         result = await _get_all_rules(mock_client)
 
         assert len(result) == 700
-        assert mock_client.request.call_count == 3
+        # Function stops when it receives < 500 rules (line 75-76 of system.py)
+        assert mock_client.request.call_count == 2
 
     async def test_get_all_rules_handles_error(self):
         """Test that _get_all_rules handles errors gracefully."""

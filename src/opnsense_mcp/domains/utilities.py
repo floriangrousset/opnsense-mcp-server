@@ -85,6 +85,8 @@ async def exec_api_call(
     if not client:
         return "OPNsense client not initialized. Please configure the server first."
 
+    data_dict = None
+    params_dict = None
     try:
         # Parse JSON strings if provided
         data_dict = json.loads(data) if data else None
@@ -100,7 +102,9 @@ async def exec_api_call(
 
         return json.dumps(response, indent=2)
     except json.JSONDecodeError as e:
-        error_msg = f"Invalid JSON in {'data' if data and not data_dict else 'params'}: {str(e)}"
+        # Determine which parameter caused the error
+        failed_param = 'data' if (data and data_dict is None) else 'params'
+        error_msg = f"Invalid JSON in {failed_param}: {str(e)}"
         logger.error(f"Error in exec_api_call: {error_msg}")
         await ctx.error(error_msg)
         return f"Error: {error_msg}"

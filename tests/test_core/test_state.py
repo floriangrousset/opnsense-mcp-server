@@ -79,7 +79,7 @@ class TestServerState:
             call_args = mock_keyring.set_password.call_args[0]
 
             assert call_args[0] == "opnsense-mcp-server"  # service_name
-            assert "test_api_" in call_args[1]  # username includes partial key
+            assert "test_api" in call_args[1]  # username includes partial key (first 8 chars)
 
             # Verify credential JSON
             stored_creds = json.loads(call_args[2])
@@ -94,7 +94,7 @@ class TestServerState:
         with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
              patch('src.opnsense_mcp.core.state.keyring') as mock_keyring, \
              patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/core/firmware/status'), \
-             patch('src.opnsense_mcp.core.state.logging.getLogger') as mock_logger:
+             patch('src.opnsense_mcp.core.state.logger') as mock_logger:
 
             mock_keyring.set_password.side_effect = Exception("Keyring error")
 
@@ -183,7 +183,7 @@ class TestServerState:
         with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
              patch('src.opnsense_mcp.core.state.keyring'), \
              patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/core/firmware/status'), \
-             patch('src.opnsense_mcp.core.state.logging.getLogger') as mock_logger:
+             patch('src.opnsense_mcp.core.state.logger') as mock_logger:
 
             mock_pool = Mock()
             mock_client = Mock()
@@ -317,7 +317,7 @@ class TestServerState:
         with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
              patch('src.opnsense_mcp.core.state.keyring'), \
              patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/core/firmware/status'), \
-             patch('src.opnsense_mcp.core.state.logging.getLogger') as mock_logger:
+             patch('src.opnsense_mcp.core.state.logger') as mock_logger:
 
             mock_pool = Mock()
             mock_client = Mock()

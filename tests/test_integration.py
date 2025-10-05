@@ -6,7 +6,17 @@ different components of the system.
 """
 
 import pytest
-from unittest.mock import AsyncMock, Mock, patch
+import sys
+from unittest.mock import AsyncMock, Mock, patch, MagicMock
+from mcp.server.fastmcp import FastMCP
+
+# Mock the circular import with proper FastMCP instance
+mock_mcp = FastMCP("test-server")
+mock_server_state = MagicMock()
+mock_main = MagicMock()
+mock_main.mcp = mock_mcp
+mock_main.server_state = mock_server_state
+sys.modules['src.opnsense_mcp.main'] = mock_main
 
 
 @pytest.mark.asyncio
@@ -61,7 +71,7 @@ class TestEndToEndWorkflows:
             # Add rule
             mock_client.request = AsyncMock(return_value={
                 "result": "saved",
-                "uuid": "rule-uuid-123"
+                "uuid": "12345678-1234-1234-1234-123456789abc"
             })
             mock_get_client.return_value = mock_client
 
@@ -80,18 +90,18 @@ class TestEndToEndWorkflows:
 
             # Get rules
             mock_client.request = AsyncMock(return_value={
-                "rows": [{"uuid": "rule-uuid-123", "description": "Test rule"}]
+                "rows": [{"uuid": "12345678-1234-1234-1234-123456789abc", "description": "Test rule"}]
             })
 
             get_result = await firewall_get_rules(ctx=mock_mcp_context)
-            assert "rule-uuid-123" in get_result
+            assert "12345678-1234-1234-1234-123456789abc" in get_result
 
             # Delete rule
             mock_client.request = AsyncMock(return_value={"result": "deleted"})
 
             delete_result = await firewall_delete_rule(
                 ctx=mock_mcp_context,
-                rule_uuid="rule-uuid-123"
+                uuid="12345678-1234-1234-1234-123456789abc"
             )
 
             assert "success" in delete_result.lower() or "deleted" in delete_result.lower()
@@ -135,9 +145,9 @@ class TestComponentIntegration:
 
         state = ServerState()
 
-        with patch('src.opnsense_mcp.core.state.ConnectionPool') as MockPool, \
+        with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
              patch('src.opnsense_mcp.core.state.keyring'), \
-             patch('src.opnsense_mcp.core.state.API_CORE_FIRMWARE_STATUS', '/api/test'):
+             patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/test'):
 
             mock_pool = Mock()
             mock_client = Mock()

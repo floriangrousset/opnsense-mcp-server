@@ -5,6 +5,7 @@ This module tests the advanced request handling including HTTP methods,
 error handling, retries, rate limiting, and comprehensive error scenarios.
 """
 
+import json
 import pytest
 import httpx
 from unittest.mock import Mock, AsyncMock, patch
@@ -304,7 +305,7 @@ class TestOPNsenseClientRequest:
         mock_response.status_code = 200
         mock_response.content = b'Not valid JSON'
         mock_response.text = 'Not valid JSON'
-        mock_response.json.side_effect = ValueError("Invalid JSON")
+        mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
 
         client.client.get = AsyncMock(return_value=mock_response)
 
