@@ -17,7 +17,7 @@ class TestNetworkDomain:
         """Test listing VLANs."""
         from src.opnsense_mcp.domains.network import list_vlans
 
-        with patch('src.opnsense_mcp.domains.network.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.network.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"uuid": "vlan1", "tag": "100", "if": "em0"}]
@@ -33,7 +33,7 @@ class TestNetworkDomain:
         """Test creating a VLAN interface."""
         from src.opnsense_mcp.domains.network import create_vlan_interface
 
-        with patch('src.opnsense_mcp.domains.network.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.network.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"result": "saved", "uuid": "new-vlan"})
             mock_get_client.return_value = mock_client
@@ -51,7 +51,7 @@ class TestNetworkDomain:
         """Test listing virtual IPs."""
         from src.opnsense_mcp.domains.network import list_virtual_ips
 
-        with patch('src.opnsense_mcp.domains.network.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.network.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"type": "carp", "interface": "lan", "subnet": "192.168.1.100/24"}]
@@ -72,7 +72,7 @@ class TestDNSDHCPDomain:
         """Test retrieving DHCP leases."""
         from src.opnsense_mcp.domains.dns_dhcp import dhcp_get_leases
 
-        with patch('src.opnsense_mcp.domains.dns_dhcp.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.dns_dhcp.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"address": "192.168.1.100", "mac": "aa:bb:cc:dd:ee:ff", "hostname": "device1"}]
@@ -88,7 +88,7 @@ class TestDNSDHCPDomain:
         """Test retrieving DNS resolver settings."""
         from src.opnsense_mcp.domains.dns_dhcp import dns_resolver_get_settings
 
-        with patch('src.opnsense_mcp.domains.dns_dhcp.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.dns_dhcp.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "unbound": {"enabled": "1", "port": "53"}
@@ -104,7 +104,7 @@ class TestDNSDHCPDomain:
         """Test adding DNS host override."""
         from src.opnsense_mcp.domains.dns_dhcp import dns_resolver_add_host_override
 
-        with patch('src.opnsense_mcp.domains.dns_dhcp.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.dns_dhcp.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"result": "saved"})
             mock_get_client.return_value = mock_client
@@ -127,7 +127,7 @@ class TestCertificatesDomain:
         """Test listing certificates."""
         from src.opnsense_mcp.domains.certificates import list_certificates
 
-        with patch('src.opnsense_mcp.domains.certificates.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.certificates.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"uuid": "cert1", "descr": "Web Server Cert"}]
@@ -143,7 +143,7 @@ class TestCertificatesDomain:
         """Test listing certificate authorities."""
         from src.opnsense_mcp.domains.certificates import list_certificate_authorities
 
-        with patch('src.opnsense_mcp.domains.certificates.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.certificates.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"uuid": "ca1", "descr": "Root CA"}]
@@ -159,7 +159,7 @@ class TestCertificatesDomain:
         """Test certificate expiration analysis."""
         from src.opnsense_mcp.domains.certificates import analyze_certificate_expiration
 
-        with patch('src.opnsense_mcp.domains.certificates.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.certificates.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [

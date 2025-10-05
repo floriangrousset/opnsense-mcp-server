@@ -17,7 +17,7 @@ class TestUsersDomain:
         """Test listing users."""
         from src.opnsense_mcp.domains.users import list_users
 
-        with patch('src.opnsense_mcp.domains.users.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.users.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"uuid": "user1", "name": "admin", "disabled": "0"}]
@@ -33,7 +33,7 @@ class TestUsersDomain:
         """Test creating a user."""
         from src.opnsense_mcp.domains.users import create_user
 
-        with patch('src.opnsense_mcp.domains.users.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.users.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"result": "saved", "uuid": "new-user"})
             mock_get_client.return_value = mock_client
@@ -51,7 +51,7 @@ class TestUsersDomain:
         """Test listing groups."""
         from src.opnsense_mcp.domains.users import list_groups
 
-        with patch('src.opnsense_mcp.domains.users.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.users.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"uuid": "group1", "name": "admins"}]
@@ -72,7 +72,7 @@ class TestLoggingDomain:
         """Test retrieving system logs."""
         from src.opnsense_mcp.domains.logging import get_system_logs
 
-        with patch('src.opnsense_mcp.domains.logging.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.logging.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"timestamp": "2024-10-04 12:00:00", "message": "System started"}]
@@ -88,7 +88,7 @@ class TestLoggingDomain:
         """Test searching across logs."""
         from src.opnsense_mcp.domains.logging import search_logs
 
-        with patch('src.opnsense_mcp.domains.logging.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.logging.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"message": "Authentication failed", "severity": "warning"}]
@@ -107,7 +107,7 @@ class TestLoggingDomain:
         """Test security event analysis."""
         from src.opnsense_mcp.domains.logging import analyze_security_events
 
-        with patch('src.opnsense_mcp.domains.logging.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.logging.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [
@@ -131,7 +131,7 @@ class TestTrafficShapingDomain:
         """Test listing traffic shaper pipes."""
         from src.opnsense_mcp.domains.traffic_shaping import traffic_shaper_list_pipes
 
-        with patch('src.opnsense_mcp.domains.traffic_shaping.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.traffic_shaping.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"uuid": "pipe1", "bandwidth": "100", "bandwidthMetric": "Mbit"}]
@@ -147,7 +147,7 @@ class TestTrafficShapingDomain:
         """Test creating a traffic shaper pipe."""
         from src.opnsense_mcp.domains.traffic_shaping import traffic_shaper_create_pipe
 
-        with patch('src.opnsense_mcp.domains.traffic_shaping.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.traffic_shaping.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"result": "saved", "uuid": "new-pipe"})
             mock_get_client.return_value = mock_client
@@ -165,7 +165,7 @@ class TestTrafficShapingDomain:
         """Test listing traffic shaper queues."""
         from src.opnsense_mcp.domains.traffic_shaping import traffic_shaper_list_queues
 
-        with patch('src.opnsense_mcp.domains.traffic_shaping.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.traffic_shaping.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"uuid": "queue1", "pipe": "1", "weight": "50"}]
@@ -181,7 +181,7 @@ class TestTrafficShapingDomain:
         """Test high-level bandwidth limiting helper."""
         from src.opnsense_mcp.domains.traffic_shaping import traffic_shaper_limit_user_bandwidth
 
-        with patch('src.opnsense_mcp.domains.traffic_shaping.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.traffic_shaping.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"result": "saved"})
             mock_get_client.return_value = mock_client

@@ -17,7 +17,7 @@ class TestUtilitiesDomain:
         """Test executing a custom GET API call."""
         from src.opnsense_mcp.domains.utilities import exec_api_call
 
-        with patch('src.opnsense_mcp.domains.utilities.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.utilities.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"status": "ok", "data": "test"})
             mock_get_client.return_value = mock_client
@@ -35,7 +35,7 @@ class TestUtilitiesDomain:
         """Test executing a custom POST API call with data."""
         from src.opnsense_mcp.domains.utilities import exec_api_call
 
-        with patch('src.opnsense_mcp.domains.utilities.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.utilities.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"result": "saved"})
             mock_get_client.return_value = mock_client
@@ -72,7 +72,7 @@ class TestVPNDomain:
         """Test retrieving VPN connections."""
         from src.opnsense_mcp.domains.vpn import get_vpn_connections
 
-        with patch('src.opnsense_mcp.domains.vpn.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.vpn.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(side_effect=[
                 {"rows": [{"name": "OpenVPN1", "status": "up"}]},  # OpenVPN
@@ -90,7 +90,7 @@ class TestVPNDomain:
         """Test VPN retrieval with some services failing."""
         from src.opnsense_mcp.domains.vpn import get_vpn_connections
 
-        with patch('src.opnsense_mcp.domains.vpn.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.vpn.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(side_effect=[
                 {"rows": [{"name": "OpenVPN1"}]},  # OpenVPN success

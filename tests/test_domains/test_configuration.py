@@ -9,9 +9,15 @@ import pytest
 import json
 import sys
 from unittest.mock import AsyncMock, Mock, patch, MagicMock
+from mcp.server.fastmcp import FastMCP
 
-# Mock the circular import to avoid issues during test collection
-sys.modules['src.opnsense_mcp.main'] = MagicMock()
+# Mock the circular import with proper FastMCP instance
+mock_mcp = FastMCP("test-server")
+mock_server_state = MagicMock()
+mock_main = MagicMock()
+mock_main.mcp = mock_mcp
+mock_main.server_state = mock_server_state
+sys.modules['src.opnsense_mcp.main'] = mock_main
 
 from src.opnsense_mcp.core.exceptions import (
     ConfigurationError,
@@ -19,6 +25,11 @@ from src.opnsense_mcp.core.exceptions import (
     NetworkError,
     APIError,
     ValidationError
+)
+from src.opnsense_mcp.domains.configuration import (
+    configure_opnsense_connection,
+    get_api_endpoints,
+    get_opnsense_client
 )
 
 

@@ -19,7 +19,7 @@ class TestFirewallDomain:
         """Test retrieving firewall rules."""
         from src.opnsense_mcp.domains.firewall import firewall_get_rules
 
-        with patch('src.opnsense_mcp.domains.firewall.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.firewall.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"uuid": "rule1", "action": "pass"}],
@@ -37,7 +37,7 @@ class TestFirewallDomain:
         """Test adding a firewall rule."""
         from src.opnsense_mcp.domains.firewall import firewall_add_rule
 
-        with patch('src.opnsense_mcp.domains.firewall.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.firewall.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"result": "saved", "uuid": "new-rule"})
             mock_get_client.return_value = mock_client
@@ -59,7 +59,7 @@ class TestFirewallDomain:
         """Test deleting a firewall rule."""
         from src.opnsense_mcp.domains.firewall import firewall_delete_rule
 
-        with patch('src.opnsense_mcp.domains.firewall.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.firewall.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"result": "deleted"})
             mock_get_client.return_value = mock_client
@@ -75,7 +75,7 @@ class TestFirewallDomain:
         """Test retrieving firewall aliases."""
         from src.opnsense_mcp.domains.firewall import get_firewall_aliases
 
-        with patch('src.opnsense_mcp.domains.firewall.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.firewall.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"name": "WebServers", "type": "host"}]
@@ -96,7 +96,7 @@ class TestNATDomain:
         """Test listing NAT outbound rules."""
         from src.opnsense_mcp.domains.nat import nat_list_outbound_rules
 
-        with patch('src.opnsense_mcp.domains.nat.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.nat.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"uuid": "nat1", "source": "192.168.1.0/24"}]
@@ -112,7 +112,7 @@ class TestNATDomain:
         """Test adding NAT outbound rule."""
         from src.opnsense_mcp.domains.nat import nat_add_outbound_rule
 
-        with patch('src.opnsense_mcp.domains.nat.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.nat.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"result": "saved"})
             mock_get_client.return_value = mock_client
@@ -131,7 +131,7 @@ class TestNATDomain:
         """Test listing one-to-one NAT rules."""
         from src.opnsense_mcp.domains.nat import nat_list_one_to_one_rules
 
-        with patch('src.opnsense_mcp.domains.nat.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.nat.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={
                 "rows": [{"external": "203.0.113.10", "internal": "192.168.1.100"}]
@@ -152,7 +152,7 @@ class TestValidation:
         """Test that invalid firewall parameters are rejected."""
         from src.opnsense_mcp.domains.firewall import firewall_add_rule
 
-        with patch('src.opnsense_mcp.domains.firewall.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.firewall.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_get_client.return_value = mock_client
 

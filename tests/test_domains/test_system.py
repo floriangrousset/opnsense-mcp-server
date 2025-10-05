@@ -9,9 +9,15 @@ import pytest
 import json
 import sys
 from unittest.mock import AsyncMock, Mock, patch, MagicMock
+from mcp.server.fastmcp import FastMCP
 
-# Mock the circular import to avoid issues during test collection
-sys.modules['src.opnsense_mcp.main'] = MagicMock()
+# Mock the circular import with proper FastMCP instance
+mock_mcp = FastMCP("test-server")
+mock_server_state = MagicMock()
+mock_main = MagicMock()
+mock_main.mcp = mock_mcp
+mock_main.server_state = mock_server_state
+sys.modules['src.opnsense_mcp.main'] = mock_main
 
 from src.opnsense_mcp.domains.system import (
     get_system_status,
@@ -34,7 +40,7 @@ class TestGetSystemStatus:
 
     async def test_successful_status_retrieval(self, mock_mcp_context, mock_firmware_status_response):
         """Test successful system status retrieval."""
-        with patch('src.opnsense_mcp.domains.system.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.system.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(side_effect=[
                 mock_firmware_status_response,  # Firmware
@@ -54,7 +60,7 @@ class TestGetSystemStatus:
 
     async def test_configuration_error_handling(self, mock_mcp_context):
         """Test handling of configuration errors."""
-        with patch('src.opnsense_mcp.domains.system.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.system.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_get_client.side_effect = ConfigurationError("Not configured")
 
             result = await get_system_status(ctx=mock_mcp_context)
@@ -64,7 +70,7 @@ class TestGetSystemStatus:
 
     async def test_api_error_handling(self, mock_mcp_context):
         """Test handling of API errors."""
-        with patch('src.opnsense_mcp.domains.system.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.system.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(side_effect=APIError("API error"))
             mock_get_client.return_value = mock_client
@@ -80,7 +86,7 @@ class TestGetSystemHealth:
 
     async def test_successful_health_retrieval(self, mock_mcp_context):
         """Test successful system health metrics retrieval."""
-        with patch('src.opnsense_mcp.domains.system.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.system.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(side_effect=[
                 {"usage": "25.5"},  # CPU
@@ -100,7 +106,7 @@ class TestGetSystemHealth:
 
     async def test_partial_health_data(self, mock_mcp_context):
         """Test health retrieval with some API endpoints failing."""
-        with patch('src.opnsense_mcp.domains.system.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.system.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             # Some succeed, some fail
             mock_client.request = AsyncMock(side_effect=[
@@ -124,7 +130,7 @@ class TestRestartService:
 
     async def test_successful_service_restart(self, mock_mcp_context):
         """Test successful service restart."""
-        with patch('src.opnsense_mcp.domains.system.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.system.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"status": "ok"})
             mock_get_client.return_value = mock_client
@@ -139,7 +145,7 @@ class TestRestartService:
 
     async def test_service_restart_error(self, mock_mcp_context):
         """Test service restart error handling."""
-        with patch('src.opnsense_mcp.domains.system.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.system.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(side_effect=APIError("Service not found"))
             mock_get_client.return_value = mock_client
@@ -155,7 +161,7 @@ class TestBackupConfig:
 
     async def test_successful_backup(self, mock_mcp_context):
         """Test successful configuration backup."""
-        with patch('src.opnsense_mcp.domains.system.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.system.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value="<?xml version='1.0'?><config></config>")
             mock_get_client.return_value = mock_client
@@ -167,7 +173,7 @@ class TestBackupConfig:
 
     async def test_backup_error_handling(self, mock_mcp_context):
         """Test backup error handling."""
-        with patch('src.opnsense_mcp.domains.system.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.system.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(side_effect=APIError("Backup failed"))
             mock_get_client.return_value = mock_client

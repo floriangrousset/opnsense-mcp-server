@@ -20,7 +20,7 @@ class TestEndToEndWorkflows:
         from src.opnsense_mcp.domains.system import get_system_status
 
         with patch('src.opnsense_mcp.domains.configuration.server_state') as mock_state, \
-             patch('src.opnsense_mcp.domains.system.get_opnsense_client') as mock_get_client:
+             patch('src.opnsense_mcp.domains.system.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
 
             # Configure connection
             mock_state.initialize = AsyncMock()
@@ -55,7 +55,7 @@ class TestEndToEndWorkflows:
             firewall_delete_rule
         )
 
-        with patch('src.opnsense_mcp.domains.firewall.get_opnsense_client') as mock_get_client:
+        with patch('src.opnsense_mcp.domains.firewall.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
             mock_client = Mock()
 
             # Add rule
