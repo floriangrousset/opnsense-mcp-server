@@ -79,6 +79,9 @@ async def configure_opnsense_connection(
         # Initialize server state with loaded configuration
         await server_state.initialize(config)
 
+        # Track current profile for credential rotation detection
+        server_state._current_profile = profile
+
         await ctx.info(f"OPNsense connection configured successfully using profile '{profile}'")
 
         return (

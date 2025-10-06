@@ -125,10 +125,15 @@ async def create_user(
 ) -> str:
     """Create a new user account in OPNsense.
 
+    **SECURITY WARNING:** Passwords are transmitted in plaintext to OPNsense and hashed server-side.
+    Always use strong, unique passwords (minimum 12+ characters with mixed case, numbers, symbols).
+    Never reuse passwords across accounts or services.
+
     Args:
         ctx: MCP context
         username: Unique username for the account
-        password: Password for the user (will be hashed)
+        password: Password for the user (will be hashed server-side)
+                  WARNING: Use strong passwords (12+ chars, mixed case, numbers, symbols)
         full_name: Full name of the user (optional)
         email: Email address of the user (optional)
         groups: Comma-separated list of group names (optional)
@@ -218,11 +223,16 @@ async def update_user(
 ) -> str:
     """Update an existing user account in OPNsense.
 
+    **SECURITY WARNING:** When updating passwords, they are transmitted in plaintext to OPNsense.
+    Always use strong, unique passwords (minimum 12+ characters with mixed case, numbers, symbols).
+    Never reuse passwords across accounts or services.
+
     Args:
         ctx: MCP context
         user_uuid: UUID of the user to update
         username: New username (optional)
         password: New password (optional)
+                  WARNING: Use strong passwords (12+ chars, mixed case, numbers, symbols)
         full_name: New full name (optional)
         email: New email address (optional)
         groups: Comma-separated list of group names (optional)
