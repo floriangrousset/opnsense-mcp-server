@@ -4,3 +4,4 @@ pydantic>=2.11.0     # Updated from >=2.0.0 - CVE-2024-3772 fix
 keyring>=25.6.0      # Updated from >=24.0.0 - latest stable
 aiolimiter>=1.2.1    # Updated from >=1.1.0 - latest stable
 typer>=0.19.0        # Added for consistency with pyproject.toml
+certifi>=2024.0.0    # For up-to-date CA certificates in SSL context

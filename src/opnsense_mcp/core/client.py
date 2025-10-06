@@ -7,10 +7,12 @@ This module provides the main client class for interacting with the OPNsense API
 import base64
 import json
 import logging
+import ssl
 from datetime import datetime
 from typing import Dict, Any, Optional, TYPE_CHECKING
 
 import httpx
+import certifi
 
 from .models import OPNsenseConfig
 from .retry import RetryConfig, retry_with_backoff
@@ -122,6 +124,45 @@ request_logger = RequestResponseLogger(logger)
 class OPNsenseClient:
     """Client for interacting with OPNsense API."""
 
+    def _create_ssl_context(self, verify_ssl: bool) -> ssl.SSLContext:
+        """
+        Create SSL context with security hardening.
+
+        Args:
+            verify_ssl: Whether to verify SSL certificates
+
+        Returns:
+            Configured SSL context
+
+        Notes:
+            - When verify_ssl=False, logs prominent security warning
+            - When verify_ssl=True, enforces TLS 1.2+ and certificate validation
+            - Uses certifi for up-to-date CA bundle
+        """
+        if not verify_ssl:
+            logger.warning(
+                "🔓 SSL CERTIFICATE VERIFICATION IS DISABLED! 🔓\n"
+                "Connection is vulnerable to Man-in-the-Middle (MITM) attacks.\n"
+                "This should ONLY be used in isolated lab environments.\n"
+                "NEVER disable SSL verification in production or internet-facing deployments."
+            )
+            # Create context but disable verification
+            context = ssl.create_default_context()
+            context.check_hostname = False
+            context.verify_mode = ssl.CERT_NONE
+            return context
+
+        # Production-grade SSL context
+        context = ssl.create_default_context(cafile=certifi.where())
+        context.check_hostname = True
+        context.verify_mode = ssl.CERT_REQUIRED
+
+        # Enforce TLS 1.2+ (disable older vulnerable protocols)
+        context.minimum_version = ssl.TLSVersion.TLSv1_2
+
+        logger.debug("SSL verification enabled with TLS 1.2+ enforcement")
+        return context
+
     def __init__(self, config: OPNsenseConfig, pool: Optional['ConnectionPool'] = None):
         """Initialize OPNsense API client.
 
@@ -135,9 +176,12 @@ class OPNsenseClient:
         self.verify_ssl = config.verify_ssl
         self.pool = pool
 
-        # Enhanced client configuration
+        # Create SSL context with security hardening
+        ssl_context = self._create_ssl_context(self.verify_ssl)
+
+        # Enhanced client configuration with secure SSL
         self.client = httpx.AsyncClient(
-            verify=self.verify_ssl,
+            verify=ssl_context if self.verify_ssl else False,
             timeout=httpx.Timeout(30.0, pool=5.0),
             limits=httpx.Limits(
                 max_keepalive_connections=5,
@@ -150,7 +194,10 @@ class OPNsenseClient:
         auth_str = f"{self.api_key}:{self.api_secret}"
         self.auth_header = base64.b64encode(auth_str.encode()).decode()
 
-        logger.info(f"Initialized OPNsense client for {self.base_url}")
+        logger.info(
+            f"Initialized OPNsense client for {self.base_url} "
+            f"(SSL verification: {'enabled' if self.verify_ssl else 'DISABLED'})"
+        )
 
     async def close(self):
         """Close the httpx client."""
