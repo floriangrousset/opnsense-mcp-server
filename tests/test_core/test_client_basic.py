@@ -168,7 +168,6 @@ class TestRequestResponseLogger:
         assert log_data["response"]["duration_ms"] is None
 
 
-@pytest.mark.asyncio
 class TestOPNsenseClientBasic:
     """Test basic OPNsense client functionality."""
 
