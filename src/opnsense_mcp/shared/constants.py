@@ -18,13 +18,13 @@ API_CORE_FIRMWARE_INSTALL = "/core/firmware/install"  # Needs /{plugin_name}
 # Firewall Filter Rules
 API_FIREWALL_FILTER_SEARCH_RULE = "/firewall/filter/searchRule"
 API_FIREWALL_FILTER_ADD_RULE = "/firewall/filter/addRule"
-API_FIREWALL_FILTER_DEL_RULE = "/firewall/filter/delRule"    # Needs /{uuid}
-API_FIREWALL_FILTER_TOGGLE_RULE = "/firewall/filter/toggleRule" # Needs /{uuid}/{enabled_int}
+API_FIREWALL_FILTER_DEL_RULE = "/firewall/filter/delRule"  # Needs /{uuid}
+API_FIREWALL_FILTER_TOGGLE_RULE = "/firewall/filter/toggleRule"  # Needs /{uuid}/{enabled_int}
 API_FIREWALL_FILTER_APPLY = "/firewall/filter/apply"
 
 # Firewall Aliases
 API_FIREWALL_ALIAS_SEARCH_ITEM = "/firewall/alias/searchItem"
-API_FIREWALL_ALIAS_UTIL_ADD = "/firewall/alias_util/add"      # Needs /{alias_name}/{address}
+API_FIREWALL_ALIAS_UTIL_ADD = "/firewall/alias_util/add"  # Needs /{alias_name}/{address}
 API_FIREWALL_ALIAS_UTIL_DELETE = "/firewall/alias_util/delete"  # Needs /{alias_name}/{address}
 API_FIREWALL_ALIAS_RECONFIGURE = "/firewall/alias/reconfigure"
 
@@ -330,7 +330,9 @@ API_TRAFFICSHAPER_SETTINGS_ADD_PIPE = "/trafficshaper/settings/add_pipe"
 API_TRAFFICSHAPER_SETTINGS_DEL_PIPE = "/trafficshaper/settings/del_pipe"  # Needs /{uuid}
 API_TRAFFICSHAPER_SETTINGS_GET_PIPE = "/trafficshaper/settings/get_pipe"  # Optional /{uuid}
 API_TRAFFICSHAPER_SETTINGS_SET_PIPE = "/trafficshaper/settings/set_pipe"  # Needs /{uuid}
-API_TRAFFICSHAPER_SETTINGS_TOGGLE_PIPE = "/trafficshaper/settings/toggle_pipe"  # Needs /{uuid}/{enabled}
+API_TRAFFICSHAPER_SETTINGS_TOGGLE_PIPE = (
+    "/trafficshaper/settings/toggle_pipe"  # Needs /{uuid}/{enabled}
+)
 API_TRAFFICSHAPER_SETTINGS_SEARCH_PIPES = "/trafficshaper/settings/searchPipes"
 
 # Traffic Shaper - Queue Management
@@ -338,7 +340,9 @@ API_TRAFFICSHAPER_SETTINGS_ADD_QUEUE = "/trafficshaper/settings/add_queue"
 API_TRAFFICSHAPER_SETTINGS_DEL_QUEUE = "/trafficshaper/settings/del_queue"  # Needs /{uuid}
 API_TRAFFICSHAPER_SETTINGS_GET_QUEUE = "/trafficshaper/settings/get_queue"  # Optional /{uuid}
 API_TRAFFICSHAPER_SETTINGS_SET_QUEUE = "/trafficshaper/settings/set_queue"  # Needs /{uuid}
-API_TRAFFICSHAPER_SETTINGS_TOGGLE_QUEUE = "/trafficshaper/settings/toggle_queue"  # Needs /{uuid}/{enabled}
+API_TRAFFICSHAPER_SETTINGS_TOGGLE_QUEUE = (
+    "/trafficshaper/settings/toggle_queue"  # Needs /{uuid}/{enabled}
+)
 API_TRAFFICSHAPER_SETTINGS_SEARCH_QUEUES = "/trafficshaper/settings/search_queues"
 
 # Traffic Shaper - Rule Management
@@ -346,7 +350,9 @@ API_TRAFFICSHAPER_SETTINGS_ADD_RULE = "/trafficshaper/settings/add_rule"
 API_TRAFFICSHAPER_SETTINGS_DEL_RULE = "/trafficshaper/settings/del_rule"  # Needs /{uuid}
 API_TRAFFICSHAPER_SETTINGS_GET_RULE = "/trafficshaper/settings/get_rule"  # Optional /{uuid}
 API_TRAFFICSHAPER_SETTINGS_SET_RULE = "/trafficshaper/settings/set_rule"  # Needs /{uuid}
-API_TRAFFICSHAPER_SETTINGS_TOGGLE_RULE = "/trafficshaper/settings/toggle_rule"  # Needs /{uuid}/{enabled}
+API_TRAFFICSHAPER_SETTINGS_TOGGLE_RULE = (
+    "/trafficshaper/settings/toggle_rule"  # Needs /{uuid}/{enabled}
+)
 API_TRAFFICSHAPER_SETTINGS_SEARCH_RULES = "/trafficshaper/settings/search_rules"
 
 # Traffic Shaper - General Settings
@@ -396,7 +402,6 @@ DANGEROUS_ENDPOINTS = {
     "/system/reset": "CRITICAL",
     "/system/factory": "CRITICAL",
     "/system/halt": "CRITICAL",
-
     # HIGH: Destructive operations
     "/firewall/filter/delRule": "HIGH",
     "/firewall/alias/delItem": "HIGH",
@@ -414,7 +419,6 @@ DANGEROUS_ENDPOINTS = {
     "/trust/cert/delCertificate": "HIGH",
     "/trafficshaper/pipe/delPipe": "HIGH",
     "/trafficshaper/queue/delQueue": "HIGH",
-
     # MEDIUM: Operations requiring careful review
     "/firewall/filter/apply": "MEDIUM",
     "/firewall/alias/reconfigure": "MEDIUM",
@@ -429,10 +433,10 @@ DANGEROUS_ENDPOINTS = {
 
 # Endpoints that are always safe (read-only operations)
 SAFE_ENDPOINTS_PATTERNS = [
-    "/diagnostics/",      # Diagnostic tools (read-only)
-    "/status/",          # Status information (read-only)
-    "/search",           # Search operations (read-only)
-    "/get",              # Get operations (read-only)
-    "/info",             # Info endpoints (read-only)
-    "/export",           # Export operations (read-only)
+    "/diagnostics/",  # Diagnostic tools (read-only)
+    "/status/",  # Status information (read-only)
+    "/search",  # Search operations (read-only)
+    "/get",  # Get operations (read-only)
+    "/info",  # Info endpoints (read-only)
+    "/export",  # Export operations (read-only)
 ]

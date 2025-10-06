@@ -5,10 +5,11 @@ This module tests the configuration tools including connection setup
 and API endpoint discovery.
 """
 
-import pytest
 import json
 import sys
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
 from mcp.server.fastmcp import FastMCP
 
 # Mock the circular import with proper FastMCP instance
@@ -17,19 +18,19 @@ mock_server_state = MagicMock()
 mock_main = MagicMock()
 mock_main.mcp = mock_mcp
 mock_main.server_state = mock_server_state
-sys.modules['src.opnsense_mcp.main'] = mock_main
+sys.modules["src.opnsense_mcp.main"] = mock_main
 
 from src.opnsense_mcp.core.exceptions import (
-    ConfigurationError,
-    AuthenticationError,
-    NetworkError,
     APIError,
-    ValidationError
+    AuthenticationError,
+    ConfigurationError,
+    NetworkError,
+    ValidationError,
 )
 from src.opnsense_mcp.domains.configuration import (
     configure_opnsense_connection,
     get_api_endpoints,
-    get_opnsense_client
+    get_opnsense_client,
 )
 
 
@@ -39,7 +40,7 @@ class TestConfigureOPNsenseConnection:
 
     async def test_successful_configuration(self, mock_mcp_context):
         """Test successful OPNsense connection configuration."""
-        with patch('src.opnsense_mcp.domains.configuration.server_state') as mock_state:
+        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
             mock_state.initialize = AsyncMock()
 
             result = await configure_opnsense_connection(
@@ -47,7 +48,7 @@ class TestConfigureOPNsenseConnection:
                 url="https://192.168.1.1",
                 api_key="test_key",
                 api_secret="test_secret",
-                verify_ssl=False
+                verify_ssl=False,
             )
 
             assert "configured successfully" in result
@@ -56,7 +57,7 @@ class TestConfigureOPNsenseConnection:
 
     async def test_configuration_with_ssl_verification(self, mock_mcp_context):
         """Test configuration with SSL verification enabled."""
-        with patch('src.opnsense_mcp.domains.configuration.server_state') as mock_state:
+        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
             mock_state.initialize = AsyncMock()
 
             result = await configure_opnsense_connection(
@@ -64,22 +65,24 @@ class TestConfigureOPNsenseConnection:
                 url="https://opnsense.example.com",
                 api_key="key",
                 api_secret="secret",
-                verify_ssl=True
+                verify_ssl=True,
             )
 
             assert "configured successfully" in result
 
     async def test_authentication_error_handling(self, mock_mcp_context):
         """Test handling of authentication errors."""
-        with patch('src.opnsense_mcp.domains.configuration.server_state') as mock_state:
-            mock_state.initialize = AsyncMock(side_effect=AuthenticationError("Invalid credentials"))
+        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
+            mock_state.initialize = AsyncMock(
+                side_effect=AuthenticationError("Invalid credentials")
+            )
 
             result = await configure_opnsense_connection(
                 ctx=mock_mcp_context,
                 url="https://192.168.1.1",
                 api_key="wrong_key",
                 api_secret="wrong_secret",
-                verify_ssl=False
+                verify_ssl=False,
             )
 
             assert "Authentication Error" in result
@@ -88,14 +91,11 @@ class TestConfigureOPNsenseConnection:
 
     async def test_network_error_handling(self, mock_mcp_context):
         """Test handling of network errors."""
-        with patch('src.opnsense_mcp.domains.configuration.server_state') as mock_state:
+        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
             mock_state.initialize = AsyncMock(side_effect=NetworkError("Cannot connect"))
 
             result = await configure_opnsense_connection(
-                ctx=mock_mcp_context,
-                url="https://192.168.1.1",
-                api_key="key",
-                api_secret="secret"
+                ctx=mock_mcp_context, url="https://192.168.1.1", api_key="key", api_secret="secret"
             )
 
             assert "Network Error" in result
@@ -103,28 +103,22 @@ class TestConfigureOPNsenseConnection:
 
     async def test_validation_error_handling(self, mock_mcp_context):
         """Test handling of validation errors."""
-        with patch('src.opnsense_mcp.domains.configuration.OPNsenseConfig') as MockConfig:
+        with patch("src.opnsense_mcp.domains.configuration.OPNsenseConfig") as MockConfig:
             MockConfig.side_effect = ValidationError("Invalid URL format")
 
             result = await configure_opnsense_connection(
-                ctx=mock_mcp_context,
-                url="invalid-url",
-                api_key="key",
-                api_secret="secret"
+                ctx=mock_mcp_context, url="invalid-url", api_key="key", api_secret="secret"
             )
 
             assert "Configuration Error" in result
 
     async def test_generic_error_handling(self, mock_mcp_context):
         """Test handling of unexpected errors."""
-        with patch('src.opnsense_mcp.domains.configuration.server_state') as mock_state:
+        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
             mock_state.initialize = AsyncMock(side_effect=Exception("Unexpected error"))
 
             result = await configure_opnsense_connection(
-                ctx=mock_mcp_context,
-                url="https://192.168.1.1",
-                api_key="key",
-                api_secret="secret"
+                ctx=mock_mcp_context, url="https://192.168.1.1", api_key="key", api_secret="secret"
             )
 
             assert "Error:" in result
@@ -138,10 +132,10 @@ class TestGetAPIEndpoints:
         """Test getting all API endpoints."""
         mock_response = {
             "Firewall": {"routes": ["/firewall/filter/searchRule"]},
-            "System": {"routes": ["/core/system/info"]}
+            "System": {"routes": ["/core/system/info"]},
         }
 
-        with patch('src.opnsense_mcp.domains.configuration.get_opnsense_client') as mock_get_client:
+        with patch("src.opnsense_mcp.domains.configuration.get_opnsense_client") as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value=mock_response)
             mock_get_client.return_value = mock_client
@@ -157,10 +151,10 @@ class TestGetAPIEndpoints:
         """Test getting filtered API endpoints by module."""
         mock_response = {
             "Firewall": {"routes": ["/firewall/filter/searchRule"]},
-            "System": {"routes": ["/core/system/info"]}
+            "System": {"routes": ["/core/system/info"]},
         }
 
-        with patch('src.opnsense_mcp.domains.configuration.get_opnsense_client') as mock_get_client:
+        with patch("src.opnsense_mcp.domains.configuration.get_opnsense_client") as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value=mock_response)
             mock_get_client.return_value = mock_client
@@ -174,12 +168,9 @@ class TestGetAPIEndpoints:
 
     async def test_nonexistent_module_returns_available_list(self, mock_mcp_context):
         """Test requesting non-existent module returns available modules."""
-        mock_response = {
-            "Firewall": {},
-            "System": {}
-        }
+        mock_response = {"Firewall": {}, "System": {}}
 
-        with patch('src.opnsense_mcp.domains.configuration.get_opnsense_client') as mock_get_client:
+        with patch("src.opnsense_mcp.domains.configuration.get_opnsense_client") as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value=mock_response)
             mock_get_client.return_value = mock_client
@@ -192,7 +183,7 @@ class TestGetAPIEndpoints:
 
     async def test_configuration_error_handling(self, mock_mcp_context):
         """Test handling of configuration errors."""
-        with patch('src.opnsense_mcp.domains.configuration.get_opnsense_client') as mock_get_client:
+        with patch("src.opnsense_mcp.domains.configuration.get_opnsense_client") as mock_get_client:
             mock_get_client.side_effect = ConfigurationError("Not configured")
 
             result = await get_api_endpoints(ctx=mock_mcp_context)
@@ -202,7 +193,7 @@ class TestGetAPIEndpoints:
 
     async def test_api_error_handling(self, mock_mcp_context):
         """Test handling of API errors."""
-        with patch('src.opnsense_mcp.domains.configuration.get_opnsense_client') as mock_get_client:
+        with patch("src.opnsense_mcp.domains.configuration.get_opnsense_client") as mock_get_client:
             mock_client = Mock()
             mock_client.request = AsyncMock(side_effect=APIError("API error"))
             mock_get_client.return_value = mock_client
@@ -218,7 +209,7 @@ class TestGetOPNsenseClient:
 
     async def test_get_client_from_server_state(self):
         """Test getting client from server state."""
-        with patch('src.opnsense_mcp.domains.configuration.server_state') as mock_state:
+        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
             mock_client = Mock()
             mock_state.get_client = AsyncMock(return_value=mock_client)
 
@@ -229,7 +220,7 @@ class TestGetOPNsenseClient:
 
     async def test_get_client_raises_configuration_error(self):
         """Test that get_client raises ConfigurationError when not configured."""
-        with patch('src.opnsense_mcp.domains.configuration.server_state') as mock_state:
+        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
             mock_state.get_client = AsyncMock(side_effect=ConfigurationError("Not configured"))
 
             with pytest.raises(ConfigurationError):

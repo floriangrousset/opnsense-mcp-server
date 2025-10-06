@@ -15,54 +15,50 @@ Features:
 
 import json
 import re
-from typing import Optional
 
 from mcp.server.fastmcp import Context
+
 from ..main import mcp
-from .configuration import get_opnsense_client
-from ..shared.error_handlers import handle_tool_error, validate_uuid
 from ..shared.constants import (
-    # DHCP Server
-    API_DHCP_SERVER_SEARCH,
-    API_DHCP_SERVER_GET,
-    API_DHCP_SERVER_SET,
-    API_DHCP_SERVICE_RESTART,
-    API_DHCP_SERVICE_RECONFIGURE,
-
-    # DHCP Static Mappings
-    API_DHCP_STATIC_SEARCH,
-    API_DHCP_STATIC_GET,
-    API_DHCP_STATIC_ADD,
-    API_DHCP_STATIC_SET,
-    API_DHCP_STATIC_DEL,
-
     # DHCP Leases
     API_DHCP_LEASES_SEARCH,
-
-    # DNS Resolver (Unbound)
-    API_DNS_RESOLVER_SETTINGS,
-    API_DNS_RESOLVER_SET_SETTINGS,
-    API_DNS_RESOLVER_SERVICE_RESTART,
-    API_DNS_RESOLVER_SERVICE_RECONFIGURE,
-    API_DNS_RESOLVER_HOST_SEARCH,
-    API_DNS_RESOLVER_HOST_GET,
-    API_DNS_RESOLVER_HOST_ADD,
-    API_DNS_RESOLVER_HOST_SET,
-    API_DNS_RESOLVER_HOST_DEL,
-    API_DNS_RESOLVER_DOMAIN_SEARCH,
-    API_DNS_RESOLVER_DOMAIN_ADD,
-
+    API_DHCP_SERVER_GET,
+    # DHCP Server
+    API_DHCP_SERVER_SEARCH,
+    API_DHCP_SERVER_SET,
+    API_DHCP_SERVICE_RECONFIGURE,
+    API_DHCP_SERVICE_RESTART,
+    API_DHCP_STATIC_ADD,
+    API_DHCP_STATIC_DEL,
+    API_DHCP_STATIC_GET,
+    # DHCP Static Mappings
+    API_DHCP_STATIC_SEARCH,
+    API_DHCP_STATIC_SET,
+    API_DNS_FORWARDER_HOST_ADD,
+    API_DNS_FORWARDER_HOST_SEARCH,
+    API_DNS_FORWARDER_SERVICE_RECONFIGURE,
+    API_DNS_FORWARDER_SERVICE_RESTART,
+    API_DNS_FORWARDER_SET_SETTINGS,
     # DNS Forwarder (dnsmasq)
     API_DNS_FORWARDER_SETTINGS,
-    API_DNS_FORWARDER_SET_SETTINGS,
-    API_DNS_FORWARDER_SERVICE_RESTART,
-    API_DNS_FORWARDER_SERVICE_RECONFIGURE,
-    API_DNS_FORWARDER_HOST_SEARCH,
-    API_DNS_FORWARDER_HOST_ADD,
+    API_DNS_RESOLVER_DOMAIN_ADD,
+    API_DNS_RESOLVER_DOMAIN_SEARCH,
+    API_DNS_RESOLVER_HOST_ADD,
+    API_DNS_RESOLVER_HOST_DEL,
+    API_DNS_RESOLVER_HOST_GET,
+    API_DNS_RESOLVER_HOST_SEARCH,
+    API_DNS_RESOLVER_HOST_SET,
+    API_DNS_RESOLVER_SERVICE_RECONFIGURE,
+    API_DNS_RESOLVER_SERVICE_RESTART,
+    API_DNS_RESOLVER_SET_SETTINGS,
+    # DNS Resolver (Unbound)
+    API_DNS_RESOLVER_SETTINGS,
 )
-
+from ..shared.error_handlers import handle_tool_error
+from .configuration import get_opnsense_client
 
 # ========== HELPER FUNCTIONS ==========
+
 
 def is_valid_uuid(uuid: str) -> bool:
     """Check if string is a valid UUID format.
@@ -75,11 +71,14 @@ def is_valid_uuid(uuid: str) -> bool:
     """
     if not uuid:
         return False
-    uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+    uuid_pattern = re.compile(
+        r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
+    )
     return bool(uuid_pattern.match(uuid))
 
 
 # ========== DHCP SERVER MANAGEMENT ==========
+
 
 @mcp.tool(name="dhcp_list_servers", description="List all DHCP server configurations")
 async def dhcp_list_servers(ctx: Context) -> str:
@@ -94,9 +93,7 @@ async def dhcp_list_servers(ctx: Context) -> str:
 
     try:
         response = await opnsense_client.request(
-            "GET",
-            API_DHCP_SERVER_SEARCH,
-            operation="list_dhcp_servers"
+            "GET", API_DHCP_SERVER_SEARCH, operation="list_dhcp_servers"
         )
 
         return json.dumps(response, indent=2)
@@ -106,10 +103,7 @@ async def dhcp_list_servers(ctx: Context) -> str:
 
 
 @mcp.tool(name="dhcp_get_server", description="Get a specific DHCP server configuration")
-async def dhcp_get_server(
-    ctx: Context,
-    interface: str
-) -> str:
+async def dhcp_get_server(ctx: Context, interface: str) -> str:
     """Get a specific DHCP server configuration by interface.
 
     Args:
@@ -128,9 +122,7 @@ async def dhcp_get_server(
 
     try:
         response = await opnsense_client.request(
-            "GET",
-            f"{API_DHCP_SERVER_GET}/{interface}",
-            operation=f"get_dhcp_server_{interface}"
+            "GET", f"{API_DHCP_SERVER_GET}/{interface}", operation=f"get_dhcp_server_{interface}"
         )
 
         return json.dumps(response, indent=2)
@@ -150,7 +142,7 @@ async def dhcp_set_server(
     dns_servers: str = "",
     domain_name: str = "",
     lease_time: int = 7200,
-    description: str = ""
+    description: str = "",
 ) -> str:
     """Configure DHCP server settings for a specific interface.
 
@@ -178,10 +170,7 @@ async def dhcp_set_server(
 
     try:
         # Prepare configuration data
-        config_data = {
-            "enabled": "1" if enabled else "0",
-            "description": description
-        }
+        config_data = {"enabled": "1" if enabled else "0", "description": description}
 
         if range_from:
             config_data["range_from"] = range_from
@@ -201,15 +190,13 @@ async def dhcp_set_server(
             "POST",
             f"{API_DHCP_SERVER_SET}/{interface}",
             data=config_data,
-            operation=f"set_dhcp_server_{interface}"
+            operation=f"set_dhcp_server_{interface}",
         )
 
         # Apply configuration
         if response and not response.get("error"):
             await opnsense_client.request(
-                "POST",
-                API_DHCP_SERVICE_RECONFIGURE,
-                operation="apply_dhcp_config"
+                "POST", API_DHCP_SERVICE_RECONFIGURE, operation="apply_dhcp_config"
             )
 
         return json.dumps(response, indent=2)
@@ -231,9 +218,7 @@ async def dhcp_restart_service(ctx: Context) -> str:
 
     try:
         response = await opnsense_client.request(
-            "POST",
-            API_DHCP_SERVICE_RESTART,
-            operation="restart_dhcp_service"
+            "POST", API_DHCP_SERVICE_RESTART, operation="restart_dhcp_service"
         )
 
         return json.dumps(response, indent=2)
@@ -244,11 +229,9 @@ async def dhcp_restart_service(ctx: Context) -> str:
 
 # ========== DHCP STATIC MAPPINGS ==========
 
+
 @mcp.tool(name="dhcp_list_static_mappings", description="List DHCP static mappings (reservations)")
-async def dhcp_list_static_mappings(
-    ctx: Context,
-    search_phrase: str = ""
-) -> str:
+async def dhcp_list_static_mappings(ctx: Context, search_phrase: str = "") -> str:
     """List all DHCP static mappings (reservations).
 
     Args:
@@ -268,10 +251,7 @@ async def dhcp_list_static_mappings(
             params["searchPhrase"] = search_phrase
 
         response = await opnsense_client.request(
-            "POST",
-            API_DHCP_STATIC_SEARCH,
-            data=params,
-            operation="list_dhcp_static_mappings"
+            "POST", API_DHCP_STATIC_SEARCH, data=params, operation="list_dhcp_static_mappings"
         )
 
         return json.dumps(response, indent=2)
@@ -281,10 +261,7 @@ async def dhcp_list_static_mappings(
 
 
 @mcp.tool(name="dhcp_get_static_mapping", description="Get a specific DHCP static mapping")
-async def dhcp_get_static_mapping(
-    ctx: Context,
-    uuid: str
-) -> str:
+async def dhcp_get_static_mapping(ctx: Context, uuid: str) -> str:
     """Get a specific DHCP static mapping by UUID.
 
     Args:
@@ -303,9 +280,7 @@ async def dhcp_get_static_mapping(
 
     try:
         response = await opnsense_client.request(
-            "GET",
-            f"{API_DHCP_STATIC_GET}/{uuid}",
-            operation=f"get_dhcp_static_mapping_{uuid[:8]}"
+            "GET", f"{API_DHCP_STATIC_GET}/{uuid}", operation=f"get_dhcp_static_mapping_{uuid[:8]}"
         )
 
         return json.dumps(response, indent=2)
@@ -321,7 +296,7 @@ async def dhcp_add_static_mapping(
     mac_address: str,
     ip_address: str,
     hostname: str = "",
-    description: str = ""
+    description: str = "",
 ) -> str:
     """Add a new DHCP static mapping (reservation).
 
@@ -341,16 +316,12 @@ async def dhcp_add_static_mapping(
         return "OPNsense client not initialized. Please configure the server first."
 
     if not all([interface, mac_address, ip_address]):
-        return json.dumps({
-            "error": "Interface, MAC address, and IP address are required"
-        }, indent=2)
+        return json.dumps(
+            {"error": "Interface, MAC address, and IP address are required"}, indent=2
+        )
 
     try:
-        mapping_data = {
-            "interface": interface,
-            "mac": mac_address,
-            "ip": ip_address
-        }
+        mapping_data = {"interface": interface, "mac": mac_address, "ip": ip_address}
 
         if hostname:
             mapping_data["hostname"] = hostname
@@ -361,15 +332,13 @@ async def dhcp_add_static_mapping(
             "POST",
             API_DHCP_STATIC_ADD,
             data={"static": mapping_data},
-            operation="add_dhcp_static_mapping"
+            operation="add_dhcp_static_mapping",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await opnsense_client.request(
-                "POST",
-                API_DHCP_SERVICE_RECONFIGURE,
-                operation="apply_dhcp_config"
+                "POST", API_DHCP_SERVICE_RECONFIGURE, operation="apply_dhcp_config"
             )
 
         return json.dumps(response, indent=2)
@@ -386,7 +355,7 @@ async def dhcp_update_static_mapping(
     mac_address: str = "",
     ip_address: str = "",
     hostname: str = "",
-    description: str = ""
+    description: str = "",
 ) -> str:
     """Update an existing DHCP static mapping.
 
@@ -414,7 +383,7 @@ async def dhcp_update_static_mapping(
         current = await opnsense_client.request(
             "GET",
             f"{API_DHCP_STATIC_GET}/{uuid}",
-            operation=f"get_current_static_mapping_{uuid[:8]}"
+            operation=f"get_current_static_mapping_{uuid[:8]}",
         )
 
         if not current or "static" not in current:
@@ -437,15 +406,13 @@ async def dhcp_update_static_mapping(
             "POST",
             f"{API_DHCP_STATIC_SET}/{uuid}",
             data={"static": mapping_data},
-            operation=f"update_dhcp_static_mapping_{uuid[:8]}"
+            operation=f"update_dhcp_static_mapping_{uuid[:8]}",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await opnsense_client.request(
-                "POST",
-                API_DHCP_SERVICE_RECONFIGURE,
-                operation="apply_dhcp_config"
+                "POST", API_DHCP_SERVICE_RECONFIGURE, operation="apply_dhcp_config"
             )
 
         return json.dumps(response, indent=2)
@@ -455,10 +422,7 @@ async def dhcp_update_static_mapping(
 
 
 @mcp.tool(name="dhcp_delete_static_mapping", description="Delete a DHCP static mapping")
-async def dhcp_delete_static_mapping(
-    ctx: Context,
-    uuid: str
-) -> str:
+async def dhcp_delete_static_mapping(ctx: Context, uuid: str) -> str:
     """Delete a DHCP static mapping by UUID.
 
     Args:
@@ -479,15 +443,13 @@ async def dhcp_delete_static_mapping(
         response = await opnsense_client.request(
             "POST",
             f"{API_DHCP_STATIC_DEL}/{uuid}",
-            operation=f"delete_dhcp_static_mapping_{uuid[:8]}"
+            operation=f"delete_dhcp_static_mapping_{uuid[:8]}",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await opnsense_client.request(
-                "POST",
-                API_DHCP_SERVICE_RECONFIGURE,
-                operation="apply_dhcp_config"
+                "POST", API_DHCP_SERVICE_RECONFIGURE, operation="apply_dhcp_config"
             )
 
         return json.dumps(response, indent=2)
@@ -498,11 +460,9 @@ async def dhcp_delete_static_mapping(
 
 # ========== DHCP LEASE MANAGEMENT ==========
 
+
 @mcp.tool(name="dhcp_get_leases", description="Get current DHCP leases")
-async def dhcp_get_leases(
-    ctx: Context,
-    interface: str = ""
-) -> str:
+async def dhcp_get_leases(ctx: Context, interface: str = "") -> str:
     """Get current DHCP leases from the server.
 
     Args:
@@ -518,12 +478,14 @@ async def dhcp_get_leases(
 
     try:
         # Use the general DHCP leases endpoint
-        endpoint = API_DHCP_LEASES_SEARCH if not interface else f"{API_DHCP_LEASES_SEARCH}?interface={interface}"
+        endpoint = (
+            API_DHCP_LEASES_SEARCH
+            if not interface
+            else f"{API_DHCP_LEASES_SEARCH}?interface={interface}"
+        )
 
         response = await opnsense_client.request(
-            "GET",
-            endpoint,
-            operation=f"get_dhcp_leases{'_' + interface if interface else ''}"
+            "GET", endpoint, operation=f"get_dhcp_leases{'_' + interface if interface else ''}"
         )
 
         return json.dumps(response, indent=2)
@@ -534,10 +496,7 @@ async def dhcp_get_leases(
 
 @mcp.tool(name="dhcp_search_leases", description="Search DHCP leases with filters")
 async def dhcp_search_leases(
-    ctx: Context,
-    search_phrase: str = "",
-    interface: str = "",
-    state: str = ""
+    ctx: Context, search_phrase: str = "", interface: str = "", state: str = ""
 ) -> str:
     """Search DHCP leases with various filters.
 
@@ -564,10 +523,7 @@ async def dhcp_search_leases(
             params["state"] = state
 
         response = await opnsense_client.request(
-            "POST",
-            API_DHCP_LEASES_SEARCH,
-            data=params,
-            operation="search_dhcp_leases"
+            "POST", API_DHCP_LEASES_SEARCH, data=params, operation="search_dhcp_leases"
         )
 
         return json.dumps(response, indent=2)
@@ -590,9 +546,7 @@ async def dhcp_get_lease_statistics(ctx: Context) -> str:
     try:
         # Get all leases
         response = await opnsense_client.request(
-            "GET",
-            API_DHCP_LEASES_SEARCH,
-            operation="get_dhcp_lease_statistics"
+            "GET", API_DHCP_LEASES_SEARCH, operation="get_dhcp_lease_statistics"
         )
 
         if not response:
@@ -604,7 +558,7 @@ async def dhcp_get_lease_statistics(ctx: Context) -> str:
             "active_leases": 0,
             "expired_leases": 0,
             "static_mappings": 0,
-            "interfaces": {}
+            "interfaces": {},
         }
 
         # If response contains lease data, process it
@@ -647,6 +601,7 @@ async def dhcp_get_lease_statistics(ctx: Context) -> str:
 
 # ========== DNS RESOLVER (UNBOUND) MANAGEMENT ==========
 
+
 @mcp.tool(name="dns_resolver_get_settings", description="Get DNS resolver (Unbound) settings")
 async def dns_resolver_get_settings(ctx: Context) -> str:
     """Get DNS resolver (Unbound) configuration settings.
@@ -660,9 +615,7 @@ async def dns_resolver_get_settings(ctx: Context) -> str:
 
     try:
         response = await opnsense_client.request(
-            "GET",
-            API_DNS_RESOLVER_SETTINGS,
-            operation="get_dns_resolver_settings"
+            "GET", API_DNS_RESOLVER_SETTINGS, operation="get_dns_resolver_settings"
         )
 
         return json.dumps(response, indent=2)
@@ -683,7 +636,7 @@ async def dns_resolver_set_settings(
     cache_min_ttl: int = 0,
     cache_max_ttl: int = 86400,
     outgoing_interfaces: str = "",
-    incoming_interfaces: str = ""
+    incoming_interfaces: str = "",
 ) -> str:
     """Configure DNS resolver (Unbound) settings.
 
@@ -717,7 +670,7 @@ async def dns_resolver_set_settings(
                 "forward_tls_upstream": "1" if forward_tls_upstream else "0",
                 "cache_size": str(cache_size),
                 "cache_min_ttl": str(cache_min_ttl),
-                "cache_max_ttl": str(cache_max_ttl)
+                "cache_max_ttl": str(cache_max_ttl),
             }
         }
 
@@ -730,15 +683,13 @@ async def dns_resolver_set_settings(
             "POST",
             API_DNS_RESOLVER_SET_SETTINGS,
             data=settings_data,
-            operation="set_dns_resolver_settings"
+            operation="set_dns_resolver_settings",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await opnsense_client.request(
-                "POST",
-                API_DNS_RESOLVER_SERVICE_RECONFIGURE,
-                operation="apply_dns_resolver_config"
+                "POST", API_DNS_RESOLVER_SERVICE_RECONFIGURE, operation="apply_dns_resolver_config"
             )
 
         return json.dumps(response, indent=2)
@@ -760,9 +711,7 @@ async def dns_resolver_restart_service(ctx: Context) -> str:
 
     try:
         response = await opnsense_client.request(
-            "POST",
-            API_DNS_RESOLVER_SERVICE_RESTART,
-            operation="restart_dns_resolver_service"
+            "POST", API_DNS_RESOLVER_SERVICE_RESTART, operation="restart_dns_resolver_service"
         )
 
         return json.dumps(response, indent=2)
@@ -773,11 +722,9 @@ async def dns_resolver_restart_service(ctx: Context) -> str:
 
 # ========== DNS RESOLVER HOST OVERRIDES ==========
 
+
 @mcp.tool(name="dns_resolver_list_host_overrides", description="List DNS resolver host overrides")
-async def dns_resolver_list_host_overrides(
-    ctx: Context,
-    search_phrase: str = ""
-) -> str:
+async def dns_resolver_list_host_overrides(ctx: Context, search_phrase: str = "") -> str:
     """List all DNS resolver host overrides.
 
     Args:
@@ -800,7 +747,7 @@ async def dns_resolver_list_host_overrides(
             "POST",
             API_DNS_RESOLVER_HOST_SEARCH,
             data=params,
-            operation="list_dns_resolver_host_overrides"
+            operation="list_dns_resolver_host_overrides",
         )
 
         return json.dumps(response, indent=2)
@@ -809,11 +756,10 @@ async def dns_resolver_list_host_overrides(
         return await handle_tool_error(ctx, "dns_resolver_list_host_overrides", e)
 
 
-@mcp.tool(name="dns_resolver_get_host_override", description="Get a specific DNS resolver host override")
-async def dns_resolver_get_host_override(
-    ctx: Context,
-    uuid: str
-) -> str:
+@mcp.tool(
+    name="dns_resolver_get_host_override", description="Get a specific DNS resolver host override"
+)
+async def dns_resolver_get_host_override(ctx: Context, uuid: str) -> str:
     """Get a specific DNS resolver host override by UUID.
 
     Args:
@@ -834,7 +780,7 @@ async def dns_resolver_get_host_override(
         response = await opnsense_client.request(
             "GET",
             f"{API_DNS_RESOLVER_HOST_GET}/{uuid}",
-            operation=f"get_dns_resolver_host_override_{uuid[:8]}"
+            operation=f"get_dns_resolver_host_override_{uuid[:8]}",
         )
 
         return json.dumps(response, indent=2)
@@ -845,11 +791,7 @@ async def dns_resolver_get_host_override(
 
 @mcp.tool(name="dns_resolver_add_host_override", description="Add a new DNS resolver host override")
 async def dns_resolver_add_host_override(
-    ctx: Context,
-    hostname: str,
-    domain: str,
-    ip_address: str,
-    description: str = ""
+    ctx: Context, hostname: str, domain: str, ip_address: str, description: str = ""
 ) -> str:
     """Add a new DNS resolver host override.
 
@@ -868,31 +810,27 @@ async def dns_resolver_add_host_override(
         return "OPNsense client not initialized. Please configure the server first."
 
     if not all([hostname, domain, ip_address]):
-        return json.dumps({
-            "error": "Hostname, domain, and IP address are required"
-        }, indent=2)
+        return json.dumps({"error": "Hostname, domain, and IP address are required"}, indent=2)
 
     try:
         override_data = {
             "host": hostname,
             "domain": domain,
             "server": ip_address,
-            "description": description
+            "description": description,
         }
 
         response = await opnsense_client.request(
             "POST",
             API_DNS_RESOLVER_HOST_ADD,
             data={"host": override_data},
-            operation="add_dns_resolver_host_override"
+            operation="add_dns_resolver_host_override",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await opnsense_client.request(
-                "POST",
-                API_DNS_RESOLVER_SERVICE_RECONFIGURE,
-                operation="apply_dns_resolver_config"
+                "POST", API_DNS_RESOLVER_SERVICE_RECONFIGURE, operation="apply_dns_resolver_config"
             )
 
         return json.dumps(response, indent=2)
@@ -901,14 +839,17 @@ async def dns_resolver_add_host_override(
         return await handle_tool_error(ctx, "dns_resolver_add_host_override", e)
 
 
-@mcp.tool(name="dns_resolver_update_host_override", description="Update an existing DNS resolver host override")
+@mcp.tool(
+    name="dns_resolver_update_host_override",
+    description="Update an existing DNS resolver host override",
+)
 async def dns_resolver_update_host_override(
     ctx: Context,
     uuid: str,
     hostname: str = "",
     domain: str = "",
     ip_address: str = "",
-    description: str = ""
+    description: str = "",
 ) -> str:
     """Update an existing DNS resolver host override.
 
@@ -935,7 +876,7 @@ async def dns_resolver_update_host_override(
         current = await opnsense_client.request(
             "GET",
             f"{API_DNS_RESOLVER_HOST_GET}/{uuid}",
-            operation=f"get_current_host_override_{uuid[:8]}"
+            operation=f"get_current_host_override_{uuid[:8]}",
         )
 
         if not current or "host" not in current:
@@ -956,15 +897,13 @@ async def dns_resolver_update_host_override(
             "POST",
             f"{API_DNS_RESOLVER_HOST_SET}/{uuid}",
             data={"host": override_data},
-            operation=f"update_dns_resolver_host_override_{uuid[:8]}"
+            operation=f"update_dns_resolver_host_override_{uuid[:8]}",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await opnsense_client.request(
-                "POST",
-                API_DNS_RESOLVER_SERVICE_RECONFIGURE,
-                operation="apply_dns_resolver_config"
+                "POST", API_DNS_RESOLVER_SERVICE_RECONFIGURE, operation="apply_dns_resolver_config"
             )
 
         return json.dumps(response, indent=2)
@@ -973,11 +912,10 @@ async def dns_resolver_update_host_override(
         return await handle_tool_error(ctx, "dns_resolver_update_host_override", e)
 
 
-@mcp.tool(name="dns_resolver_delete_host_override", description="Delete a DNS resolver host override")
-async def dns_resolver_delete_host_override(
-    ctx: Context,
-    uuid: str
-) -> str:
+@mcp.tool(
+    name="dns_resolver_delete_host_override", description="Delete a DNS resolver host override"
+)
+async def dns_resolver_delete_host_override(ctx: Context, uuid: str) -> str:
     """Delete a DNS resolver host override by UUID.
 
     Args:
@@ -998,15 +936,13 @@ async def dns_resolver_delete_host_override(
         response = await opnsense_client.request(
             "POST",
             f"{API_DNS_RESOLVER_HOST_DEL}/{uuid}",
-            operation=f"delete_dns_resolver_host_override_{uuid[:8]}"
+            operation=f"delete_dns_resolver_host_override_{uuid[:8]}",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await opnsense_client.request(
-                "POST",
-                API_DNS_RESOLVER_SERVICE_RECONFIGURE,
-                operation="apply_dns_resolver_config"
+                "POST", API_DNS_RESOLVER_SERVICE_RECONFIGURE, operation="apply_dns_resolver_config"
             )
 
         return json.dumps(response, indent=2)
@@ -1017,11 +953,11 @@ async def dns_resolver_delete_host_override(
 
 # ========== DNS RESOLVER DOMAIN OVERRIDES ==========
 
-@mcp.tool(name="dns_resolver_list_domain_overrides", description="List DNS resolver domain overrides")
-async def dns_resolver_list_domain_overrides(
-    ctx: Context,
-    search_phrase: str = ""
-) -> str:
+
+@mcp.tool(
+    name="dns_resolver_list_domain_overrides", description="List DNS resolver domain overrides"
+)
+async def dns_resolver_list_domain_overrides(ctx: Context, search_phrase: str = "") -> str:
     """List all DNS resolver domain overrides.
 
     Args:
@@ -1044,7 +980,7 @@ async def dns_resolver_list_domain_overrides(
             "POST",
             API_DNS_RESOLVER_DOMAIN_SEARCH,
             data=params,
-            operation="list_dns_resolver_domain_overrides"
+            operation="list_dns_resolver_domain_overrides",
         )
 
         return json.dumps(response, indent=2)
@@ -1053,12 +989,11 @@ async def dns_resolver_list_domain_overrides(
         return await handle_tool_error(ctx, "dns_resolver_list_domain_overrides", e)
 
 
-@mcp.tool(name="dns_resolver_add_domain_override", description="Add a new DNS resolver domain override")
+@mcp.tool(
+    name="dns_resolver_add_domain_override", description="Add a new DNS resolver domain override"
+)
 async def dns_resolver_add_domain_override(
-    ctx: Context,
-    domain: str,
-    server: str,
-    description: str = ""
+    ctx: Context, domain: str, server: str, description: str = ""
 ) -> str:
     """Add a new DNS resolver domain override.
 
@@ -1076,30 +1011,22 @@ async def dns_resolver_add_domain_override(
         return "OPNsense client not initialized. Please configure the server first."
 
     if not all([domain, server]):
-        return json.dumps({
-            "error": "Domain and server are required"
-        }, indent=2)
+        return json.dumps({"error": "Domain and server are required"}, indent=2)
 
     try:
-        override_data = {
-            "domain": domain,
-            "server": server,
-            "description": description
-        }
+        override_data = {"domain": domain, "server": server, "description": description}
 
         response = await opnsense_client.request(
             "POST",
             API_DNS_RESOLVER_DOMAIN_ADD,
             data={"domain": override_data},
-            operation="add_dns_resolver_domain_override"
+            operation="add_dns_resolver_domain_override",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await opnsense_client.request(
-                "POST",
-                API_DNS_RESOLVER_SERVICE_RECONFIGURE,
-                operation="apply_dns_resolver_config"
+                "POST", API_DNS_RESOLVER_SERVICE_RECONFIGURE, operation="apply_dns_resolver_config"
             )
 
         return json.dumps(response, indent=2)
@@ -1109,6 +1036,7 @@ async def dns_resolver_add_domain_override(
 
 
 # ========== DNS FORWARDER (DNSMASQ) MANAGEMENT ==========
+
 
 @mcp.tool(name="dns_forwarder_get_settings", description="Get DNS forwarder (dnsmasq) settings")
 async def dns_forwarder_get_settings(ctx: Context) -> str:
@@ -1123,9 +1051,7 @@ async def dns_forwarder_get_settings(ctx: Context) -> str:
 
     try:
         response = await opnsense_client.request(
-            "GET",
-            API_DNS_FORWARDER_SETTINGS,
-            operation="get_dns_forwarder_settings"
+            "GET", API_DNS_FORWARDER_SETTINGS, operation="get_dns_forwarder_settings"
         )
 
         return json.dumps(response, indent=2)
@@ -1134,7 +1060,9 @@ async def dns_forwarder_get_settings(ctx: Context) -> str:
         return await handle_tool_error(ctx, "dns_forwarder_get_settings", e)
 
 
-@mcp.tool(name="dns_forwarder_set_settings", description="Configure DNS forwarder (dnsmasq) settings")
+@mcp.tool(
+    name="dns_forwarder_set_settings", description="Configure DNS forwarder (dnsmasq) settings"
+)
 async def dns_forwarder_set_settings(
     ctx: Context,
     enabled: bool = True,
@@ -1142,7 +1070,7 @@ async def dns_forwarder_set_settings(
     domain: str = "",
     no_hosts: bool = False,
     strict_order: bool = False,
-    no_dhcp_interface: str = ""
+    no_dhcp_interface: str = "",
 ) -> str:
     """Configure DNS forwarder (dnsmasq) settings.
 
@@ -1168,7 +1096,7 @@ async def dns_forwarder_set_settings(
                 "enabled": "1" if enabled else "0",
                 "port": str(port),
                 "no_hosts": "1" if no_hosts else "0",
-                "strict_order": "1" if strict_order else "0"
+                "strict_order": "1" if strict_order else "0",
             }
         }
 
@@ -1181,7 +1109,7 @@ async def dns_forwarder_set_settings(
             "POST",
             API_DNS_FORWARDER_SET_SETTINGS,
             data=settings_data,
-            operation="set_dns_forwarder_settings"
+            operation="set_dns_forwarder_settings",
         )
 
         # Apply configuration if successful
@@ -1189,7 +1117,7 @@ async def dns_forwarder_set_settings(
             await opnsense_client.request(
                 "POST",
                 API_DNS_FORWARDER_SERVICE_RECONFIGURE,
-                operation="apply_dns_forwarder_config"
+                operation="apply_dns_forwarder_config",
             )
 
         return json.dumps(response, indent=2)
@@ -1199,10 +1127,7 @@ async def dns_forwarder_set_settings(
 
 
 @mcp.tool(name="dns_forwarder_list_hosts", description="List DNS forwarder host overrides")
-async def dns_forwarder_list_hosts(
-    ctx: Context,
-    search_phrase: str = ""
-) -> str:
+async def dns_forwarder_list_hosts(ctx: Context, search_phrase: str = "") -> str:
     """List all DNS forwarder host overrides.
 
     Args:
@@ -1222,10 +1147,7 @@ async def dns_forwarder_list_hosts(
             params["searchPhrase"] = search_phrase
 
         response = await opnsense_client.request(
-            "POST",
-            API_DNS_FORWARDER_HOST_SEARCH,
-            data=params,
-            operation="list_dns_forwarder_hosts"
+            "POST", API_DNS_FORWARDER_HOST_SEARCH, data=params, operation="list_dns_forwarder_hosts"
         )
 
         return json.dumps(response, indent=2)
@@ -1236,11 +1158,7 @@ async def dns_forwarder_list_hosts(
 
 @mcp.tool(name="dns_forwarder_add_host", description="Add a new DNS forwarder host override")
 async def dns_forwarder_add_host(
-    ctx: Context,
-    hostname: str,
-    domain: str,
-    ip_address: str,
-    description: str = ""
+    ctx: Context, hostname: str, domain: str, ip_address: str, description: str = ""
 ) -> str:
     """Add a new DNS forwarder host override.
 
@@ -1259,23 +1177,21 @@ async def dns_forwarder_add_host(
         return "OPNsense client not initialized. Please configure the server first."
 
     if not all([hostname, domain, ip_address]):
-        return json.dumps({
-            "error": "Hostname, domain, and IP address are required"
-        }, indent=2)
+        return json.dumps({"error": "Hostname, domain, and IP address are required"}, indent=2)
 
     try:
         host_data = {
             "host": hostname,
             "domain": domain,
             "ip": ip_address,
-            "description": description
+            "description": description,
         }
 
         response = await opnsense_client.request(
             "POST",
             API_DNS_FORWARDER_HOST_ADD,
             data={"host": host_data},
-            operation="add_dns_forwarder_host"
+            operation="add_dns_forwarder_host",
         )
 
         # Apply configuration if successful
@@ -1283,7 +1199,7 @@ async def dns_forwarder_add_host(
             await opnsense_client.request(
                 "POST",
                 API_DNS_FORWARDER_SERVICE_RECONFIGURE,
-                operation="apply_dns_forwarder_config"
+                operation="apply_dns_forwarder_config",
             )
 
         return json.dumps(response, indent=2)
@@ -1305,9 +1221,7 @@ async def dns_forwarder_restart_service(ctx: Context) -> str:
 
     try:
         response = await opnsense_client.request(
-            "POST",
-            API_DNS_FORWARDER_SERVICE_RESTART,
-            operation="restart_dns_forwarder_service"
+            "POST", API_DNS_FORWARDER_SERVICE_RESTART, operation="restart_dns_forwarder_service"
         )
 
         return json.dumps(response, indent=2)

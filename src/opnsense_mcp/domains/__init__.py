@@ -6,33 +6,35 @@ Each module provides MCP tools for a specific aspect of OPNsense management.
 """
 
 # Domain modules are imported here to register their MCP tools
-from . import configuration
-from . import system
-from . import firewall
-from . import nat
-from . import network
-from . import dns_dhcp
-from . import certificates
-from . import users
-from . import logging
-from . import traffic_shaping
-from . import vpn
-from . import utilities
+from . import (
+    certificates,
+    configuration,
+    dns_dhcp,
+    firewall,
+    logging,
+    nat,
+    network,
+    system,
+    traffic_shaping,
+    users,
+    utilities,
+    vpn,
+)
 
 # Additional domain modules will be imported as they are created
 # etc.
 
 __all__ = [
+    "certificates",
     "configuration",
-    "system",
+    "dns_dhcp",
     "firewall",
+    "logging",
     "nat",
     "network",
-    "dns_dhcp",
-    "certificates",
-    "users",
-    "logging",
+    "system",
     "traffic_shaping",
+    "users",
+    "utilities",
     "vpn",
-    "utilities"
 ]

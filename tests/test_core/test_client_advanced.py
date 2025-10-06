@@ -6,22 +6,26 @@ error handling, retries, rate limiting, and comprehensive error scenarios.
 """
 
 import json
-import pytest
+from unittest.mock import AsyncMock, Mock
+
 import httpx
-from unittest.mock import Mock, AsyncMock, patch
+import pytest
+
 from src.opnsense_mcp.core.client import OPNsenseClient
-from src.opnsense_mcp.core.models import OPNsenseConfig
-from src.opnsense_mcp.core.retry import RetryConfig
 from src.opnsense_mcp.core.exceptions import (
-    ValidationError,
+    APIError,
     AuthenticationError,
     AuthorizationError,
-    ResourceNotFoundError,
-    RateLimitError,
-    APIError,
     NetworkError,
-    TimeoutError as OPNsenseTimeoutError
+    RateLimitError,
+    ResourceNotFoundError,
+    ValidationError,
 )
+from src.opnsense_mcp.core.exceptions import (
+    TimeoutError as OPNsenseTimeoutError,
+)
+from src.opnsense_mcp.core.models import OPNsenseConfig
+from src.opnsense_mcp.core.retry import RetryConfig
 
 
 @pytest.mark.asyncio
@@ -34,7 +38,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -56,7 +60,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -79,7 +83,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -100,7 +104,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -121,7 +125,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -139,9 +143,7 @@ class TestOPNsenseClientRequest:
     async def test_request_missing_method_raises_error(self):
         """Test that missing method raises ValidationError."""
         config = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="test_key",
-            api_secret="test_secret"
+            url="https://192.168.1.1", api_key="test_key", api_secret="test_secret"
         )
         client = OPNsenseClient(config)
 
@@ -153,9 +155,7 @@ class TestOPNsenseClientRequest:
     async def test_request_missing_endpoint_raises_error(self):
         """Test that missing endpoint raises ValidationError."""
         config = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="test_key",
-            api_secret="test_secret"
+            url="https://192.168.1.1", api_key="test_key", api_secret="test_secret"
         )
         client = OPNsenseClient(config)
 
@@ -167,9 +167,7 @@ class TestOPNsenseClientRequest:
     async def test_request_unsupported_method_raises_error(self):
         """Test that unsupported HTTP method raises ValidationError."""
         config = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="test_key",
-            api_secret="test_secret"
+            url="https://192.168.1.1", api_key="test_key", api_secret="test_secret"
         )
         client = OPNsenseClient(config)
 
@@ -184,7 +182,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -206,7 +204,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -228,7 +226,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -250,7 +248,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -274,7 +272,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -297,14 +295,14 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
         mock_response = Mock()
         mock_response.status_code = 200
-        mock_response.content = b'Not valid JSON'
-        mock_response.text = 'Not valid JSON'
+        mock_response.content = b"Not valid JSON"
+        mock_response.text = "Not valid JSON"
         mock_response.json.side_effect = json.JSONDecodeError("Invalid JSON", "", 0)
 
         client.client.get = AsyncMock(return_value=mock_response)
@@ -320,7 +318,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -338,7 +336,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -355,7 +353,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -372,7 +370,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -396,7 +394,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
         mock_pool = Mock()
@@ -422,7 +420,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -438,10 +436,9 @@ class TestOPNsenseClientRequest:
         mock_response_success.json.return_value = {"status": "ok"}
         mock_response_success.content = b'{"status": "ok"}'
 
-        client.client.get = AsyncMock(side_effect=[
-            httpx.TimeoutException("Timeout"),
-            mock_response_success
-        ])
+        client.client.get = AsyncMock(
+            side_effect=[httpx.TimeoutException("Timeout"), mock_response_success]
+        )
 
         retry_config = RetryConfig(max_attempts=2, base_delay=0.01)
         result = await client.request("GET", "/endpoint", retry_config=retry_config)
@@ -455,7 +452,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -480,7 +477,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -505,7 +502,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 
@@ -527,7 +524,7 @@ class TestOPNsenseClientRequest:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
         client = OPNsenseClient(config)
 

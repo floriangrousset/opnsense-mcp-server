@@ -5,19 +5,21 @@ This module tests the custom exception hierarchy including error context,
 error codes, and structured exception serialization.
 """
 
-import pytest
 from datetime import datetime
+
+import pytest
+
 from src.opnsense_mcp.core.exceptions import (
-    OPNsenseError,
-    ConfigurationError,
-    AuthenticationError,
     APIError,
-    NetworkError,
-    RateLimitError,
-    ValidationError,
-    TimeoutError,
-    ResourceNotFoundError,
+    AuthenticationError,
     AuthorizationError,
+    ConfigurationError,
+    NetworkError,
+    OPNsenseError,
+    RateLimitError,
+    ResourceNotFoundError,
+    TimeoutError,
+    ValidationError,
 )
 
 
@@ -50,11 +52,7 @@ class TestOPNsenseError:
     def test_exception_with_all_parameters(self):
         """Test creating an exception with all parameters."""
         context = {"user": "admin", "action": "delete"}
-        error = OPNsenseError(
-            "Operation failed",
-            error_code="DELETE_FAILED",
-            context=context
-        )
+        error = OPNsenseError("Operation failed", error_code="DELETE_FAILED", context=context)
         assert error.message == "Operation failed"
         assert error.error_code == "DELETE_FAILED"
         assert error.context == context
@@ -150,11 +148,7 @@ class TestAPIError:
     def test_api_error_with_all_parameters(self):
         """Test APIError with all parameters."""
         response = '{"error": "Not found"}'
-        error = APIError(
-            "Resource not found",
-            status_code=404,
-            response_text=response
-        )
+        error = APIError("Resource not found", status_code=404, response_text=response)
         assert error.message == "Resource not found"
         assert error.status_code == 404
         assert error.response_text == response
@@ -208,7 +202,7 @@ class TestValidationError:
         context = {
             "field": "email",
             "value": "invalid-email",
-            "constraint": "must be valid email format"
+            "constraint": "must be valid email format",
         }
         error = ValidationError("Validation failed", context=context)
         assert error.context["field"] == "email"
@@ -263,7 +257,7 @@ class TestAuthorizationError:
         context = {
             "user": "readonly",
             "required_privilege": "page-firewall-rules-edit",
-            "operation": "modify_rule"
+            "operation": "modify_rule",
         }
         error = AuthorizationError("Insufficient privileges", context=context)
         assert error.context["user"] == "readonly"

@@ -4,46 +4,27 @@ OPNsense MCP Server - Setup Command
 Interactive setup for configuring OPNsense credentials.
 """
 
-import typer
-from typing import Optional
 import getpass
+
+import typer
 
 from ..core.config_loader import ConfigLoader
 from ..core.models import OPNsenseConfig
-from ..core.exceptions import ConfigurationError
 
 
 def setup_command(
-    profile: Optional[str] = typer.Option(
-        "default",
-        "--profile", "-p",
-        help="Profile name (default, production, staging, etc.)"
+    profile: str | None = typer.Option(
+        "default", "--profile", "-p", help="Profile name (default, production, staging, etc.)"
     ),
-    url: Optional[str] = typer.Option(
-        None,
-        "--url",
-        help="OPNsense URL (e.g., https://192.168.1.1)"
-    ),
-    api_key: Optional[str] = typer.Option(
-        None,
-        "--api-key",
-        help="OPNsense API key"
-    ),
-    api_secret: Optional[str] = typer.Option(
-        None,
-        "--api-secret",
-        help="OPNsense API secret"
-    ),
+    url: str | None = typer.Option(None, "--url", help="OPNsense URL (e.g., https://192.168.1.1)"),
+    api_key: str | None = typer.Option(None, "--api-key", help="OPNsense API key"),
+    api_secret: str | None = typer.Option(None, "--api-secret", help="OPNsense API secret"),
     verify_ssl: bool = typer.Option(
-        True,
-        "--verify-ssl/--no-verify-ssl",
-        help="Verify SSL certificates"
+        True, "--verify-ssl/--no-verify-ssl", help="Verify SSL certificates"
     ),
     interactive: bool = typer.Option(
-        True,
-        "--interactive/--non-interactive",
-        help="Interactive mode with prompts"
-    )
+        True, "--interactive/--non-interactive", help="Interactive mode with prompts"
+    ),
 ):
     """
     Configure OPNsense connection credentials.
@@ -58,7 +39,7 @@ def setup_command(
         # Setup production profile
         opnsense-mcp setup --profile production
     """
-    typer.echo(f"\n🔧 OPNsense MCP Server - Credential Setup\n")
+    typer.echo("\n🔧 OPNsense MCP Server - Credential Setup\n")
     typer.echo(f"Profile: {typer.style(profile, fg=typer.colors.CYAN, bold=True)}\n")
 
     # Interactive mode - prompt for missing values
@@ -74,24 +55,21 @@ def setup_command(
             api_secret = getpass.getpass("API Secret (hidden): ")
 
         # Confirm SSL verification
-        if not typer.confirm(f"Verify SSL certificates?", default=True):
+        if not typer.confirm("Verify SSL certificates?", default=True):
             verify_ssl = False
 
     # Non-interactive mode - require all parameters
     elif not all([url, api_key, api_secret]):
         typer.echo(
             "❌ Error: In non-interactive mode, all parameters (--url, --api-key, --api-secret) are required",
-            err=True
+            err=True,
         )
         raise typer.Exit(1)
 
     # Validate and create config
     try:
         config = OPNsenseConfig(
-            url=url,
-            api_key=api_key,
-            api_secret=api_secret,
-            verify_ssl=verify_ssl
+            url=url, api_key=api_key, api_secret=api_secret, verify_ssl=verify_ssl
         )
     except Exception as e:
         typer.echo(f"❌ Invalid configuration: {e}", err=True)
@@ -110,13 +88,15 @@ def setup_command(
         ConfigLoader.save_profile(profile, config)
         typer.echo(f"\n✅ Profile '{profile}' saved successfully!")
         typer.echo(f"\n📍 Config location: {ConfigLoader.DEFAULT_CONFIG_FILE}")
-        typer.echo(f"🔒 File permissions: 0600 (owner read/write only)")
+        typer.echo("🔒 File permissions: 0600 (owner read/write only)")
 
         # Show usage instructions
         typer.echo("\n📖 Usage:")
-        typer.echo(f"   • In Claude Desktop, say: \"Configure OPNsense connection using profile {profile}\"")
+        typer.echo(
+            f'   • In Claude Desktop, say: "Configure OPNsense connection using profile {profile}"'
+        )
         typer.echo(f"   • Test connection: opnsense-mcp test-connection --profile {profile}")
-        typer.echo(f"   • List profiles: opnsense-mcp list-profiles")
+        typer.echo("   • List profiles: opnsense-mcp list-profiles")
 
     except Exception as e:
         typer.echo(f"\n❌ Error saving profile: {e}", err=True)
@@ -135,6 +115,7 @@ def _test_connection(config: OPNsenseConfig) -> bool:
     """
     try:
         import asyncio
+
         from ..core.client import OPNsenseClient
         from ..shared.constants import API_CORE_FIRMWARE_STATUS
 

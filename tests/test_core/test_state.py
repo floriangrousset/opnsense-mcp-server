@@ -5,14 +5,14 @@ This module tests the server state lifecycle including initialization,
 session management, credential storage, and cleanup.
 """
 
-import pytest
 import json
-from unittest.mock import AsyncMock, Mock, patch
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, Mock, patch
 
-from src.opnsense_mcp.core.state import ServerState
-from src.opnsense_mcp.core.models import OPNsenseConfig
+import pytest
+
 from src.opnsense_mcp.core.exceptions import ConfigurationError
+from src.opnsense_mcp.core.state import ServerState
 
 
 @pytest.mark.asyncio
@@ -38,10 +38,14 @@ class TestServerState:
         """Test successful state initialization."""
         state = ServerState()
 
-        with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
-             patch('src.opnsense_mcp.core.state.keyring') as mock_keyring, \
-             patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/core/firmware/status'):
-
+        with (
+            patch("src.opnsense_mcp.core.connection.ConnectionPool") as MockPool,
+            patch("src.opnsense_mcp.core.state.keyring") as mock_keyring,
+            patch(
+                "src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS",
+                "/api/core/firmware/status",
+            ),
+        ):
             # Mock connection pool
             mock_pool = Mock()
             mock_client = Mock()
@@ -62,10 +66,14 @@ class TestServerState:
         """Test that initialize stores credentials securely."""
         state = ServerState()
 
-        with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
-             patch('src.opnsense_mcp.core.state.keyring') as mock_keyring, \
-             patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/core/firmware/status'):
-
+        with (
+            patch("src.opnsense_mcp.core.connection.ConnectionPool") as MockPool,
+            patch("src.opnsense_mcp.core.state.keyring") as mock_keyring,
+            patch(
+                "src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS",
+                "/api/core/firmware/status",
+            ),
+        ):
             mock_pool = Mock()
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"status": "ok"})
@@ -91,11 +99,15 @@ class TestServerState:
         """Test that initialize handles keyring failure gracefully."""
         state = ServerState()
 
-        with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
-             patch('src.opnsense_mcp.core.state.keyring') as mock_keyring, \
-             patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/core/firmware/status'), \
-             patch('src.opnsense_mcp.core.state.logger') as mock_logger:
-
+        with (
+            patch("src.opnsense_mcp.core.connection.ConnectionPool") as MockPool,
+            patch("src.opnsense_mcp.core.state.keyring") as mock_keyring,
+            patch(
+                "src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS",
+                "/api/core/firmware/status",
+            ),
+            patch("src.opnsense_mcp.core.state.logger") as mock_logger,
+        ):
             mock_keyring.set_password.side_effect = Exception("Keyring error")
 
             mock_pool = Mock()
@@ -114,10 +126,14 @@ class TestServerState:
         """Test that initialize cleans up previous state."""
         state = ServerState()
 
-        with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
-             patch('src.opnsense_mcp.core.state.keyring'), \
-             patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/core/firmware/status'):
-
+        with (
+            patch("src.opnsense_mcp.core.connection.ConnectionPool") as MockPool,
+            patch("src.opnsense_mcp.core.state.keyring"),
+            patch(
+                "src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS",
+                "/api/core/firmware/status",
+            ),
+        ):
             mock_pool = Mock()
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"status": "ok"})
@@ -138,10 +154,14 @@ class TestServerState:
         """Test get_client returns client when properly configured."""
         state = ServerState()
 
-        with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
-             patch('src.opnsense_mcp.core.state.keyring'), \
-             patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/core/firmware/status'):
-
+        with (
+            patch("src.opnsense_mcp.core.connection.ConnectionPool") as MockPool,
+            patch("src.opnsense_mcp.core.state.keyring"),
+            patch(
+                "src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS",
+                "/api/core/firmware/status",
+            ),
+        ):
             mock_pool = Mock()
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"status": "ok"})
@@ -180,11 +200,15 @@ class TestServerState:
         """Test get_client reinitializes when session has expired."""
         state = ServerState(session_ttl=timedelta(seconds=1))
 
-        with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
-             patch('src.opnsense_mcp.core.state.keyring'), \
-             patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/core/firmware/status'), \
-             patch('src.opnsense_mcp.core.state.logger') as mock_logger:
-
+        with (
+            patch("src.opnsense_mcp.core.connection.ConnectionPool") as MockPool,
+            patch("src.opnsense_mcp.core.state.keyring"),
+            patch(
+                "src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS",
+                "/api/core/firmware/status",
+            ),
+            patch("src.opnsense_mcp.core.state.logger") as mock_logger,
+        ):
             mock_pool = Mock()
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"status": "ok"})
@@ -208,10 +232,14 @@ class TestServerState:
         """Test cleanup properly cleans up resources."""
         state = ServerState()
 
-        with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
-             patch('src.opnsense_mcp.core.state.keyring'), \
-             patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/core/firmware/status'):
-
+        with (
+            patch("src.opnsense_mcp.core.connection.ConnectionPool") as MockPool,
+            patch("src.opnsense_mcp.core.state.keyring"),
+            patch(
+                "src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS",
+                "/api/core/firmware/status",
+            ),
+        ):
             mock_pool = Mock()
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"status": "ok"})
@@ -248,7 +276,7 @@ class TestServerState:
         """Test _store_credentials creates correct credential format."""
         state = ServerState()
 
-        with patch('src.opnsense_mcp.core.state.keyring') as mock_keyring:
+        with patch("src.opnsense_mcp.core.state.keyring") as mock_keyring:
             await state._store_credentials(mock_opnsense_config)
 
             # Extract stored credentials
@@ -270,10 +298,14 @@ class TestServerState:
         """Test that session TTL is properly respected."""
         state = ServerState(session_ttl=timedelta(minutes=30))
 
-        with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
-             patch('src.opnsense_mcp.core.state.keyring'), \
-             patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/core/firmware/status'):
-
+        with (
+            patch("src.opnsense_mcp.core.connection.ConnectionPool") as MockPool,
+            patch("src.opnsense_mcp.core.state.keyring"),
+            patch(
+                "src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS",
+                "/api/core/firmware/status",
+            ),
+        ):
             mock_pool = Mock()
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"status": "ok"})
@@ -293,10 +325,14 @@ class TestServerState:
         """Test that session_created timestamp is properly set."""
         state = ServerState()
 
-        with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
-             patch('src.opnsense_mcp.core.state.keyring'), \
-             patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/core/firmware/status'):
-
+        with (
+            patch("src.opnsense_mcp.core.connection.ConnectionPool") as MockPool,
+            patch("src.opnsense_mcp.core.state.keyring"),
+            patch(
+                "src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS",
+                "/api/core/firmware/status",
+            ),
+        ):
             mock_pool = Mock()
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"status": "ok"})
@@ -314,11 +350,15 @@ class TestServerState:
         """Test that successful initialization is logged."""
         state = ServerState()
 
-        with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
-             patch('src.opnsense_mcp.core.state.keyring'), \
-             patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/core/firmware/status'), \
-             patch('src.opnsense_mcp.core.state.logger') as mock_logger:
-
+        with (
+            patch("src.opnsense_mcp.core.connection.ConnectionPool") as MockPool,
+            patch("src.opnsense_mcp.core.state.keyring"),
+            patch(
+                "src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS",
+                "/api/core/firmware/status",
+            ),
+            patch("src.opnsense_mcp.core.state.logger") as mock_logger,
+        ):
             mock_pool = Mock()
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"status": "ok"})
@@ -334,10 +374,14 @@ class TestServerState:
         """Test multiple get_client calls return clients correctly."""
         state = ServerState()
 
-        with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
-             patch('src.opnsense_mcp.core.state.keyring'), \
-             patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/core/firmware/status'):
-
+        with (
+            patch("src.opnsense_mcp.core.connection.ConnectionPool") as MockPool,
+            patch("src.opnsense_mcp.core.state.keyring"),
+            patch(
+                "src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS",
+                "/api/core/firmware/status",
+            ),
+        ):
             mock_pool = Mock()
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"status": "ok"})

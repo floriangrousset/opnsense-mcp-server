@@ -9,23 +9,25 @@ import json
 import logging
 import ssl
 from datetime import datetime
-from typing import Dict, Any, Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Optional
 
-import httpx
 import certifi
+import httpx
 
-from .models import OPNsenseConfig
-from .retry import RetryConfig, retry_with_backoff
 from .exceptions import (
-    ValidationError,
+    APIError,
     AuthenticationError,
     AuthorizationError,
-    ResourceNotFoundError,
-    RateLimitError,
-    APIError,
     NetworkError,
-    TimeoutError as OPNsenseTimeoutError
+    RateLimitError,
+    ResourceNotFoundError,
+    ValidationError,
 )
+from .exceptions import (
+    TimeoutError as OPNsenseTimeoutError,
+)
+from .models import OPNsenseConfig
+from .retry import RetryConfig, retry_with_backoff
 
 if TYPE_CHECKING:
     from .connection import ConnectionPool
@@ -48,9 +50,9 @@ class RequestResponseLogger:
         self,
         method: str,
         url: str,
-        headers: Optional[Dict] = None,
-        data: Optional[Dict] = None,
-        operation: str = "unknown"
+        headers: dict | None = None,
+        data: dict | None = None,
+        operation: str = "unknown",
     ):
         """Log API request details with sensitive data sanitization.
 
@@ -65,8 +67,8 @@ class RequestResponseLogger:
         safe_headers = {}
         if headers:
             for key, value in headers.items():
-                if key.lower() in ['authorization', 'x-api-key']:
-                    safe_headers[key] = '[REDACTED]'
+                if key.lower() in ["authorization", "x-api-key"]:
+                    safe_headers[key] = "[REDACTED]"
                 else:
                     safe_headers[key] = value
 
@@ -76,8 +78,8 @@ class RequestResponseLogger:
                 "method": method,
                 "url": url,
                 "headers": safe_headers,
-                "has_data": bool(data)
-            }
+                "has_data": bool(data),
+            },
         }
 
         self.logger.info(f"API Request: {json.dumps(log_data)}")
@@ -85,10 +87,10 @@ class RequestResponseLogger:
     def log_response(
         self,
         status_code: int,
-        response_size: Optional[int] = None,
-        duration_ms: Optional[float] = None,
+        response_size: int | None = None,
+        duration_ms: float | None = None,
         operation: str = "unknown",
-        error: Optional[Exception] = None
+        error: Exception | None = None,
     ):
         """Log API response details with performance metrics.
 
@@ -106,8 +108,8 @@ class RequestResponseLogger:
                 "response_size": response_size,
                 "duration_ms": duration_ms,
                 "success": 200 <= status_code < 300,
-                "has_error": bool(error)
-            }
+                "has_error": bool(error),
+            },
         }
 
         if error:
@@ -163,7 +165,7 @@ class OPNsenseClient:
         logger.debug("SSL verification enabled with TLS 1.2+ enforcement")
         return context
 
-    def __init__(self, config: OPNsenseConfig, pool: Optional['ConnectionPool'] = None):
+    def __init__(self, config: OPNsenseConfig, pool: Optional["ConnectionPool"] = None):
         """Initialize OPNsense API client.
 
         Args:
@@ -184,10 +186,8 @@ class OPNsenseClient:
             verify=ssl_context if self.verify_ssl else False,
             timeout=httpx.Timeout(30.0, pool=5.0),
             limits=httpx.Limits(
-                max_keepalive_connections=5,
-                max_connections=10,
-                keepalive_expiry=30.0
-            )
+                max_keepalive_connections=5, max_connections=10, keepalive_expiry=30.0
+            ),
         )
 
         # Set up Basic Auth
@@ -207,12 +207,12 @@ class OPNsenseClient:
         self,
         method: str,
         endpoint: str,
-        data: Optional[Dict[str, Any]] = None,
-        params: Optional[Dict[str, Any]] = None,
+        data: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
         operation: str = "api_request",
         timeout: float = 30.0,
-        retry_config: Optional[RetryConfig] = None
-    ) -> Dict[str, Any]:
+        retry_config: RetryConfig | None = None,
+    ) -> dict[str, Any]:
         """Make a request to the OPNsense API with comprehensive error handling and logging.
 
         Args:
@@ -239,12 +239,12 @@ class OPNsenseClient:
         """
         # Validate inputs
         if not method or not endpoint:
-            raise ValidationError("Method and endpoint are required",
-                                context={"method": method, "endpoint": endpoint})
+            raise ValidationError(
+                "Method and endpoint are required", context={"method": method, "endpoint": endpoint}
+            )
 
         if method.upper() not in ["GET", "POST", "PUT", "DELETE", "PATCH"]:
-            raise ValidationError(f"Unsupported HTTP method: {method}",
-                                context={"method": method})
+            raise ValidationError(f"Unsupported HTTP method: {method}", context={"method": method})
 
         # Apply rate limiting if pool is available
         if self.pool:
@@ -254,7 +254,7 @@ class OPNsenseClient:
         headers = {
             "Authorization": f"Basic {self.auth_header}",
             "Accept": "application/json",
-            "User-Agent": "OPNsense-MCP-Server/1.0"
+            "User-Agent": "OPNsense-MCP-Server/1.0",
         }
 
         # Log the request
@@ -265,15 +265,25 @@ class OPNsenseClient:
             """Internal request function for retry mechanism."""
             try:
                 if method.upper() == "GET":
-                    response = await self.client.get(url, headers=headers, params=params, timeout=timeout)
+                    response = await self.client.get(
+                        url, headers=headers, params=params, timeout=timeout
+                    )
                 elif method.upper() == "POST":
-                    response = await self.client.post(url, headers=headers, json=data, timeout=timeout)
+                    response = await self.client.post(
+                        url, headers=headers, json=data, timeout=timeout
+                    )
                 elif method.upper() == "PUT":
-                    response = await self.client.put(url, headers=headers, json=data, timeout=timeout)
+                    response = await self.client.put(
+                        url, headers=headers, json=data, timeout=timeout
+                    )
                 elif method.upper() == "DELETE":
-                    response = await self.client.delete(url, headers=headers, params=params, timeout=timeout)
+                    response = await self.client.delete(
+                        url, headers=headers, params=params, timeout=timeout
+                    )
                 elif method.upper() == "PATCH":
-                    response = await self.client.patch(url, headers=headers, json=data, timeout=timeout)
+                    response = await self.client.patch(
+                        url, headers=headers, json=data, timeout=timeout
+                    )
 
                 # Calculate response time
                 duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
@@ -281,63 +291,97 @@ class OPNsenseClient:
 
                 # Handle HTTP errors with proper exception mapping
                 if response.status_code == 401:
-                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
-                    raise AuthenticationError("Authentication failed - invalid API credentials",
-                                            context={"status_code": 401, "endpoint": endpoint})
-                elif response.status_code == 403:
-                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
-                    raise AuthorizationError("Access denied - insufficient permissions",
-                                           context={"status_code": 403, "endpoint": endpoint})
-                elif response.status_code == 404:
-                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
-                    raise ResourceNotFoundError(f"Resource not found: {endpoint}",
-                                              context={"status_code": 404, "endpoint": endpoint})
-                elif response.status_code == 429:
-                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
-                    raise RateLimitError("API rate limit exceeded",
-                                       context={"status_code": 429, "endpoint": endpoint, "retry_after": response.headers.get("Retry-After")})
-                elif not (200 <= response.status_code < 300):
-                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
+                    request_logger.log_response(
+                        response.status_code, response_size, duration_ms, operation
+                    )
+                    raise AuthenticationError(
+                        "Authentication failed - invalid API credentials",
+                        context={"status_code": 401, "endpoint": endpoint},
+                    )
+                if response.status_code == 403:
+                    request_logger.log_response(
+                        response.status_code, response_size, duration_ms, operation
+                    )
+                    raise AuthorizationError(
+                        "Access denied - insufficient permissions",
+                        context={"status_code": 403, "endpoint": endpoint},
+                    )
+                if response.status_code == 404:
+                    request_logger.log_response(
+                        response.status_code, response_size, duration_ms, operation
+                    )
+                    raise ResourceNotFoundError(
+                        f"Resource not found: {endpoint}",
+                        context={"status_code": 404, "endpoint": endpoint},
+                    )
+                if response.status_code == 429:
+                    request_logger.log_response(
+                        response.status_code, response_size, duration_ms, operation
+                    )
+                    raise RateLimitError(
+                        "API rate limit exceeded",
+                        context={
+                            "status_code": 429,
+                            "endpoint": endpoint,
+                            "retry_after": response.headers.get("Retry-After"),
+                        },
+                    )
+                if not (200 <= response.status_code < 300):
+                    request_logger.log_response(
+                        response.status_code, response_size, duration_ms, operation
+                    )
                     try:
                         error_data = response.json()
                     except:
                         error_data = {"error": response.text}
 
-                    raise APIError(f"API error: {response.status_code}",
-                                 status_code=response.status_code,
-                                 response_text=response.text)
+                    raise APIError(
+                        f"API error: {response.status_code}",
+                        status_code=response.status_code,
+                        response_text=response.text,
+                    )
 
                 # Parse JSON response
                 try:
                     result = response.json()
-                    request_logger.log_response(response.status_code, response_size, duration_ms, operation)
+                    request_logger.log_response(
+                        response.status_code, response_size, duration_ms, operation
+                    )
                     return result
                 except json.JSONDecodeError as e:
-                    request_logger.log_response(response.status_code, response_size, duration_ms, operation, e)
-                    raise APIError(f"Invalid JSON response from OPNsense API: {str(e)}",
-                                 status_code=response.status_code,
-                                 response_text=response.text)
+                    request_logger.log_response(
+                        response.status_code, response_size, duration_ms, operation, e
+                    )
+                    raise APIError(
+                        f"Invalid JSON response from OPNsense API: {e!s}",
+                        status_code=response.status_code,
+                        response_text=response.text,
+                    )
 
             except httpx.TimeoutException as e:
                 duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
                 request_logger.log_response(0, 0, duration_ms, operation, e)
-                raise OPNsenseTimeoutError(f"Request timed out after {timeout}s",
-                                 context={"timeout": timeout, "endpoint": endpoint})
+                raise OPNsenseTimeoutError(
+                    f"Request timed out after {timeout}s",
+                    context={"timeout": timeout, "endpoint": endpoint},
+                )
 
             except httpx.ConnectError as e:
                 duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
                 request_logger.log_response(0, 0, duration_ms, operation, e)
-                raise NetworkError(f"Cannot connect to OPNsense at {self.base_url}",
-                                    context={"base_url": self.base_url, "endpoint": endpoint, "error": str(e)})
+                raise NetworkError(
+                    f"Cannot connect to OPNsense at {self.base_url}",
+                    context={"base_url": self.base_url, "endpoint": endpoint, "error": str(e)},
+                )
 
             except httpx.RequestError as e:
                 duration_ms = (datetime.utcnow() - start_time).total_seconds() * 1000
                 request_logger.log_response(0, 0, duration_ms, operation, e)
-                raise NetworkError(f"Network error: {str(e)}",
-                                    context={"endpoint": endpoint, "error": str(e)})
+                raise NetworkError(
+                    f"Network error: {e!s}", context={"endpoint": endpoint, "error": str(e)}
+                )
 
         # Use retry mechanism if configured
         if retry_config:
             return await retry_with_backoff(_make_request, retry_config=retry_config)
-        else:
-            return await _make_request()
+        return await _make_request()

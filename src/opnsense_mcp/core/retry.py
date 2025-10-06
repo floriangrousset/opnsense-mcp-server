@@ -6,8 +6,10 @@ This module provides retry functionality with exponential backoff for transient 
 
 import asyncio
 import logging
-from typing import List, Optional, Callable, Any
-from .exceptions import NetworkError, TimeoutError, APIError, RateLimitError
+from collections.abc import Callable
+from typing import Any
+
+from .exceptions import APIError, NetworkError, RateLimitError, TimeoutError
 
 logger = logging.getLogger("opnsense-mcp")
 
@@ -21,7 +23,7 @@ class RetryConfig:
         base_delay: float = 1.0,
         max_delay: float = 60.0,
         exponential_backoff: bool = True,
-        retryable_errors: Optional[List[type]] = None
+        retryable_errors: list[type] | None = None,
     ):
         """Initialize retry configuration.
 
@@ -36,14 +38,16 @@ class RetryConfig:
         self.base_delay = base_delay
         self.max_delay = max_delay
         self.exponential_backoff = exponential_backoff
-        self.retryable_errors = retryable_errors or [NetworkError, TimeoutError, APIError, RateLimitError]
+        self.retryable_errors = retryable_errors or [
+            NetworkError,
+            TimeoutError,
+            APIError,
+            RateLimitError,
+        ]
 
 
 async def retry_with_backoff(
-    func: Callable,
-    *args,
-    retry_config: Optional[RetryConfig] = None,
-    **kwargs
+    func: Callable, *args, retry_config: RetryConfig | None = None, **kwargs
 ) -> Any:
     """Retry function with exponential backoff for transient failures.
 
@@ -80,11 +84,11 @@ async def retry_with_backoff(
 
             # Calculate delay with exponential backoff
             if retry_config.exponential_backoff:
-                delay = min(retry_config.base_delay * (2 ** attempt), retry_config.max_delay)
+                delay = min(retry_config.base_delay * (2**attempt), retry_config.max_delay)
             else:
                 delay = retry_config.base_delay
 
-            logger.info(f"Attempt {attempt + 1} failed, retrying in {delay}s: {str(e)}")
+            logger.info(f"Attempt {attempt + 1} failed, retrying in {delay}s: {e!s}")
             await asyncio.sleep(delay)
 
     # All attempts failed

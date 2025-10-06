@@ -19,31 +19,30 @@ The module implements full RBAC (Role-Based Access Control) support with:
 
 import json
 import logging
-from typing import Optional
 
 from mcp.server.fastmcp import Context
 
-from ..main import mcp
 from ..core import (
-    ValidationError,
     ResourceNotFoundError,
+    ValidationError,
 )
+from ..main import mcp
 from ..shared.constants import (
-    API_CORE_USER_SEARCH,
-    API_CORE_USER_GET,
-    API_CORE_USER_ADD,
-    API_CORE_USER_SET,
-    API_CORE_USER_DEL,
-    API_CORE_USER_TOGGLE,
-    API_CORE_GROUP_SEARCH,
-    API_CORE_GROUP_GET,
-    API_CORE_GROUP_ADD,
-    API_CORE_GROUP_SET,
-    API_CORE_GROUP_DEL,
     API_CORE_AUTH_PRIVILEGES,
     API_CORE_AUTH_SERVERS,
     API_CORE_AUTH_TEST,
     API_CORE_CONFIG_RELOAD,
+    API_CORE_GROUP_ADD,
+    API_CORE_GROUP_DEL,
+    API_CORE_GROUP_GET,
+    API_CORE_GROUP_SEARCH,
+    API_CORE_GROUP_SET,
+    API_CORE_USER_ADD,
+    API_CORE_USER_DEL,
+    API_CORE_USER_GET,
+    API_CORE_USER_SEARCH,
+    API_CORE_USER_SET,
+    API_CORE_USER_TOGGLE,
 )
 from ..shared.error_handlers import handle_tool_error, validate_uuid
 
@@ -52,13 +51,16 @@ logger = logging.getLogger("opnsense-mcp")
 
 # ========== HELPER FUNCTIONS ==========
 
+
 async def get_opnsense_client():
     """Get configured OPNsense client from server state."""
     from ..domains.configuration import get_opnsense_client as get_client
+
     return await get_client()
 
 
 # ========== USER MANAGEMENT ==========
+
 
 @mcp.tool(name="list_users", description="List all users in OPNsense")
 async def list_users(ctx: Context) -> str:
@@ -82,7 +84,7 @@ async def list_users(ctx: Context) -> str:
 
 
 @mcp.tool(name="get_user", description="Get details of a specific user")
-async def get_user(ctx: Context, user_uuid: Optional[str] = None) -> str:
+async def get_user(ctx: Context, user_uuid: str | None = None) -> str:
     """Get details of a specific user or all users.
 
     Args:
@@ -117,11 +119,11 @@ async def create_user(
     password: str,
     full_name: str = "",
     email: str = "",
-    groups: Optional[str] = None,
-    privileges: Optional[str] = None,
+    groups: str | None = None,
+    privileges: str | None = None,
     enabled: bool = True,
-    expires: Optional[str] = None,
-    comment: str = ""
+    expires: str | None = None,
+    comment: str = "",
 ) -> str:
     """Create a new user account in OPNsense.
 
@@ -150,12 +152,15 @@ async def create_user(
 
         # Validate required parameters
         if not username or not password:
-            raise ValidationError("Username and password are required",
-                                context={"username": username, "has_password": bool(password)})
+            raise ValidationError(
+                "Username and password are required",
+                context={"username": username, "has_password": bool(password)},
+            )
 
         if len(username) < 3:
-            raise ValidationError("Username must be at least 3 characters long",
-                                context={"username": username})
+            raise ValidationError(
+                "Username must be at least 3 characters long", context={"username": username}
+            )
 
         if len(password) < 6:
             raise ValidationError("Password must be at least 6 characters long")
@@ -168,7 +173,7 @@ async def create_user(
                 "password": password,
                 "full_name": full_name,
                 "email": email,
-                "comment": comment
+                "comment": comment,
             }
         }
 
@@ -188,18 +193,23 @@ async def create_user(
         if expires:
             # Basic date format validation
             import re
-            if not re.match(r'^\d{4}-\d{2}-\d{2}$', expires):
-                raise ValidationError("Expires must be in YYYY-MM-DD format",
-                                    context={"expires": expires})
+
+            if not re.match(r"^\d{4}-\d{2}-\d{2}$", expires):
+                raise ValidationError(
+                    "Expires must be in YYYY-MM-DD format", context={"expires": expires}
+                )
             user_data["user"]["expires"] = expires
 
         # Create the user
-        response = await client.request("POST", API_CORE_USER_ADD,
-                                      data=user_data, operation="create_user")
+        response = await client.request(
+            "POST", API_CORE_USER_ADD, data=user_data, operation="create_user"
+        )
 
         # Reload configuration if creation was successful
         if response.get("result") == "saved":
-            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_user_create")
+            await client.request(
+                "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_user_create"
+            )
 
         return json.dumps(response, indent=2)
 
@@ -211,15 +221,15 @@ async def create_user(
 async def update_user(
     ctx: Context,
     user_uuid: str,
-    username: Optional[str] = None,
-    password: Optional[str] = None,
-    full_name: Optional[str] = None,
-    email: Optional[str] = None,
-    groups: Optional[str] = None,
-    privileges: Optional[str] = None,
-    enabled: Optional[bool] = None,
-    expires: Optional[str] = None,
-    comment: Optional[str] = None
+    username: str | None = None,
+    password: str | None = None,
+    full_name: str | None = None,
+    email: str | None = None,
+    groups: str | None = None,
+    privileges: str | None = None,
+    enabled: bool | None = None,
+    expires: str | None = None,
+    comment: str | None = None,
 ) -> str:
     """Update an existing user account in OPNsense.
 
@@ -251,8 +261,9 @@ async def update_user(
         validate_uuid(user_uuid, "user_uuid")
 
         # Get current user configuration
-        current_user_response = await client.request("GET", f"{API_CORE_USER_GET}/{user_uuid}",
-                                                   operation="get_user_for_update")
+        current_user_response = await client.request(
+            "GET", f"{API_CORE_USER_GET}/{user_uuid}", operation="get_user_for_update"
+        )
 
         if "user" not in current_user_response:
             raise ResourceNotFoundError(f"User with UUID {user_uuid} not found")
@@ -262,8 +273,9 @@ async def update_user(
         # Update only provided fields
         if username is not None:
             if len(username) < 3:
-                raise ValidationError("Username must be at least 3 characters long",
-                                    context={"username": username})
+                raise ValidationError(
+                    "Username must be at least 3 characters long", context={"username": username}
+                )
             current_user["name"] = username
 
         if password is not None:
@@ -293,9 +305,12 @@ async def update_user(
         if expires is not None:
             if expires:  # Only validate if not empty
                 import re
-                if not re.match(r'^\d{4}-\d{2}-\d{2}$', expires):
-                    raise ValidationError("Expires must be in YYYY-MM-DD format or empty",
-                                        context={"expires": expires})
+
+                if not re.match(r"^\d{4}-\d{2}-\d{2}$", expires):
+                    raise ValidationError(
+                        "Expires must be in YYYY-MM-DD format or empty",
+                        context={"expires": expires},
+                    )
             current_user["expires"] = expires
 
         if comment is not None:
@@ -305,12 +320,15 @@ async def update_user(
         user_data = {"user": current_user}
 
         # Update the user
-        response = await client.request("POST", f"{API_CORE_USER_SET}/{user_uuid}",
-                                      data=user_data, operation="update_user")
+        response = await client.request(
+            "POST", f"{API_CORE_USER_SET}/{user_uuid}", data=user_data, operation="update_user"
+        )
 
         # Reload configuration if update was successful
         if response.get("result") == "saved":
-            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_user_update")
+            await client.request(
+                "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_user_update"
+            )
 
         return json.dumps(response, indent=2)
 
@@ -338,12 +356,15 @@ async def delete_user(ctx: Context, user_uuid: str) -> str:
         validate_uuid(user_uuid, "user_uuid")
 
         # Delete the user
-        response = await client.request("POST", f"{API_CORE_USER_DEL}/{user_uuid}",
-                                      operation="delete_user")
+        response = await client.request(
+            "POST", f"{API_CORE_USER_DEL}/{user_uuid}", operation="delete_user"
+        )
 
         # Reload configuration if deletion was successful
         if response.get("result") == "deleted":
-            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_user_delete")
+            await client.request(
+                "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_user_delete"
+            )
 
         return json.dumps(response, indent=2)
 
@@ -371,12 +392,15 @@ async def toggle_user(ctx: Context, user_uuid: str, enabled: bool) -> str:
 
         # Toggle the user
         enabled_int = 1 if enabled else 0
-        response = await client.request("POST", f"{API_CORE_USER_TOGGLE}/{user_uuid}/{enabled_int}",
-                                      operation="toggle_user")
+        response = await client.request(
+            "POST", f"{API_CORE_USER_TOGGLE}/{user_uuid}/{enabled_int}", operation="toggle_user"
+        )
 
         # Reload configuration if toggle was successful
         if response.get("result") == "saved":
-            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_user_toggle")
+            await client.request(
+                "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_user_toggle"
+            )
 
         return json.dumps(response, indent=2)
 
@@ -385,6 +409,7 @@ async def toggle_user(ctx: Context, user_uuid: str, enabled: bool) -> str:
 
 
 # ========== GROUP MANAGEMENT ==========
+
 
 @mcp.tool(name="list_groups", description="List all groups in OPNsense")
 async def list_groups(ctx: Context) -> str:
@@ -408,7 +433,7 @@ async def list_groups(ctx: Context) -> str:
 
 
 @mcp.tool(name="get_group", description="Get details of a specific group")
-async def get_group(ctx: Context, group_uuid: Optional[str] = None) -> str:
+async def get_group(ctx: Context, group_uuid: str | None = None) -> str:
     """Get details of a specific group or all groups.
 
     Args:
@@ -441,8 +466,8 @@ async def create_group(
     ctx: Context,
     name: str,
     description: str = "",
-    privileges: Optional[str] = None,
-    members: Optional[str] = None
+    privileges: str | None = None,
+    members: str | None = None,
 ) -> str:
     """Create a new group in OPNsense.
 
@@ -464,16 +489,12 @@ async def create_group(
             raise ValidationError("Group name is required", context={"name": name})
 
         if len(name) < 2:
-            raise ValidationError("Group name must be at least 2 characters long",
-                                context={"name": name})
+            raise ValidationError(
+                "Group name must be at least 2 characters long", context={"name": name}
+            )
 
         # Prepare group data
-        group_data = {
-            "group": {
-                "name": name,
-                "description": description
-            }
-        }
+        group_data = {"group": {"name": name, "description": description}}
 
         # Add privileges if specified
         if privileges:
@@ -488,12 +509,15 @@ async def create_group(
             group_data["group"]["member"] = ",".join(member_list)
 
         # Create the group
-        response = await client.request("POST", API_CORE_GROUP_ADD,
-                                      data=group_data, operation="create_group")
+        response = await client.request(
+            "POST", API_CORE_GROUP_ADD, data=group_data, operation="create_group"
+        )
 
         # Reload configuration if creation was successful
         if response.get("result") == "saved":
-            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_create")
+            await client.request(
+                "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_create"
+            )
 
         return json.dumps(response, indent=2)
 
@@ -505,10 +529,10 @@ async def create_group(
 async def update_group(
     ctx: Context,
     group_uuid: str,
-    name: Optional[str] = None,
-    description: Optional[str] = None,
-    privileges: Optional[str] = None,
-    members: Optional[str] = None
+    name: str | None = None,
+    description: str | None = None,
+    privileges: str | None = None,
+    members: str | None = None,
 ) -> str:
     """Update an existing group in OPNsense.
 
@@ -530,8 +554,9 @@ async def update_group(
         validate_uuid(group_uuid, "group_uuid")
 
         # Get current group configuration
-        current_group_response = await client.request("GET", f"{API_CORE_GROUP_GET}/{group_uuid}",
-                                                    operation="get_group_for_update")
+        current_group_response = await client.request(
+            "GET", f"{API_CORE_GROUP_GET}/{group_uuid}", operation="get_group_for_update"
+        )
 
         if "group" not in current_group_response:
             raise ResourceNotFoundError(f"Group with UUID {group_uuid} not found")
@@ -541,8 +566,9 @@ async def update_group(
         # Update only provided fields
         if name is not None:
             if len(name) < 2:
-                raise ValidationError("Group name must be at least 2 characters long",
-                                    context={"name": name})
+                raise ValidationError(
+                    "Group name must be at least 2 characters long", context={"name": name}
+                )
             current_group["name"] = name
 
         if description is not None:
@@ -562,12 +588,15 @@ async def update_group(
         group_data = {"group": current_group}
 
         # Update the group
-        response = await client.request("POST", f"{API_CORE_GROUP_SET}/{group_uuid}",
-                                      data=group_data, operation="update_group")
+        response = await client.request(
+            "POST", f"{API_CORE_GROUP_SET}/{group_uuid}", data=group_data, operation="update_group"
+        )
 
         # Reload configuration if update was successful
         if response.get("result") == "saved":
-            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_update")
+            await client.request(
+                "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_update"
+            )
 
         return json.dumps(response, indent=2)
 
@@ -595,12 +624,15 @@ async def delete_group(ctx: Context, group_uuid: str) -> str:
         validate_uuid(group_uuid, "group_uuid")
 
         # Delete the group
-        response = await client.request("POST", f"{API_CORE_GROUP_DEL}/{group_uuid}",
-                                      operation="delete_group")
+        response = await client.request(
+            "POST", f"{API_CORE_GROUP_DEL}/{group_uuid}", operation="delete_group"
+        )
 
         # Reload configuration if deletion was successful
         if response.get("result") == "deleted":
-            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_delete")
+            await client.request(
+                "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_delete"
+            )
 
         return json.dumps(response, indent=2)
 
@@ -630,8 +662,9 @@ async def add_user_to_group(ctx: Context, group_uuid: str, username: str) -> str
             raise ValidationError("Username is required", context={"username": username})
 
         # Get current group configuration
-        current_group_response = await client.request("GET", f"{API_CORE_GROUP_GET}/{group_uuid}",
-                                                    operation="get_group_for_member_add")
+        current_group_response = await client.request(
+            "GET", f"{API_CORE_GROUP_GET}/{group_uuid}", operation="get_group_for_member_add"
+        )
 
         if "group" not in current_group_response:
             raise ResourceNotFoundError(f"Group with UUID {group_uuid} not found")
@@ -640,12 +673,18 @@ async def add_user_to_group(ctx: Context, group_uuid: str, username: str) -> str
 
         # Get current members
         current_members = []
-        if "member" in current_group and current_group["member"]:
+        if current_group.get("member"):
             current_members = [m.strip() for m in current_group["member"].split(",") if m.strip()]
 
         # Check if user is already a member
         if username in current_members:
-            return json.dumps({"result": "no_change", "message": f"User '{username}' is already a member of the group"}, indent=2)
+            return json.dumps(
+                {
+                    "result": "no_change",
+                    "message": f"User '{username}' is already a member of the group",
+                },
+                indent=2,
+            )
 
         # Add the new member
         current_members.append(username)
@@ -655,12 +694,18 @@ async def add_user_to_group(ctx: Context, group_uuid: str, username: str) -> str
         group_data = {"group": current_group}
 
         # Update the group
-        response = await client.request("POST", f"{API_CORE_GROUP_SET}/{group_uuid}",
-                                      data=group_data, operation="add_user_to_group")
+        response = await client.request(
+            "POST",
+            f"{API_CORE_GROUP_SET}/{group_uuid}",
+            data=group_data,
+            operation="add_user_to_group",
+        )
 
         # Reload configuration if update was successful
         if response.get("result") == "saved":
-            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_member_add")
+            await client.request(
+                "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_member_add"
+            )
 
         return json.dumps(response, indent=2)
 
@@ -690,8 +735,9 @@ async def remove_user_from_group(ctx: Context, group_uuid: str, username: str) -
             raise ValidationError("Username is required", context={"username": username})
 
         # Get current group configuration
-        current_group_response = await client.request("GET", f"{API_CORE_GROUP_GET}/{group_uuid}",
-                                                    operation="get_group_for_member_remove")
+        current_group_response = await client.request(
+            "GET", f"{API_CORE_GROUP_GET}/{group_uuid}", operation="get_group_for_member_remove"
+        )
 
         if "group" not in current_group_response:
             raise ResourceNotFoundError(f"Group with UUID {group_uuid} not found")
@@ -700,12 +746,18 @@ async def remove_user_from_group(ctx: Context, group_uuid: str, username: str) -
 
         # Get current members
         current_members = []
-        if "member" in current_group and current_group["member"]:
+        if current_group.get("member"):
             current_members = [m.strip() for m in current_group["member"].split(",") if m.strip()]
 
         # Check if user is actually a member
         if username not in current_members:
-            return json.dumps({"result": "no_change", "message": f"User '{username}' is not a member of the group"}, indent=2)
+            return json.dumps(
+                {
+                    "result": "no_change",
+                    "message": f"User '{username}' is not a member of the group",
+                },
+                indent=2,
+            )
 
         # Remove the member
         current_members.remove(username)
@@ -715,12 +767,18 @@ async def remove_user_from_group(ctx: Context, group_uuid: str, username: str) -
         group_data = {"group": current_group}
 
         # Update the group
-        response = await client.request("POST", f"{API_CORE_GROUP_SET}/{group_uuid}",
-                                      data=group_data, operation="remove_user_from_group")
+        response = await client.request(
+            "POST",
+            f"{API_CORE_GROUP_SET}/{group_uuid}",
+            data=group_data,
+            operation="remove_user_from_group",
+        )
 
         # Reload configuration if update was successful
         if response.get("result") == "saved":
-            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_member_remove")
+            await client.request(
+                "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_group_member_remove"
+            )
 
         return json.dumps(response, indent=2)
 
@@ -729,6 +787,7 @@ async def remove_user_from_group(ctx: Context, group_uuid: str, username: str) -
 
 
 # ========== AUTHENTICATION & PRIVILEGE MANAGEMENT ==========
+
 
 @mcp.tool(name="list_privileges", description="List all available privileges in OPNsense")
 async def list_privileges(ctx: Context) -> str:
@@ -743,7 +802,9 @@ async def list_privileges(ctx: Context) -> str:
     try:
         client = await get_opnsense_client()
 
-        response = await client.request("GET", API_CORE_AUTH_PRIVILEGES, operation="list_privileges")
+        response = await client.request(
+            "GET", API_CORE_AUTH_PRIVILEGES, operation="list_privileges"
+        )
 
         return json.dumps(response, indent=2)
 
@@ -769,7 +830,9 @@ async def get_user_effective_privileges(ctx: Context, username: str) -> str:
             raise ValidationError("Username is required", context={"username": username})
 
         # First get the user details to find their UUID
-        users_response = await client.request("POST", API_CORE_USER_SEARCH, operation="search_user_for_privileges")
+        users_response = await client.request(
+            "POST", API_CORE_USER_SEARCH, operation="search_user_for_privileges"
+        )
 
         user_uuid = None
         if "rows" in users_response:
@@ -782,8 +845,9 @@ async def get_user_effective_privileges(ctx: Context, username: str) -> str:
             raise ResourceNotFoundError(f"User '{username}' not found")
 
         # Get detailed user information including groups and privileges
-        user_details_response = await client.request("GET", f"{API_CORE_USER_GET}/{user_uuid}",
-                                                   operation="get_user_privileges")
+        user_details_response = await client.request(
+            "GET", f"{API_CORE_USER_GET}/{user_uuid}", operation="get_user_privileges"
+        )
 
         if "user" not in user_details_response:
             raise ResourceNotFoundError(f"User details for '{username}' not found")
@@ -794,16 +858,18 @@ async def get_user_effective_privileges(ctx: Context, username: str) -> str:
         effective_privileges = set()
 
         # Add direct user privileges
-        if "priv" in user_details and user_details["priv"]:
+        if user_details.get("priv"):
             user_privs = [p.strip() for p in user_details["priv"].split(",") if p.strip()]
             effective_privileges.update(user_privs)
 
         # Add group privileges
-        if "groups" in user_details and user_details["groups"]:
+        if user_details.get("groups"):
             group_names = [g.strip() for g in user_details["groups"].split(",") if g.strip()]
 
             # Get all groups to find UUIDs and privileges
-            groups_response = await client.request("POST", API_CORE_GROUP_SEARCH, operation="search_groups_for_user_privileges")
+            groups_response = await client.request(
+                "POST", API_CORE_GROUP_SEARCH, operation="search_groups_for_user_privileges"
+            )
 
             if "rows" in groups_response:
                 for group in groups_response["rows"]:
@@ -811,22 +877,33 @@ async def get_user_effective_privileges(ctx: Context, username: str) -> str:
                         # Get detailed group information
                         group_uuid = group.get("uuid")
                         if group_uuid:
-                            group_details_response = await client.request("GET", f"{API_CORE_GROUP_GET}/{group_uuid}",
-                                                                        operation="get_group_privileges")
+                            group_details_response = await client.request(
+                                "GET",
+                                f"{API_CORE_GROUP_GET}/{group_uuid}",
+                                operation="get_group_privileges",
+                            )
                             if "group" in group_details_response:
                                 group_details = group_details_response["group"]
-                                if "priv" in group_details and group_details["priv"]:
-                                    group_privs = [p.strip() for p in group_details["priv"].split(",") if p.strip()]
+                                if group_details.get("priv"):
+                                    group_privs = [
+                                        p.strip()
+                                        for p in group_details["priv"].split(",")
+                                        if p.strip()
+                                    ]
                                     effective_privileges.update(group_privs)
 
         # Format result
         result = {
             "username": username,
             "user_uuid": user_uuid,
-            "direct_privileges": [p.strip() for p in user_details.get("priv", "").split(",") if p.strip()],
-            "group_memberships": [g.strip() for g in user_details.get("groups", "").split(",") if g.strip()],
+            "direct_privileges": [
+                p.strip() for p in user_details.get("priv", "").split(",") if p.strip()
+            ],
+            "group_memberships": [
+                g.strip() for g in user_details.get("groups", "").split(",") if g.strip()
+            ],
             "effective_privileges": sorted(list(effective_privileges)),
-            "privilege_count": len(effective_privileges)
+            "privilege_count": len(effective_privileges),
         }
 
         return json.dumps(result, indent=2)
@@ -851,11 +928,15 @@ async def assign_privilege_to_user(ctx: Context, username: str, privilege: str) 
         client = await get_opnsense_client()
 
         if not username or not privilege:
-            raise ValidationError("Username and privilege are required",
-                                context={"username": username, "privilege": privilege})
+            raise ValidationError(
+                "Username and privilege are required",
+                context={"username": username, "privilege": privilege},
+            )
 
         # Find the user
-        users_response = await client.request("POST", API_CORE_USER_SEARCH, operation="search_user_for_privilege_assignment")
+        users_response = await client.request(
+            "POST", API_CORE_USER_SEARCH, operation="search_user_for_privilege_assignment"
+        )
 
         user_uuid = None
         if "rows" in users_response:
@@ -868,8 +949,9 @@ async def assign_privilege_to_user(ctx: Context, username: str, privilege: str) 
             raise ResourceNotFoundError(f"User '{username}' not found")
 
         # Get current user details
-        user_details_response = await client.request("GET", f"{API_CORE_USER_GET}/{user_uuid}",
-                                                   operation="get_user_for_privilege_assignment")
+        user_details_response = await client.request(
+            "GET", f"{API_CORE_USER_GET}/{user_uuid}", operation="get_user_for_privilege_assignment"
+        )
 
         if "user" not in user_details_response:
             raise ResourceNotFoundError(f"User details for '{username}' not found")
@@ -878,12 +960,18 @@ async def assign_privilege_to_user(ctx: Context, username: str, privilege: str) 
 
         # Get current privileges
         current_privileges = []
-        if "priv" in current_user and current_user["priv"]:
+        if current_user.get("priv"):
             current_privileges = [p.strip() for p in current_user["priv"].split(",") if p.strip()]
 
         # Check if privilege is already assigned
         if privilege in current_privileges:
-            return json.dumps({"result": "no_change", "message": f"Privilege '{privilege}' is already assigned to user '{username}'"}, indent=2)
+            return json.dumps(
+                {
+                    "result": "no_change",
+                    "message": f"Privilege '{privilege}' is already assigned to user '{username}'",
+                },
+                indent=2,
+            )
 
         # Add the new privilege
         current_privileges.append(privilege)
@@ -891,12 +979,18 @@ async def assign_privilege_to_user(ctx: Context, username: str, privilege: str) 
 
         # Update the user
         user_data = {"user": current_user}
-        response = await client.request("POST", f"{API_CORE_USER_SET}/{user_uuid}",
-                                      data=user_data, operation="assign_privilege_to_user")
+        response = await client.request(
+            "POST",
+            f"{API_CORE_USER_SET}/{user_uuid}",
+            data=user_data,
+            operation="assign_privilege_to_user",
+        )
 
         # Reload configuration if update was successful
         if response.get("result") == "saved":
-            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_privilege_assignment")
+            await client.request(
+                "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_privilege_assignment"
+            )
 
         return json.dumps(response, indent=2)
 
@@ -920,11 +1014,15 @@ async def revoke_privilege_from_user(ctx: Context, username: str, privilege: str
         client = await get_opnsense_client()
 
         if not username or not privilege:
-            raise ValidationError("Username and privilege are required",
-                                context={"username": username, "privilege": privilege})
+            raise ValidationError(
+                "Username and privilege are required",
+                context={"username": username, "privilege": privilege},
+            )
 
         # Find the user
-        users_response = await client.request("POST", API_CORE_USER_SEARCH, operation="search_user_for_privilege_revocation")
+        users_response = await client.request(
+            "POST", API_CORE_USER_SEARCH, operation="search_user_for_privilege_revocation"
+        )
 
         user_uuid = None
         if "rows" in users_response:
@@ -937,8 +1035,9 @@ async def revoke_privilege_from_user(ctx: Context, username: str, privilege: str
             raise ResourceNotFoundError(f"User '{username}' not found")
 
         # Get current user details
-        user_details_response = await client.request("GET", f"{API_CORE_USER_GET}/{user_uuid}",
-                                                   operation="get_user_for_privilege_revocation")
+        user_details_response = await client.request(
+            "GET", f"{API_CORE_USER_GET}/{user_uuid}", operation="get_user_for_privilege_revocation"
+        )
 
         if "user" not in user_details_response:
             raise ResourceNotFoundError(f"User details for '{username}' not found")
@@ -947,12 +1046,18 @@ async def revoke_privilege_from_user(ctx: Context, username: str, privilege: str
 
         # Get current privileges
         current_privileges = []
-        if "priv" in current_user and current_user["priv"]:
+        if current_user.get("priv"):
             current_privileges = [p.strip() for p in current_user["priv"].split(",") if p.strip()]
 
         # Check if privilege is actually assigned
         if privilege not in current_privileges:
-            return json.dumps({"result": "no_change", "message": f"Privilege '{privilege}' is not assigned to user '{username}'"}, indent=2)
+            return json.dumps(
+                {
+                    "result": "no_change",
+                    "message": f"Privilege '{privilege}' is not assigned to user '{username}'",
+                },
+                indent=2,
+            )
 
         # Remove the privilege
         current_privileges.remove(privilege)
@@ -960,12 +1065,18 @@ async def revoke_privilege_from_user(ctx: Context, username: str, privilege: str
 
         # Update the user
         user_data = {"user": current_user}
-        response = await client.request("POST", f"{API_CORE_USER_SET}/{user_uuid}",
-                                      data=user_data, operation="revoke_privilege_from_user")
+        response = await client.request(
+            "POST",
+            f"{API_CORE_USER_SET}/{user_uuid}",
+            data=user_data,
+            operation="revoke_privilege_from_user",
+        )
 
         # Reload configuration if update was successful
         if response.get("result") == "saved":
-            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_privilege_revocation")
+            await client.request(
+                "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_privilege_revocation"
+            )
 
         return json.dumps(response, indent=2)
 
@@ -994,8 +1105,13 @@ async def list_auth_servers(ctx: Context) -> str:
         return await handle_tool_error(ctx, "list_auth_servers", e)
 
 
-@mcp.tool(name="test_user_authentication", description="Test user authentication against configured servers")
-async def test_user_authentication(ctx: Context, username: str, auth_server: Optional[str] = None) -> str:
+@mcp.tool(
+    name="test_user_authentication",
+    description="Test user authentication against configured servers",
+)
+async def test_user_authentication(
+    ctx: Context, username: str, auth_server: str | None = None
+) -> str:
     """Test user authentication against a specific authentication server or all servers.
 
     Args:
@@ -1013,15 +1129,14 @@ async def test_user_authentication(ctx: Context, username: str, auth_server: Opt
             raise ValidationError("Username is required", context={"username": username})
 
         # Prepare test data
-        test_data = {
-            "username": username
-        }
+        test_data = {"username": username}
 
         if auth_server:
             test_data["auth_server"] = auth_server
 
-        response = await client.request("POST", API_CORE_AUTH_TEST,
-                                      data=test_data, operation="test_user_authentication")
+        response = await client.request(
+            "POST", API_CORE_AUTH_TEST, data=test_data, operation="test_user_authentication"
+        )
 
         return json.dumps(response, indent=2)
 
@@ -1031,9 +1146,14 @@ async def test_user_authentication(ctx: Context, username: str, auth_server: Opt
 
 # ========== USER MANAGEMENT HELPER TOOLS ==========
 
-@mcp.tool(name="create_admin_user", description="Create a new administrative user with full system privileges")
-async def create_admin_user(ctx: Context, username: str, password: str,
-                           full_name: str = "", email: str = "") -> str:
+
+@mcp.tool(
+    name="create_admin_user",
+    description="Create a new administrative user with full system privileges",
+)
+async def create_admin_user(
+    ctx: Context, username: str, password: str, full_name: str = "", email: str = ""
+) -> str:
     """Create a new administrative user with full system privileges.
 
     Args:
@@ -1058,30 +1178,37 @@ async def create_admin_user(ctx: Context, username: str, password: str,
                 "email": email,
                 "disabled": "0",
                 "expires": "",
-                "comment": "Administrative user created via MCP"
+                "comment": "Administrative user created via MCP",
             }
         }
 
-        response = await client.request("POST", API_CORE_USER_ADD,
-                                      data=user_data, operation="create_admin_user")
+        response = await client.request(
+            "POST", API_CORE_USER_ADD, data=user_data, operation="create_admin_user"
+        )
 
         if response.get("result") != "saved":
             return json.dumps({"error": "Failed to create user", "response": response}, indent=2)
 
         user_uuid = response.get("uuid")
         if not user_uuid:
-            return json.dumps({"error": "User created but UUID not returned", "response": response}, indent=2)
+            return json.dumps(
+                {"error": "User created but UUID not returned", "response": response}, indent=2
+            )
 
         # Get all available privileges
-        privileges_response = await client.request("GET", API_CORE_AUTH_PRIVILEGES,
-                                                 operation="get_privileges_for_admin")
+        privileges_response = await client.request(
+            "GET", API_CORE_AUTH_PRIVILEGES, operation="get_privileges_for_admin"
+        )
 
         if "privileges" not in privileges_response:
-            return json.dumps({
-                "user_created": True,
-                "uuid": user_uuid,
-                "warning": "User created but could not retrieve privileges for assignment"
-            }, indent=2)
+            return json.dumps(
+                {
+                    "user_created": True,
+                    "uuid": user_uuid,
+                    "warning": "User created but could not retrieve privileges for assignment",
+                },
+                indent=2,
+            )
 
         # Assign all privileges to make this a full admin
         all_privileges = list(privileges_response["privileges"].keys())
@@ -1097,31 +1224,44 @@ async def create_admin_user(ctx: Context, username: str, password: str,
                 "disabled": "0",
                 "expires": "",
                 "comment": "Administrative user created via MCP",
-                "priv": privilege_string
+                "priv": privilege_string,
             }
         }
 
-        await client.request("POST", f"{API_CORE_USER_SET}/{user_uuid}",
-                           data=update_data, operation="assign_admin_privileges")
+        await client.request(
+            "POST",
+            f"{API_CORE_USER_SET}/{user_uuid}",
+            data=update_data,
+            operation="assign_admin_privileges",
+        )
 
         # Reload configuration
-        await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_admin_creation")
+        await client.request(
+            "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_admin_creation"
+        )
 
-        return json.dumps({
-            "result": "success",
-            "message": f"Administrative user '{username}' created successfully",
-            "uuid": user_uuid,
-            "privileges_assigned": len(all_privileges),
-            "full_admin": True
-        }, indent=2)
+        return json.dumps(
+            {
+                "result": "success",
+                "message": f"Administrative user '{username}' created successfully",
+                "uuid": user_uuid,
+                "privileges_assigned": len(all_privileges),
+                "full_admin": True,
+            },
+            indent=2,
+        )
 
     except Exception as e:
         return await handle_tool_error(ctx, "create_admin_user", e)
 
 
-@mcp.tool(name="create_readonly_user", description="Create a new read-only user with limited system access")
-async def create_readonly_user(ctx: Context, username: str, password: str,
-                              full_name: str = "", email: str = "") -> str:
+@mcp.tool(
+    name="create_readonly_user",
+    description="Create a new read-only user with limited system access",
+)
+async def create_readonly_user(
+    ctx: Context, username: str, password: str, full_name: str = "", email: str = ""
+) -> str:
     """Create a new read-only user with limited system access.
 
     Args:
@@ -1139,14 +1279,14 @@ async def create_readonly_user(ctx: Context, username: str, password: str,
 
         # Define read-only privileges (common monitoring/viewing privileges)
         readonly_privileges = [
-            "page-all",                    # Basic page access
-            "page-status-system",          # System status
-            "page-status-interfaces",      # Interface status
-            "page-status-logs",           # Log viewing
-            "page-diagnostics-all",       # Diagnostic tools
-            "page-status-dashboard",      # Dashboard access
-            "page-firewall-rules",        # Firewall rule viewing (read-only)
-            "page-interfaces-overview"    # Interface overview
+            "page-all",  # Basic page access
+            "page-status-system",  # System status
+            "page-status-interfaces",  # Interface status
+            "page-status-logs",  # Log viewing
+            "page-diagnostics-all",  # Diagnostic tools
+            "page-status-dashboard",  # Dashboard access
+            "page-firewall-rules",  # Firewall rule viewing (read-only)
+            "page-interfaces-overview",  # Interface overview
         ]
 
         # Create user with read-only privileges
@@ -1159,26 +1299,34 @@ async def create_readonly_user(ctx: Context, username: str, password: str,
                 "disabled": "0",
                 "expires": "",
                 "comment": "Read-only user created via MCP",
-                "priv": ",".join(readonly_privileges)
+                "priv": ",".join(readonly_privileges),
             }
         }
 
-        response = await client.request("POST", API_CORE_USER_ADD,
-                                      data=user_data, operation="create_readonly_user")
+        response = await client.request(
+            "POST", API_CORE_USER_ADD, data=user_data, operation="create_readonly_user"
+        )
 
         if response.get("result") != "saved":
-            return json.dumps({"error": "Failed to create read-only user", "response": response}, indent=2)
+            return json.dumps(
+                {"error": "Failed to create read-only user", "response": response}, indent=2
+            )
 
         # Reload configuration
-        await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_readonly_creation")
+        await client.request(
+            "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_readonly_creation"
+        )
 
-        return json.dumps({
-            "result": "success",
-            "message": f"Read-only user '{username}' created successfully",
-            "uuid": response.get("uuid"),
-            "privileges_assigned": readonly_privileges,
-            "access_level": "read-only"
-        }, indent=2)
+        return json.dumps(
+            {
+                "result": "success",
+                "message": f"Read-only user '{username}' created successfully",
+                "uuid": response.get("uuid"),
+                "privileges_assigned": readonly_privileges,
+                "access_level": "read-only",
+            },
+            indent=2,
+        )
 
     except Exception as e:
         return await handle_tool_error(ctx, "create_readonly_user", e)
@@ -1200,8 +1348,9 @@ async def reset_user_password(ctx: Context, username: str, new_password: str) ->
         client = await get_opnsense_client()
 
         # First, find the user by username
-        search_response = await client.request("POST", API_CORE_USER_SEARCH,
-                                             operation="search_user_for_password_reset")
+        search_response = await client.request(
+            "POST", API_CORE_USER_SEARCH, operation="search_user_for_password_reset"
+        )
 
         if "rows" not in search_response:
             return json.dumps({"error": "Failed to retrieve user list"}, indent=2)
@@ -1218,8 +1367,11 @@ async def reset_user_password(ctx: Context, username: str, new_password: str) ->
             return json.dumps({"error": f"User '{username}' not found"}, indent=2)
 
         # Get full user details
-        user_detail_response = await client.request("GET", f"{API_CORE_USER_GET}/{user_uuid}",
-                                                   operation="get_user_details_for_password_reset")
+        user_detail_response = await client.request(
+            "GET",
+            f"{API_CORE_USER_GET}/{user_uuid}",
+            operation="get_user_details_for_password_reset",
+        )
 
         if "user" not in user_detail_response:
             return json.dumps({"error": "Failed to retrieve user details"}, indent=2)
@@ -1237,30 +1389,41 @@ async def reset_user_password(ctx: Context, username: str, new_password: str) ->
                 "expires": current_user.get("expires", ""),
                 "comment": current_user.get("comment", ""),
                 "priv": current_user.get("priv", ""),
-                "groups": current_user.get("groups", "")
+                "groups": current_user.get("groups", ""),
             }
         }
 
-        response = await client.request("POST", f"{API_CORE_USER_SET}/{user_uuid}",
-                                      data=update_data, operation="reset_user_password")
+        response = await client.request(
+            "POST",
+            f"{API_CORE_USER_SET}/{user_uuid}",
+            data=update_data,
+            operation="reset_user_password",
+        )
 
         if response.get("result") != "saved":
             return json.dumps({"error": "Failed to reset password", "response": response}, indent=2)
 
         # Reload configuration
-        await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_password_reset")
+        await client.request(
+            "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_password_reset"
+        )
 
-        return json.dumps({
-            "result": "success",
-            "message": f"Password successfully reset for user '{username}'",
-            "uuid": user_uuid
-        }, indent=2)
+        return json.dumps(
+            {
+                "result": "success",
+                "message": f"Password successfully reset for user '{username}'",
+                "uuid": user_uuid,
+            },
+            indent=2,
+        )
 
     except Exception as e:
         return await handle_tool_error(ctx, "reset_user_password", e)
 
 
-@mcp.tool(name="bulk_user_creation", description="Create multiple users from a template specification")
+@mcp.tool(
+    name="bulk_user_creation", description="Create multiple users from a template specification"
+)
 async def bulk_user_creation(ctx: Context, user_template: str) -> str:
     """Create multiple users from a template specification.
 
@@ -1291,10 +1454,12 @@ async def bulk_user_creation(ctx: Context, user_template: str) -> str:
         try:
             template_data = json.loads(user_template)
         except json.JSONDecodeError as e:
-            return json.dumps({"error": f"Invalid JSON template: {str(e)}"}, indent=2)
+            return json.dumps({"error": f"Invalid JSON template: {e!s}"}, indent=2)
 
         if "template" not in template_data or "users" not in template_data:
-            return json.dumps({"error": "Template must contain 'template' and 'users' sections"}, indent=2)
+            return json.dumps(
+                {"error": "Template must contain 'template' and 'users' sections"}, indent=2
+            )
 
         template = template_data["template"]
         users_to_create = template_data["users"]
@@ -1306,7 +1471,9 @@ async def bulk_user_creation(ctx: Context, user_template: str) -> str:
             try:
                 username = user_spec.get("username")
                 if not username:
-                    results.append({"error": "Username required for each user", "user_spec": user_spec})
+                    results.append(
+                        {"error": "Username required for each user", "user_spec": user_spec}
+                    )
                     continue
 
                 # Build user data from template and user-specific overrides
@@ -1314,59 +1481,80 @@ async def bulk_user_creation(ctx: Context, user_template: str) -> str:
                     "user": {
                         "name": username,
                         "password": user_spec.get("password", template.get("password", "")),
-                        "full_name": user_spec.get("full_name", template.get("full_name", username)),
+                        "full_name": user_spec.get(
+                            "full_name", template.get("full_name", username)
+                        ),
                         "email": user_spec.get("email", template.get("email", "")),
                         "disabled": user_spec.get("disabled", template.get("disabled", "0")),
                         "expires": user_spec.get("expires", template.get("expires", "")),
-                        "comment": user_spec.get("comment", template.get("comment", "Bulk created via MCP")),
-                        "priv": ",".join(user_spec.get("privileges", template.get("privileges", []))),
-                        "groups": ",".join(user_spec.get("groups", template.get("groups", [])))
+                        "comment": user_spec.get(
+                            "comment", template.get("comment", "Bulk created via MCP")
+                        ),
+                        "priv": ",".join(
+                            user_spec.get("privileges", template.get("privileges", []))
+                        ),
+                        "groups": ",".join(user_spec.get("groups", template.get("groups", []))),
                     }
                 }
 
-                response = await client.request("POST", API_CORE_USER_ADD,
-                                              data=user_data, operation=f"bulk_create_user_{username}")
+                response = await client.request(
+                    "POST",
+                    API_CORE_USER_ADD,
+                    data=user_data,
+                    operation=f"bulk_create_user_{username}",
+                )
 
                 if response.get("result") == "saved":
-                    results.append({
-                        "username": username,
-                        "status": "success",
-                        "uuid": response.get("uuid")
-                    })
+                    results.append(
+                        {"username": username, "status": "success", "uuid": response.get("uuid")}
+                    )
                     successful_creations += 1
                 else:
-                    results.append({
-                        "username": username,
-                        "status": "failed",
-                        "error": response.get("validations", "Unknown error")
-                    })
+                    results.append(
+                        {
+                            "username": username,
+                            "status": "failed",
+                            "error": response.get("validations", "Unknown error"),
+                        }
+                    )
 
             except Exception as user_error:
-                results.append({
-                    "username": user_spec.get("username", "unknown"),
-                    "status": "failed",
-                    "error": str(user_error)
-                })
+                results.append(
+                    {
+                        "username": user_spec.get("username", "unknown"),
+                        "status": "failed",
+                        "error": str(user_error),
+                    }
+                )
 
         # Reload configuration if any users were created
         if successful_creations > 0:
-            await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_bulk_creation")
+            await client.request(
+                "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_bulk_creation"
+            )
 
-        return json.dumps({
-            "result": "completed",
-            "total_users": len(users_to_create),
-            "successful_creations": successful_creations,
-            "failed_creations": len(users_to_create) - successful_creations,
-            "details": results
-        }, indent=2)
+        return json.dumps(
+            {
+                "result": "completed",
+                "total_users": len(users_to_create),
+                "successful_creations": successful_creations,
+                "failed_creations": len(users_to_create) - successful_creations,
+                "details": results,
+            },
+            indent=2,
+        )
 
     except Exception as e:
         return await handle_tool_error(ctx, "bulk_user_creation", e)
 
 
-@mcp.tool(name="setup_user_group_template", description="Create a user group template with predefined privileges")
-async def setup_user_group_template(ctx: Context, template_name: str,
-                                   privileges: str, description: str = "") -> str:
+@mcp.tool(
+    name="setup_user_group_template",
+    description="Create a user group template with predefined privileges",
+)
+async def setup_user_group_template(
+    ctx: Context, template_name: str, privileges: str, description: str = ""
+) -> str:
     """Create a user group template with predefined privileges for common roles.
 
     Args:
@@ -1385,8 +1573,9 @@ async def setup_user_group_template(ctx: Context, template_name: str,
         privilege_list = [p.strip() for p in privileges.split(",") if p.strip()]
 
         # Validate privileges exist
-        privileges_response = await client.request("GET", API_CORE_AUTH_PRIVILEGES,
-                                                 operation="validate_privileges_for_template")
+        privileges_response = await client.request(
+            "GET", API_CORE_AUTH_PRIVILEGES, operation="validate_privileges_for_template"
+        )
 
         if "privileges" not in privileges_response:
             return json.dumps({"error": "Could not retrieve available privileges"}, indent=2)
@@ -1395,37 +1584,48 @@ async def setup_user_group_template(ctx: Context, template_name: str,
         invalid_privileges = [p for p in privilege_list if p not in available_privileges]
 
         if invalid_privileges:
-            return json.dumps({
-                "error": "Invalid privileges specified",
-                "invalid_privileges": invalid_privileges,
-                "available_privileges": list(available_privileges)
-            }, indent=2)
+            return json.dumps(
+                {
+                    "error": "Invalid privileges specified",
+                    "invalid_privileges": invalid_privileges,
+                    "available_privileges": list(available_privileges),
+                },
+                indent=2,
+            )
 
         # Create the group
         group_data = {
             "group": {
                 "name": template_name,
                 "description": description or f"Template group: {template_name}",
-                "priv": ",".join(privilege_list)
+                "priv": ",".join(privilege_list),
             }
         }
 
-        response = await client.request("POST", API_CORE_GROUP_ADD,
-                                      data=group_data, operation="create_group_template")
+        response = await client.request(
+            "POST", API_CORE_GROUP_ADD, data=group_data, operation="create_group_template"
+        )
 
         if response.get("result") != "saved":
-            return json.dumps({"error": "Failed to create group template", "response": response}, indent=2)
+            return json.dumps(
+                {"error": "Failed to create group template", "response": response}, indent=2
+            )
 
         # Reload configuration
-        await client.request("POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_template_creation")
+        await client.request(
+            "POST", API_CORE_CONFIG_RELOAD, operation="reload_config_after_template_creation"
+        )
 
-        return json.dumps({
-            "result": "success",
-            "message": f"Group template '{template_name}' created successfully",
-            "uuid": response.get("uuid"),
-            "privileges_assigned": privilege_list,
-            "privilege_count": len(privilege_list)
-        }, indent=2)
+        return json.dumps(
+            {
+                "result": "success",
+                "message": f"Group template '{template_name}' created successfully",
+                "uuid": response.get("uuid"),
+                "privileges_assigned": privilege_list,
+                "privilege_count": len(privilege_list),
+            },
+            indent=2,
+        )
 
     except Exception as e:
         return await handle_tool_error(ctx, "setup_user_group_template", e)

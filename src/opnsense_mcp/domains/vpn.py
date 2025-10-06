@@ -8,11 +8,11 @@ This module provides tools for managing VPN connections including:
 
 import json
 import logging
-from typing import Optional
 
 from mcp.server.fastmcp import Context
-from .configuration import get_opnsense_client
+
 from ..main import mcp
+from .configuration import get_opnsense_client
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -67,6 +67,6 @@ async def get_vpn_connections(ctx: Context, vpn_type: str = "OpenVPN") -> str:
 
         return json.dumps(response, indent=2)
     except Exception as e:
-        logger.error(f"Error in get_vpn_connections (type: {vpn_type}): {str(e)}", exc_info=True)
-        await ctx.error(f"Error fetching VPN connections: {str(e)}")
-        return f"Error: {str(e)}"
+        logger.error(f"Error in get_vpn_connections (type: {vpn_type}): {e!s}", exc_info=True)
+        await ctx.error(f"Error fetching VPN connections: {e!s}")
+        return f"Error: {e!s}"

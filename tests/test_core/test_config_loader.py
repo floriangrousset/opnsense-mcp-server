@@ -12,15 +12,13 @@ This module tests the secure configuration loader including:
 
 import json
 import os
+from unittest.mock import Mock, patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import Mock, patch, mock_open, MagicMock
-import tempfile
-import shutil
 
 from src.opnsense_mcp.core.config_loader import ConfigLoader
-from src.opnsense_mcp.core.models import OPNsenseConfig
 from src.opnsense_mcp.core.exceptions import ConfigurationError
+from src.opnsense_mcp.core.models import OPNsenseConfig
 
 
 @pytest.fixture
@@ -40,22 +38,22 @@ def mock_config_file(temp_config_dir):
             "url": "https://192.168.1.1",
             "api_key": "test_key_default",
             "api_secret": "test_secret_default",
-            "verify_ssl": True
+            "verify_ssl": True,
         },
         "production": {
             "url": "https://firewall.example.com",
             "api_key": "test_key_prod",
             "api_secret": "test_secret_prod",
-            "verify_ssl": True
+            "verify_ssl": True,
         },
         "staging": {
             "url": "https://staging.example.com",
             "api_key": "test_key_staging",
             "api_secret": "test_secret_staging",
-            "verify_ssl": False
-        }
+            "verify_ssl": False,
+        },
     }
-    with open(config_file, 'w') as f:
+    with open(config_file, "w") as f:
         json.dump(config_data, f)
     os.chmod(config_file, 0o600)
     return config_file
@@ -145,7 +143,7 @@ class TestConfigLoaderConfigFile:
 
     def test_load_from_config_file_default_profile(self, temp_config_dir, mock_config_file):
         """Test loading default profile from config file."""
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file):
             config = ConfigLoader._load_from_config_file("default")
 
         assert config is not None
@@ -156,7 +154,7 @@ class TestConfigLoaderConfigFile:
 
     def test_load_from_config_file_production_profile(self, temp_config_dir, mock_config_file):
         """Test loading production profile from config file."""
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file):
             config = ConfigLoader._load_from_config_file("production")
 
         assert config is not None
@@ -166,7 +164,7 @@ class TestConfigLoaderConfigFile:
 
     def test_load_from_config_file_staging_profile(self, temp_config_dir, mock_config_file):
         """Test loading staging profile with verify_ssl=false."""
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file):
             config = ConfigLoader._load_from_config_file("staging")
 
         assert config is not None
@@ -175,7 +173,7 @@ class TestConfigLoaderConfigFile:
 
     def test_load_from_config_file_nonexistent_profile(self, temp_config_dir, mock_config_file):
         """Test loading nonexistent profile returns None."""
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file):
             config = ConfigLoader._load_from_config_file("nonexistent")
 
         assert config is None
@@ -183,7 +181,7 @@ class TestConfigLoaderConfigFile:
     def test_load_from_config_file_missing_file(self, temp_config_dir):
         """Test loading when config file doesn't exist."""
         missing_file = temp_config_dir / "nonexistent.json"
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', missing_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", missing_file):
             config = ConfigLoader._load_from_config_file("default")
 
         assert config is None
@@ -191,10 +189,10 @@ class TestConfigLoaderConfigFile:
     def test_load_from_config_file_invalid_json(self, temp_config_dir):
         """Test loading raises error for invalid JSON."""
         invalid_file = temp_config_dir / "invalid.json"
-        with open(invalid_file, 'w') as f:
+        with open(invalid_file, "w") as f:
             f.write("{invalid json")
 
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', invalid_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", invalid_file):
             with pytest.raises(ConfigurationError, match="Invalid JSON"):
                 ConfigLoader._load_from_config_file("default")
 
@@ -204,14 +202,14 @@ class TestConfigLoaderConfigFile:
         config_data = {
             "default": {
                 "url": "https://192.168.1.1",
-                "api_key": "test_key"
+                "api_key": "test_key",
                 # Missing api_secret
             }
         }
-        with open(incomplete_file, 'w') as f:
+        with open(incomplete_file, "w") as f:
             json.dump(config_data, f)
 
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', incomplete_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", incomplete_file):
             with pytest.raises(ConfigurationError, match="Missing required field"):
                 ConfigLoader._load_from_config_file("default")
 
@@ -223,14 +221,16 @@ class TestConfigLoaderKeyring:
     def test_load_from_keyring_success(self):
         """Test successful loading from keyring."""
         mock_credential = Mock()
-        mock_credential.password = json.dumps({
-            "url": "https://192.168.1.1",
-            "api_key": "keyring_api_key",
-            "api_secret": "keyring_api_secret",
-            "verify_ssl": True
-        })
+        mock_credential.password = json.dumps(
+            {
+                "url": "https://192.168.1.1",
+                "api_key": "keyring_api_key",
+                "api_secret": "keyring_api_secret",
+                "verify_ssl": True,
+            }
+        )
 
-        with patch('keyring.get_credential', return_value=mock_credential):
+        with patch("keyring.get_credential", return_value=mock_credential):
             config = ConfigLoader._load_from_keyring("default")
 
         assert config is not None
@@ -240,14 +240,14 @@ class TestConfigLoaderKeyring:
 
     def test_load_from_keyring_no_credential(self):
         """Test loading returns None when keyring has no credential."""
-        with patch('keyring.get_credential', return_value=None):
+        with patch("keyring.get_credential", return_value=None):
             config = ConfigLoader._load_from_keyring("default")
 
         assert config is None
 
     def test_load_from_keyring_exception(self):
         """Test loading returns None on keyring exception."""
-        with patch('keyring.get_credential', side_effect=Exception("Keyring error")):
+        with patch("keyring.get_credential", side_effect=Exception("Keyring error")):
             config = ConfigLoader._load_from_keyring("default")
 
         assert config is None
@@ -264,7 +264,7 @@ class TestConfigLoaderPriority:
         monkeypatch.setenv("OPNSENSE_API_KEY", "env_key")
         monkeypatch.setenv("OPNSENSE_API_SECRET", "env_secret")
 
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file):
             config = ConfigLoader.load("default")
 
         # Should load from env, not file
@@ -274,15 +274,19 @@ class TestConfigLoaderPriority:
     def test_priority_file_over_keyring(self, temp_config_dir, mock_config_file):
         """Test config file has priority over keyring."""
         mock_credential = Mock()
-        mock_credential.password = json.dumps({
-            "url": "https://keyring.example.com",
-            "api_key": "keyring_key",
-            "api_secret": "keyring_secret",
-            "verify_ssl": True
-        })
+        mock_credential.password = json.dumps(
+            {
+                "url": "https://keyring.example.com",
+                "api_key": "keyring_key",
+                "api_secret": "keyring_secret",
+                "verify_ssl": True,
+            }
+        )
 
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file), \
-             patch('keyring.get_credential', return_value=mock_credential):
+        with (
+            patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file),
+            patch("keyring.get_credential", return_value=mock_credential),
+        ):
             config = ConfigLoader.load("default")
 
         # Should load from file, not keyring
@@ -292,16 +296,20 @@ class TestConfigLoaderPriority:
     def test_fallback_to_keyring(self, temp_config_dir):
         """Test fallback to keyring when env and file not available."""
         mock_credential = Mock()
-        mock_credential.password = json.dumps({
-            "url": "https://keyring.example.com",
-            "api_key": "keyring_key",
-            "api_secret": "keyring_secret",
-            "verify_ssl": True
-        })
+        mock_credential.password = json.dumps(
+            {
+                "url": "https://keyring.example.com",
+                "api_key": "keyring_key",
+                "api_secret": "keyring_secret",
+                "verify_ssl": True,
+            }
+        )
 
         missing_file = temp_config_dir / "nonexistent.json"
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', missing_file), \
-             patch('keyring.get_credential', return_value=mock_credential):
+        with (
+            patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", missing_file),
+            patch("keyring.get_credential", return_value=mock_credential),
+        ):
             config = ConfigLoader.load("default")
 
         # Should load from keyring
@@ -311,10 +319,12 @@ class TestConfigLoaderPriority:
     def test_no_credentials_found(self, temp_config_dir):
         """Test error raised when no credentials found in any source."""
         missing_file = temp_config_dir / "nonexistent.json"
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', missing_file), \
-             patch('keyring.get_credential', return_value=None):
-            with pytest.raises(ConfigurationError, match="No credentials found"):
-                ConfigLoader.load("default")
+        with (
+            patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", missing_file),
+            patch("keyring.get_credential", return_value=None),
+            pytest.raises(ConfigurationError, match="No credentials found"),
+        ):
+            ConfigLoader.load("default")
 
 
 @pytest.mark.asyncio
@@ -325,17 +335,14 @@ class TestConfigLoaderProfileManagement:
         """Test saving profile creates new config file."""
         config_file = temp_config_dir / "config.json"
         config = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="test_key",
-            api_secret="test_secret",
-            verify_ssl=True
+            url="https://192.168.1.1", api_key="test_key", api_secret="test_secret", verify_ssl=True
         )
 
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", config_file):
             ConfigLoader.save_profile("default", config)
 
         assert config_file.exists()
-        with open(config_file, 'r') as f:
+        with open(config_file) as f:
             saved_data = json.load(f)
         assert "default" in saved_data
         assert saved_data["default"]["url"] == "https://192.168.1.1"
@@ -346,13 +353,13 @@ class TestConfigLoaderProfileManagement:
             url="https://new.example.com",
             api_key="new_key",
             api_secret="new_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file):
             ConfigLoader.save_profile("new_profile", new_config)
 
-        with open(mock_config_file, 'r') as f:
+        with open(mock_config_file) as f:
             saved_data = json.load(f)
         assert "new_profile" in saved_data
         assert "default" in saved_data  # Existing profile preserved
@@ -364,22 +371,22 @@ class TestConfigLoaderProfileManagement:
             url="https://updated.example.com",
             api_key="updated_key",
             api_secret="updated_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file):
             ConfigLoader.save_profile("default", updated_config)
 
-        with open(mock_config_file, 'r') as f:
+        with open(mock_config_file) as f:
             saved_data = json.load(f)
         assert saved_data["default"]["url"] == "https://updated.example.com"
 
     def test_delete_profile_success(self, temp_config_dir, mock_config_file):
         """Test deleting profile."""
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file):
             ConfigLoader.delete_profile("staging")
 
-        with open(mock_config_file, 'r') as f:
+        with open(mock_config_file) as f:
             saved_data = json.load(f)
         assert "staging" not in saved_data
         assert "default" in saved_data  # Other profiles preserved
@@ -387,20 +394,20 @@ class TestConfigLoaderProfileManagement:
 
     def test_delete_profile_nonexistent(self, temp_config_dir, mock_config_file):
         """Test deleting nonexistent profile raises error."""
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file):
             with pytest.raises(ConfigurationError, match="Profile .* not found"):
                 ConfigLoader.delete_profile("nonexistent")
 
     def test_delete_profile_missing_file(self, temp_config_dir):
         """Test deleting profile when config file doesn't exist."""
         missing_file = temp_config_dir / "nonexistent.json"
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', missing_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", missing_file):
             with pytest.raises(ConfigurationError, match="Config file not found"):
                 ConfigLoader.delete_profile("default")
 
     def test_list_profiles(self, temp_config_dir, mock_config_file):
         """Test listing all profiles."""
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file):
             profiles = ConfigLoader.list_profiles()
 
         assert len(profiles) == 3
@@ -411,10 +418,10 @@ class TestConfigLoaderProfileManagement:
     def test_list_profiles_empty_file(self, temp_config_dir):
         """Test listing profiles with empty config file."""
         empty_file = temp_config_dir / "empty.json"
-        with open(empty_file, 'w') as f:
+        with open(empty_file, "w") as f:
             json.dump({}, f)
 
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', empty_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", empty_file):
             profiles = ConfigLoader.list_profiles()
 
         assert len(profiles) == 0
@@ -422,14 +429,14 @@ class TestConfigLoaderProfileManagement:
     def test_list_profiles_missing_file(self, temp_config_dir):
         """Test listing profiles when config file doesn't exist."""
         missing_file = temp_config_dir / "nonexistent.json"
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', missing_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", missing_file):
             profiles = ConfigLoader.list_profiles()
 
         assert len(profiles) == 0
 
     def test_get_profile_info(self, temp_config_dir, mock_config_file):
         """Test getting profile info without exposing credentials."""
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file):
             info = ConfigLoader.get_profile_info("default")
 
         assert info["url"] == "https://192.168.1.1"
@@ -440,7 +447,7 @@ class TestConfigLoaderProfileManagement:
 
     def test_get_profile_info_nonexistent(self, temp_config_dir, mock_config_file):
         """Test getting info for nonexistent profile."""
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file):
             with pytest.raises(ConfigurationError, match="Profile .* not found"):
                 ConfigLoader.get_profile_info("nonexistent")
 
@@ -453,13 +460,10 @@ class TestConfigLoaderSecurity:
         """Test that file permissions are set to 0600 on save."""
         config_file = temp_config_dir / "config.json"
         config = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="test_key",
-            api_secret="test_secret",
-            verify_ssl=True
+            url="https://192.168.1.1", api_key="test_key", api_secret="test_secret", verify_ssl=True
         )
 
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", config_file):
             ConfigLoader.save_profile("default", config)
 
         stat_info = os.stat(config_file)
@@ -471,8 +475,10 @@ class TestConfigLoaderSecurity:
         # Set insecure permissions
         os.chmod(mock_config_file, 0o644)
 
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file), \
-             patch.object(ConfigLoader, '_set_secure_permissions') as mock_fix:
+        with (
+            patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file),
+            patch.object(ConfigLoader, "_set_secure_permissions") as mock_fix,
+        ):
             ConfigLoader._load_from_config_file("default")
 
             # Should attempt to fix permissions
@@ -480,7 +486,7 @@ class TestConfigLoaderSecurity:
 
     def test_no_credential_logging(self, temp_config_dir, mock_config_file, caplog):
         """Test that credentials are never logged."""
-        with patch.object(ConfigLoader, 'DEFAULT_CONFIG_FILE', mock_config_file):
+        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file):
             config = ConfigLoader.load("default")
 
         # Check that credentials don't appear in logs
