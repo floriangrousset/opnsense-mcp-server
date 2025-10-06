@@ -1,11 +1,35 @@
-version: '3'
+version: '3.8'
 
 services:
   opnsense-mcp:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: opnsense-mcp-server
     restart: unless-stopped
     environment:
       - PYTHONUNBUFFERED=1
+      # Optional: Load from .env file
+      # - OPNSENSE_URL=${OPNSENSE_URL}
+      # - OPNSENSE_API_KEY=${OPNSENSE_API_KEY}
+      # - OPNSENSE_API_SECRET=${OPNSENSE_API_SECRET}
     ports:
       - "8080:8080"  # For future HTTP transport support
+    volumes:
+      # Mount config directory for persistent credential storage
+      - ./config:/home/opnsense/.opnsense-mcp:rw
+    # Optional: Network configuration
+    # networks:
+    #   - opnsense-network
+    # Health check
+    healthcheck:
+      test: ["CMD", "python", "-c", "import sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
+
+# Optional: Define networks
+# networks:
+#   opnsense-network:
+#     driver: bridge
