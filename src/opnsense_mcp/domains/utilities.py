@@ -7,14 +7,14 @@ This module provides utility tools for advanced operations:
 
 import json
 import logging
-from typing import Optional
 
 from mcp.server.fastmcp import Context
-from .configuration import get_opnsense_client
+
+from ..core.exceptions import ValidationError
 from ..main import mcp
 from ..shared.constants import DANGEROUS_ENDPOINTS, SAFE_ENDPOINTS_PATTERNS
 from ..shared.error_sanitizer import log_error_safely
-from ..core.exceptions import ValidationError
+from .configuration import get_opnsense_client
 
 # Configure logging
 logger = logging.getLogger(__name__)
@@ -68,8 +68,8 @@ def validate_endpoint_safety(endpoint: str, method: str) -> None:
                     context={
                         "endpoint": endpoint,
                         "risk_level": risk_level,
-                        "reason": "Prevents accidental system-wide destructive actions"
-                    }
+                        "reason": "Prevents accidental system-wide destructive actions",
+                    },
                 )
 
             # HIGH/MEDIUM endpoints are blocked for write operations
@@ -82,8 +82,8 @@ def validate_endpoint_safety(endpoint: str, method: str) -> None:
                         "endpoint": endpoint,
                         "method": method,
                         "risk_level": risk_level,
-                        "reason": "Prevents accidental destructive operations"
-                    }
+                        "reason": "Prevents accidental destructive operations",
+                    },
                 )
 
     # Warn about write operations to unknown endpoints
@@ -94,13 +94,16 @@ def validate_endpoint_safety(endpoint: str, method: str) -> None:
         )
 
 
-@mcp.tool(name="exec_api_call", description="Execute a custom API call to OPNsense. ⚠️ ADVANCED: Use with caution")
+@mcp.tool(
+    name="exec_api_call",
+    description="Execute a custom API call to OPNsense. ⚠️ ADVANCED: Use with caution",
+)
 async def exec_api_call(
     ctx: Context,
     method: str,
     endpoint: str,
-    data: Optional[str] = None,
-    params: Optional[str] = None
+    data: str | None = None,
+    params: str | None = None,
 ) -> str:
     """Execute a custom API call to OPNsense.
 
@@ -179,18 +182,13 @@ async def exec_api_call(
         params_dict = json.loads(params) if params else None
 
         # Execute the API request
-        response = await client.request(
-            method,
-            endpoint,
-            data=data_dict,
-            params=params_dict
-        )
+        response = await client.request(method, endpoint, data=data_dict, params=params_dict)
 
         return json.dumps(response, indent=2)
     except json.JSONDecodeError as e:
         # Determine which parameter caused the error
-        failed_param = 'data' if (data and data_dict is None) else 'params'
-        error_msg = f"Invalid JSON in {failed_param}: {str(e)}"
+        failed_param = "data" if (data and data_dict is None) else "params"
+        error_msg = f"Invalid JSON in {failed_param}: {e!s}"
         logger.error(f"Error in exec_api_call: {error_msg}")
         await ctx.error(error_msg)
         return f"Error: {error_msg}"

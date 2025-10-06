@@ -7,27 +7,25 @@ available API endpoints. It handles initial setup, authentication, and API disco
 
 import json
 import logging
-from typing import Optional
 
 from mcp.server.fastmcp import Context
 
-from ..main import mcp, server_state
 from ..core import (
-    OPNsenseClient,
-    OPNsenseConfig,
-    ConfigurationError,
-    AuthenticationError,
-    NetworkError,
     APIError,
-    ValidationError,
+    AuthenticationError,
+    ConfigurationError,
+    NetworkError,
+    OPNsenseClient,
 )
 from ..core.config_loader import ConfigLoader
+from ..main import mcp, server_state
 from ..shared.constants import API_CORE_MENU_GET_ITEMS
 
 logger = logging.getLogger("opnsense-mcp")
 
 
 # ========== HELPER FUNCTIONS ==========
+
 
 async def get_opnsense_client() -> OPNsenseClient:
     """Get OPNsense client from server state with validation."""
@@ -36,11 +34,12 @@ async def get_opnsense_client() -> OPNsenseClient:
 
 # ========== CONFIGURATION TOOLS ==========
 
-@mcp.tool(name="configure_opnsense_connection", description="Configure OPNsense connection using locally stored credentials (secure - never sends credentials to LLM)")
-async def configure_opnsense_connection(
-    ctx: Context,
-    profile: str = "default"
-) -> str:
+
+@mcp.tool(
+    name="configure_opnsense_connection",
+    description="Configure OPNsense connection using locally stored credentials (secure - never sends credentials to LLM)",
+)
+async def configure_opnsense_connection(ctx: Context, profile: str = "default") -> str:
     """Configure the OPNsense connection using locally stored credentials.
 
     **SECURITY:** Credentials are loaded from local storage only and never sent to the LLM.
@@ -94,13 +93,13 @@ async def configure_opnsense_connection(
         )
 
     except ConfigurationError as e:
-        error_msg = f"Configuration error: {str(e)}"
+        error_msg = f"Configuration error: {e!s}"
         logger.error(error_msg, exc_info=True)
         await ctx.error(error_msg)
 
         # Provide helpful guidance
         return (
-            f"❌ Configuration Error: {str(e)}\n\n"
+            f"❌ Configuration Error: {e!s}\n\n"
             f"📖 Setup Instructions:\n"
             f"1. Run: opnsense-mcp setup --profile {profile}\n"
             f"2. Or set environment variables: OPNSENSE_URL, OPNSENSE_API_KEY, OPNSENSE_API_SECRET\n"
@@ -109,11 +108,11 @@ async def configure_opnsense_connection(
         )
 
     except AuthenticationError as e:
-        error_msg = f"Authentication failed: {str(e)}"
+        error_msg = f"Authentication failed: {e!s}"
         logger.error(error_msg, exc_info=True)
         await ctx.error(error_msg)
         return (
-            f"❌ Authentication Error: {str(e)}\n\n"
+            f"❌ Authentication Error: {e!s}\n\n"
             f"The credentials for profile '{profile}' appear to be invalid.\n"
             f"Please verify:\n"
             f"• API key and secret are correct\n"
@@ -122,11 +121,11 @@ async def configure_opnsense_connection(
         )
 
     except NetworkError as e:
-        error_msg = f"Network error: {str(e)}"
+        error_msg = f"Network error: {e!s}"
         logger.error(error_msg, exc_info=True)
         await ctx.error(error_msg)
         return (
-            f"❌ Network Error: {str(e)}\n\n"
+            f"❌ Network Error: {e!s}\n\n"
             f"Could not reach OPNsense at the configured URL.\n"
             f"Please verify:\n"
             f"• OPNsense URL is correct and accessible\n"
@@ -136,17 +135,14 @@ async def configure_opnsense_connection(
         )
 
     except Exception as e:
-        error_msg = f"Unexpected error configuring OPNsense connection: {str(e)}"
-        logger.error(f"Unexpected error for profile '{profile}': {str(e)}", exc_info=True)
+        error_msg = f"Unexpected error configuring OPNsense connection: {e!s}"
+        logger.error(f"Unexpected error for profile '{profile}': {e!s}", exc_info=True)
         await ctx.error(error_msg)
-        return f"❌ Error: {str(e)}"
+        return f"❌ Error: {e!s}"
 
 
 @mcp.tool(name="get_api_endpoints", description="List available API endpoints from OPNsense")
-async def get_api_endpoints(
-    ctx: Context,
-    module: Optional[str] = None
-) -> str:
+async def get_api_endpoints(ctx: Context, module: str | None = None) -> str:
     """List available API endpoints from OPNsense.
 
     Args:
@@ -166,21 +162,19 @@ async def get_api_endpoints(
             # Filter endpoints by module if specified
             if module in response:
                 return json.dumps(response[module], indent=2)
-            else:
-                available_modules = list(response.keys())
-                return f"Module '{module}' not found. Available modules: {available_modules}"
-        else:
-            # Return all modules and endpoints
-            return json.dumps(response, indent=2)
+            available_modules = list(response.keys())
+            return f"Module '{module}' not found. Available modules: {available_modules}"
+        # Return all modules and endpoints
+        return json.dumps(response, indent=2)
 
     except ConfigurationError as e:
         await ctx.error(str(e))
-        return f"Configuration Error: {str(e)}"
+        return f"Configuration Error: {e!s}"
     except (AuthenticationError, NetworkError, APIError) as e:
-        logger.error(f"Error in get_api_endpoints: {str(e)}", exc_info=True)
-        await ctx.error(f"Error fetching API endpoints: {str(e)}")
-        return f"Error: {str(e)}"
+        logger.error(f"Error in get_api_endpoints: {e!s}", exc_info=True)
+        await ctx.error(f"Error fetching API endpoints: {e!s}")
+        return f"Error: {e!s}"
     except Exception as e:
-        logger.error(f"Unexpected error in get_api_endpoints: {str(e)}", exc_info=True)
-        await ctx.error(f"Unexpected error: {str(e)}")
-        return f"Error: {str(e)}"
+        logger.error(f"Unexpected error in get_api_endpoints: {e!s}", exc_info=True)
+        await ctx.error(f"Unexpected error: {e!s}")
+        return f"Error: {e!s}"

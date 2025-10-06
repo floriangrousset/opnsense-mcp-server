@@ -9,19 +9,19 @@ import logging
 import re
 from datetime import datetime
 from enum import Enum
-from typing import Dict, Any, TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..core.exceptions import (
-    OPNsenseError,
+    APIError,
     AuthenticationError,
     AuthorizationError,
-    NetworkError,
     ConfigurationError,
-    ValidationError,
-    APIError,
-    TimeoutError,
+    NetworkError,
+    OPNsenseError,
+    RateLimitError,
     ResourceNotFoundError,
-    RateLimitError
+    TimeoutError,
+    ValidationError,
 )
 
 if TYPE_CHECKING:
@@ -32,6 +32,7 @@ logger = logging.getLogger("opnsense-mcp")
 
 class ErrorSeverity(str, Enum):
     """Enumeration for error severity levels."""
+
     LOW = "low"
     MEDIUM = "medium"
     HIGH = "high"
@@ -41,7 +42,9 @@ class ErrorSeverity(str, Enum):
 class ErrorResponse:
     """Structured error response system with user-friendly messaging."""
 
-    def __init__(self, error: Exception, operation: str, severity: ErrorSeverity = ErrorSeverity.MEDIUM):
+    def __init__(
+        self, error: Exception, operation: str, severity: ErrorSeverity = ErrorSeverity.MEDIUM
+    ):
         """Initialize error response.
 
         Args:
@@ -63,31 +66,29 @@ class ErrorResponse:
         """
         if isinstance(self.error, AuthenticationError):
             return "Authentication failed. Please check your API credentials."
-        elif isinstance(self.error, AuthorizationError):
+        if isinstance(self.error, AuthorizationError):
             return "Access denied. You don't have permission for this operation."
-        elif isinstance(self.error, NetworkError):
+        if isinstance(self.error, NetworkError):
             return "Cannot connect to OPNsense. Please check the URL and network connectivity."
-        elif isinstance(self.error, ConfigurationError):
+        if isinstance(self.error, ConfigurationError):
             return "OPNsense connection not configured. Please configure the connection first."
-        elif isinstance(self.error, ValidationError):
+        if isinstance(self.error, ValidationError):
             return f"Invalid input: {self.error.message}"
-        elif isinstance(self.error, APIError):
+        if isinstance(self.error, APIError):
             if self.error.status_code == 404:
                 return "The requested resource was not found."
-            elif self.error.status_code == 429:
+            if self.error.status_code == 429:
                 return "API rate limit exceeded. Please wait before trying again."
-            else:
-                return f"API error: {self.error.message}"
-        elif isinstance(self.error, TimeoutError):
+            return f"API error: {self.error.message}"
+        if isinstance(self.error, TimeoutError):
             return "Request timed out. The OPNsense server may be overloaded."
-        elif isinstance(self.error, ResourceNotFoundError):
+        if isinstance(self.error, ResourceNotFoundError):
             return f"Resource not found: {self.error.message}"
-        elif isinstance(self.error, RateLimitError):
+        if isinstance(self.error, RateLimitError):
             return "Rate limit exceeded. Please slow down your requests."
-        else:
-            return f"An unexpected error occurred during {self.operation}."
+        return f"An unexpected error occurred during {self.operation}."
 
-    def get_technical_details(self) -> Dict[str, Any]:
+    def get_technical_details(self) -> dict[str, Any]:
         """Get technical error details for logging.
 
         Returns:
@@ -99,7 +100,7 @@ class ErrorResponse:
             "severity": self.severity.value,
             "timestamp": self.timestamp.isoformat(),
             "error_type": type(self.error).__name__,
-            "message": str(self.error)
+            "message": str(self.error),
         }
 
         if isinstance(self.error, OPNsenseError):
@@ -113,10 +114,7 @@ class ErrorResponse:
 
 
 async def handle_tool_error(
-    ctx: 'Context',
-    operation: str,
-    error: Exception,
-    severity: ErrorSeverity = ErrorSeverity.MEDIUM
+    ctx: "Context", operation: str, error: Exception, severity: ErrorSeverity = ErrorSeverity.MEDIUM
 ) -> str:
     """Centralized error handling for MCP tools.
 
@@ -152,20 +150,22 @@ def validate_uuid(uuid: str, operation: str) -> None:
     Raises:
         ValidationError: If UUID format is invalid
     """
-    uuid_pattern = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.IGNORECASE)
+    uuid_pattern = re.compile(
+        r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
+    )
     if not uuid_pattern.match(uuid):
         raise ValidationError(
             f"Invalid UUID format: {uuid}",
-            context={"uuid": uuid, "operation": operation, "expected_format": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"}
+            context={
+                "uuid": uuid,
+                "operation": operation,
+                "expected_format": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+            },
         )
 
 
 def validate_firewall_parameters(
-    action: str,
-    direction: str,
-    ipprotocol: str,
-    protocol: str,
-    operation: str
+    action: str, direction: str, ipprotocol: str, protocol: str, operation: str
 ) -> None:
     """Validate common firewall rule parameters.
 
@@ -185,14 +185,22 @@ def validate_firewall_parameters(
     valid_protocols = ["tcp", "udp", "icmp", "any"]
 
     if action not in valid_actions:
-        raise ValidationError(f"Invalid action '{action}'. Must be one of: {valid_actions}",
-                            context={"operation": operation, "parameter": "action", "value": action})
+        raise ValidationError(
+            f"Invalid action '{action}'. Must be one of: {valid_actions}",
+            context={"operation": operation, "parameter": "action", "value": action},
+        )
     if direction not in valid_directions:
-        raise ValidationError(f"Invalid direction '{direction}'. Must be one of: {valid_directions}",
-                            context={"operation": operation, "parameter": "direction", "value": direction})
+        raise ValidationError(
+            f"Invalid direction '{direction}'. Must be one of: {valid_directions}",
+            context={"operation": operation, "parameter": "direction", "value": direction},
+        )
     if ipprotocol not in valid_ipprotocols:
-        raise ValidationError(f"Invalid IP protocol '{ipprotocol}'. Must be one of: {valid_ipprotocols}",
-                            context={"operation": operation, "parameter": "ipprotocol", "value": ipprotocol})
+        raise ValidationError(
+            f"Invalid IP protocol '{ipprotocol}'. Must be one of: {valid_ipprotocols}",
+            context={"operation": operation, "parameter": "ipprotocol", "value": ipprotocol},
+        )
     if protocol not in valid_protocols:
-        raise ValidationError(f"Invalid protocol '{protocol}'. Must be one of: {valid_protocols}",
-                            context={"operation": operation, "parameter": "protocol", "value": protocol})
+        raise ValidationError(
+            f"Invalid protocol '{protocol}'. Must be one of: {valid_protocols}",
+            context={"operation": operation, "parameter": "protocol", "value": protocol},
+        )

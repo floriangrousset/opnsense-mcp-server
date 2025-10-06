@@ -5,14 +5,15 @@ This module tests the connection pool that manages OPNsense client connections
 with TTL-based expiration, maximum connection limits, and rate limiting.
 """
 
-import pytest
 import asyncio
-from unittest.mock import AsyncMock, Mock, patch
 from datetime import datetime, timedelta
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 
 from src.opnsense_mcp.core.connection import ConnectionPool
-from src.opnsense_mcp.core.models import OPNsenseConfig
 from src.opnsense_mcp.core.exceptions import RateLimitError
+from src.opnsense_mcp.core.models import OPNsenseConfig
 
 
 @pytest.mark.asyncio
@@ -41,9 +42,7 @@ class TestConnectionPool:
         """Test configuration hash generation."""
         pool = ConnectionPool()
         config = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="test_key",
-            api_secret="test_secret"
+            url="https://192.168.1.1", api_key="test_key", api_secret="test_secret"
         )
 
         hash1 = pool._get_config_hash(config)
@@ -55,9 +54,7 @@ class TestConnectionPool:
         """Test that same config produces same hash."""
         pool = ConnectionPool()
         config = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="test_key",
-            api_secret="test_secret"
+            url="https://192.168.1.1", api_key="test_key", api_secret="test_secret"
         )
 
         hash1 = pool._get_config_hash(config)
@@ -69,16 +66,8 @@ class TestConnectionPool:
         """Test that different configs produce different hashes."""
         pool = ConnectionPool()
 
-        config1 = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="key1",
-            api_secret="secret1"
-        )
-        config2 = OPNsenseConfig(
-            url="https://192.168.1.2",
-            api_key="key2",
-            api_secret="secret2"
-        )
+        config1 = OPNsenseConfig(url="https://192.168.1.1", api_key="key1", api_secret="secret1")
+        config2 = OPNsenseConfig(url="https://192.168.1.2", api_key="key2", api_secret="secret2")
 
         hash1 = pool._get_config_hash(config1)
         hash2 = pool._get_config_hash(config2)
@@ -92,10 +81,10 @@ class TestConnectionPool:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
-        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
+        with patch("src.opnsense_mcp.core.client.OPNsenseClient") as MockClient:
             mock_client = Mock()
             MockClient.return_value = mock_client
 
@@ -112,10 +101,10 @@ class TestConnectionPool:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
-        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
+        with patch("src.opnsense_mcp.core.client.OPNsenseClient") as MockClient:
             mock_client = Mock()
             MockClient.return_value = mock_client
 
@@ -135,10 +124,10 @@ class TestConnectionPool:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
-        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
+        with patch("src.opnsense_mcp.core.client.OPNsenseClient") as MockClient:
             mock_client1 = Mock()
             mock_client1.close = AsyncMock()
             mock_client2 = Mock()
@@ -168,11 +157,16 @@ class TestConnectionPool:
         pool = ConnectionPool(max_connections=2)
 
         configs = [
-            OPNsenseConfig(url=f"https://192.168.1.{i}", api_key=f"key{i}", api_secret=f"secret{i}", verify_ssl=False)
+            OPNsenseConfig(
+                url=f"https://192.168.1.{i}",
+                api_key=f"key{i}",
+                api_secret=f"secret{i}",
+                verify_ssl=False,
+            )
             for i in range(3)
         ]
 
-        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
+        with patch("src.opnsense_mcp.core.client.OPNsenseClient") as MockClient:
             mock_clients = []
             for i in range(3):
                 mock_client = Mock()
@@ -203,10 +197,10 @@ class TestConnectionPool:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
-        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
+        with patch("src.opnsense_mcp.core.client.OPNsenseClient") as MockClient:
             mock_client = Mock()
             mock_client.close = AsyncMock()
             MockClient.return_value = mock_client
@@ -251,11 +245,16 @@ class TestConnectionPool:
         """Test closing all connections in the pool."""
         pool = ConnectionPool()
         configs = [
-            OPNsenseConfig(url=f"https://192.168.1.{i}", api_key=f"key{i}", api_secret=f"secret{i}", verify_ssl=False)
+            OPNsenseConfig(
+                url=f"https://192.168.1.{i}",
+                api_key=f"key{i}",
+                api_secret=f"secret{i}",
+                verify_ssl=False,
+            )
             for i in range(3)
         ]
 
-        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
+        with patch("src.opnsense_mcp.core.client.OPNsenseClient") as MockClient:
             mock_clients = []
             for _ in range(3):
                 mock_client = Mock()
@@ -295,10 +294,10 @@ class TestConnectionPool:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
-        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
+        with patch("src.opnsense_mcp.core.client.OPNsenseClient") as MockClient:
             mock_client = Mock()
             MockClient.return_value = mock_client
 
@@ -330,10 +329,14 @@ class TestConnectionPool:
         """Test that different configs result in different clients in pool."""
         pool = ConnectionPool()
 
-        config1 = OPNsenseConfig(url="https://192.168.1.1", api_key="key1", api_secret="secret1", verify_ssl=False)
-        config2 = OPNsenseConfig(url="https://192.168.1.2", api_key="key2", api_secret="secret2", verify_ssl=False)
+        config1 = OPNsenseConfig(
+            url="https://192.168.1.1", api_key="key1", api_secret="secret1", verify_ssl=False
+        )
+        config2 = OPNsenseConfig(
+            url="https://192.168.1.2", api_key="key2", api_secret="secret2", verify_ssl=False
+        )
 
-        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
+        with patch("src.opnsense_mcp.core.client.OPNsenseClient") as MockClient:
             mock_client1 = Mock()
             mock_client2 = Mock()
             MockClient.side_effect = [mock_client1, mock_client2]
@@ -359,14 +362,14 @@ class TestConnectionPool:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
         # The lock should be acquired during get_client
         assert pool.lock is not None
         assert isinstance(pool.lock, asyncio.Lock)
 
-        with patch('src.opnsense_mcp.core.client.OPNsenseClient') as MockClient:
+        with patch("src.opnsense_mcp.core.client.OPNsenseClient") as MockClient:
             mock_client = Mock()
             MockClient.return_value = mock_client
 

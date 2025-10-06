@@ -7,20 +7,23 @@ information disclosure while maintaining helpful user feedback.
 
 import json
 import logging
-from typing import Dict, Any, Optional
+from typing import Any
+
 import httpx
 
 from ..core.exceptions import (
-    OPNsenseError,
-    ConfigurationError,
+    APIError,
     AuthenticationError,
     AuthorizationError,
-    APIError,
+    ConfigurationError,
     NetworkError,
-    ValidationError,
+    OPNsenseError,
     RateLimitError,
-    TimeoutError as OPNsenseTimeoutError,
     ResourceNotFoundError,
+    ValidationError,
+)
+from ..core.exceptions import (
+    TimeoutError as OPNsenseTimeoutError,
 )
 
 logger = logging.getLogger("opnsense-mcp")
@@ -57,47 +60,46 @@ class ErrorMessageSanitizer:
         if isinstance(error, AuthenticationError):
             return "Authentication failed. Please check your OPNsense credentials."
 
-        elif isinstance(error, AuthorizationError):
+        if isinstance(error, AuthorizationError):
             return "Authorization failed. The API user may lack necessary permissions."
 
-        elif isinstance(error, ConfigurationError):
+        if isinstance(error, ConfigurationError):
             return f"Configuration error: {error.message}"
 
-        elif isinstance(error, ValidationError):
+        if isinstance(error, ValidationError):
             # Validation errors usually safe to show
             return f"Invalid input: {error.message}"
 
-        elif isinstance(error, ResourceNotFoundError):
+        if isinstance(error, ResourceNotFoundError):
             return f"Resource not found: {error.message}"
 
-        elif isinstance(error, RateLimitError):
+        if isinstance(error, RateLimitError):
             return "Rate limit exceeded. Please wait before retrying."
 
-        elif isinstance(error, OPNsenseTimeoutError):
+        if isinstance(error, OPNsenseTimeoutError):
             return "Request timed out. OPNsense may be overloaded or unreachable."
 
-        elif isinstance(error, NetworkError):
+        if isinstance(error, NetworkError):
             return "Network error. Cannot connect to OPNsense. Check URL and network connectivity."
 
-        elif isinstance(error, httpx.ConnectError):
+        if isinstance(error, httpx.ConnectError):
             return "Cannot connect to OPNsense. Please check the URL and network."
 
-        elif isinstance(error, httpx.TimeoutException):
+        if isinstance(error, httpx.TimeoutException):
             return "Request timed out. OPNsense may be overloaded."
 
-        elif isinstance(error, json.JSONDecodeError):
+        if isinstance(error, json.JSONDecodeError):
             return "Received invalid response from OPNsense API."
 
-        elif isinstance(error, APIError):
+        if isinstance(error, APIError):
             # API errors may contain details, sanitize them
             return f"OPNsense API error: {ErrorMessageSanitizer._sanitize_text(str(error))}"
 
-        else:
-            # Generic message for unexpected errors
-            return f"An error occurred during {operation}. Please check the logs for details."
+        # Generic message for unexpected errors
+        return f"An error occurred during {operation}. Please check the logs for details."
 
     @staticmethod
-    def sanitize_for_logs(error: Exception, include_traceback: bool = False) -> Dict[str, Any]:
+    def sanitize_for_logs(error: Exception, include_traceback: bool = False) -> dict[str, Any]:
         """
         Return detailed error info for logging (never shown to users).
 
@@ -144,6 +146,7 @@ class ErrorMessageSanitizer:
                 # Replace entire value after the pattern
                 # e.g., "password=secret123" becomes "password=[REDACTED]"
                 import re
+
                 sanitized = re.sub(
                     f"{pattern}[=:]\\S+",
                     f"{pattern}=[REDACTED]",
@@ -153,7 +156,7 @@ class ErrorMessageSanitizer:
         return sanitized
 
     @staticmethod
-    def _sanitize_context(context: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+    def _sanitize_context(context: dict[str, Any] | None) -> dict[str, Any]:
         """
         Remove sensitive data from context dictionary.
 
@@ -170,7 +173,9 @@ class ErrorMessageSanitizer:
         for key, value in context.items():
             # Check if key contains sensitive pattern
             key_lower = key.lower()
-            is_sensitive = any(pattern in key_lower for pattern in ErrorMessageSanitizer.SENSITIVE_PATTERNS)
+            is_sensitive = any(
+                pattern in key_lower for pattern in ErrorMessageSanitizer.SENSITIVE_PATTERNS
+            )
 
             if is_sensitive:
                 sanitized[key] = "[REDACTED]"
@@ -188,7 +193,7 @@ def log_error_safely(
     logger: logging.Logger,
     error: Exception,
     operation: str = "operation",
-    user_message: Optional[str] = None,
+    user_message: str | None = None,
 ) -> str:
     """
     Log error with full details and return sanitized user message.

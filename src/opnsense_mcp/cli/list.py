@@ -4,18 +4,15 @@ OPNsense MCP Server - List Profiles Command
 List all configured credential profiles.
 """
 
+
 import typer
-from typing import Optional
 
 from ..core.config_loader import ConfigLoader
-from ..core.exceptions import ConfigurationError
 
 
 def list_command(
     verbose: bool = typer.Option(
-        False,
-        "--verbose", "-v",
-        help="Show detailed information for each profile"
+        False, "--verbose", "-v", help="Show detailed information for each profile"
     )
 ):
     """
@@ -58,7 +55,7 @@ def list_command(
                 typer.echo(f"  • {profile}")
 
         if not verbose:
-            typer.echo(f"\n💡 Tip: Use --verbose to see profile details")
+            typer.echo("\n💡 Tip: Use --verbose to see profile details")
 
         typer.echo(f"\n📍 Config file: {ConfigLoader.DEFAULT_CONFIG_FILE}")
 

@@ -10,22 +10,21 @@ __version__ = "1.0.0"
 __author__ = "Florian Grousset"
 __license__ = "AGPL-3.0"
 
-from .core.exceptions import (
-    OPNsenseError,
-    ConfigurationError,
-    AuthenticationError,
-    APIError,
-    NetworkError,
-    RateLimitError,
-    ValidationError,
-    TimeoutError,
-    ResourceNotFoundError,
-    AuthorizationError,
-)
-
-from .core.models import OPNsenseConfig
 from .core.client import OPNsenseClient
 from .core.connection import ConnectionPool
+from .core.exceptions import (
+    APIError,
+    AuthenticationError,
+    AuthorizationError,
+    ConfigurationError,
+    NetworkError,
+    OPNsenseError,
+    RateLimitError,
+    ResourceNotFoundError,
+    TimeoutError,
+    ValidationError,
+)
+from .core.models import OPNsenseConfig
 from .core.state import ServerState
 
 __all__ = [

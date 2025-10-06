@@ -4,23 +4,16 @@ OPNsense MCP Server - Delete Profile Command
 Delete a credential profile.
 """
 
+
 import typer
-from typing import Optional
 
 from ..core.config_loader import ConfigLoader
 from ..core.exceptions import ConfigurationError
 
 
 def delete_command(
-    profile: str = typer.Argument(
-        ...,
-        help="Profile name to delete"
-    ),
-    force: bool = typer.Option(
-        False,
-        "--force", "-f",
-        help="Skip confirmation prompt"
-    )
+    profile: str = typer.Argument(..., help="Profile name to delete"),
+    force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation prompt"),
 ):
     """
     Delete a credential profile.
@@ -32,7 +25,7 @@ def delete_command(
         # Force delete without confirmation
         opnsense-mcp delete-profile staging --force
     """
-    typer.echo(f"\n🗑️  Delete OPNsense Profile\n")
+    typer.echo("\n🗑️  Delete OPNsense Profile\n")
 
     try:
         # Check if profile exists
@@ -53,8 +46,7 @@ def delete_command(
         # Confirm deletion (unless force flag)
         if not force:
             if not typer.confirm(
-                f"⚠️  Are you sure you want to delete profile '{profile}'?",
-                default=False
+                f"⚠️  Are you sure you want to delete profile '{profile}'?", default=False
             ):
                 typer.echo("Operation cancelled")
                 raise typer.Exit(0)

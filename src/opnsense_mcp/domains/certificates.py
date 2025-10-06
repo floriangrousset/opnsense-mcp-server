@@ -23,46 +23,40 @@ The module supports:
 
 import json
 import logging
-from typing import Optional
 
 from mcp.server.fastmcp import Context
 
 from ..main import mcp
 from ..shared.constants import (
-    # Certificate Authority endpoints
-    API_CERTIFICATES_CA_SEARCH,
-    API_CERTIFICATES_CA_GET,
+    API_CERTIFICATES_ACME_ACCOUNTS_ADD,
+    API_CERTIFICATES_ACME_ACCOUNTS_DEL,
+    API_CERTIFICATES_ACME_ACCOUNTS_GET,
+    # ACME Account endpoints
+    API_CERTIFICATES_ACME_ACCOUNTS_SEARCH,
+    API_CERTIFICATES_ACME_CERTS_ADD,
+    API_CERTIFICATES_ACME_CERTS_DEL,
+    API_CERTIFICATES_ACME_CERTS_GET,
+    API_CERTIFICATES_ACME_CERTS_REVOKE,
+    # ACME Certificate endpoints
+    API_CERTIFICATES_ACME_CERTS_SEARCH,
+    API_CERTIFICATES_ACME_CERTS_SIGN,
     API_CERTIFICATES_CA_ADD,
     API_CERTIFICATES_CA_DEL,
     API_CERTIFICATES_CA_EXPORT,
-
-    # Certificate endpoints
-    API_CERTIFICATES_CERT_SEARCH,
-    API_CERTIFICATES_CERT_GET,
+    API_CERTIFICATES_CA_GET,
+    # Certificate Authority endpoints
+    API_CERTIFICATES_CA_SEARCH,
     API_CERTIFICATES_CERT_ADD,
     API_CERTIFICATES_CERT_DEL,
     API_CERTIFICATES_CERT_EXPORT,
-
-    # CSR endpoints
-    API_CERTIFICATES_CSR_SEARCH,
-    API_CERTIFICATES_CSR_GET,
+    API_CERTIFICATES_CERT_GET,
+    # Certificate endpoints
+    API_CERTIFICATES_CERT_SEARCH,
     API_CERTIFICATES_CSR_ADD,
     API_CERTIFICATES_CSR_DEL,
-
-    # ACME Account endpoints
-    API_CERTIFICATES_ACME_ACCOUNTS_SEARCH,
-    API_CERTIFICATES_ACME_ACCOUNTS_GET,
-    API_CERTIFICATES_ACME_ACCOUNTS_ADD,
-    API_CERTIFICATES_ACME_ACCOUNTS_DEL,
-
-    # ACME Certificate endpoints
-    API_CERTIFICATES_ACME_CERTS_SEARCH,
-    API_CERTIFICATES_ACME_CERTS_GET,
-    API_CERTIFICATES_ACME_CERTS_ADD,
-    API_CERTIFICATES_ACME_CERTS_DEL,
-    API_CERTIFICATES_ACME_CERTS_SIGN,
-    API_CERTIFICATES_ACME_CERTS_REVOKE,
-
+    API_CERTIFICATES_CSR_GET,
+    # CSR endpoints
+    API_CERTIFICATES_CSR_SEARCH,
     # Service endpoints
     API_CERTIFICATES_SERVICE_RECONFIGURE,
 )
@@ -73,13 +67,16 @@ logger = logging.getLogger("opnsense-mcp")
 
 # ========== HELPER FUNCTIONS ==========
 
+
 async def get_opnsense_client():
     """Get OPNsense client from configuration module."""
     from .configuration import get_opnsense_client as get_client
+
     return await get_client()
 
 
 # ========== CERTIFICATE AUTHORITIES ==========
+
 
 @mcp.tool(name="list_certificate_authorities", description="List all Certificate Authorities (CAs)")
 async def list_certificate_authorities(ctx: Context) -> str:
@@ -100,7 +97,10 @@ async def list_certificate_authorities(ctx: Context) -> str:
         return await handle_tool_error(ctx, "list_certificate_authorities", e)
 
 
-@mcp.tool(name="get_certificate_authority", description="Get detailed information about a specific Certificate Authority")
+@mcp.tool(
+    name="get_certificate_authority",
+    description="Get detailed information about a specific Certificate Authority",
+)
 async def get_certificate_authority(ctx: Context, ca_uuid: str) -> str:
     """Get detailed information about a specific Certificate Authority.
 
@@ -125,10 +125,20 @@ async def get_certificate_authority(ctx: Context, ca_uuid: str) -> str:
 
 
 @mcp.tool(name="create_certificate_authority", description="Create a new Certificate Authority")
-async def create_certificate_authority(ctx: Context, descr: str, country: str, state: str, city: str,
-                                     organization: str, organizational_unit: str = "", common_name: str = "",
-                                     digest_alg: str = "sha256", key_length: int = 2048,
-                                     lifetime: int = 3650, dn_email: str = "") -> str:
+async def create_certificate_authority(
+    ctx: Context,
+    descr: str,
+    country: str,
+    state: str,
+    city: str,
+    organization: str,
+    organizational_unit: str = "",
+    common_name: str = "",
+    digest_alg: str = "sha256",
+    key_length: int = 2048,
+    lifetime: int = 3650,
+    dn_email: str = "",
+) -> str:
     """Create a new Certificate Authority.
 
     Args:
@@ -178,8 +188,8 @@ async def create_certificate_authority(ctx: Context, descr: str, country: str, s
                 "descr": descr,
                 "caref": "",  # Will be generated
                 "refid": "",  # Will be generated
-                "crt": "",    # Will be generated
-                "prv": "",    # Will be generated
+                "crt": "",  # Will be generated
+                "prv": "",  # Will be generated
                 "serial": "",  # Will be generated
                 "dn": {
                     "countryName": country,
@@ -188,11 +198,11 @@ async def create_certificate_authority(ctx: Context, descr: str, country: str, s
                     "organizationName": organization,
                     "organizationalUnitName": organizational_unit,
                     "commonName": common_name,
-                    "emailAddress": dn_email
+                    "emailAddress": dn_email,
                 },
                 "digest_alg": digest_alg,
                 "keylen": str(key_length),
-                "lifetime": str(lifetime)
+                "lifetime": str(lifetime),
             }
         }
 
@@ -237,7 +247,9 @@ async def delete_certificate_authority(ctx: Context, ca_uuid: str) -> str:
         return await handle_tool_error(ctx, "delete_certificate_authority", e)
 
 
-@mcp.tool(name="export_certificate_authority", description="Export a Certificate Authority certificate")
+@mcp.tool(
+    name="export_certificate_authority", description="Export a Certificate Authority certificate"
+)
 async def export_certificate_authority(ctx: Context, ca_uuid: str) -> str:
     """Export a Certificate Authority certificate in PEM format.
 
@@ -263,6 +275,7 @@ async def export_certificate_authority(ctx: Context, ca_uuid: str) -> str:
 
 # ========== CERTIFICATES ==========
 
+
 @mcp.tool(name="list_certificates", description="List all certificates")
 async def list_certificates(ctx: Context) -> str:
     """List all certificates configured in OPNsense.
@@ -282,7 +295,9 @@ async def list_certificates(ctx: Context) -> str:
         return await handle_tool_error(ctx, "list_certificates", e)
 
 
-@mcp.tool(name="get_certificate", description="Get detailed information about a specific certificate")
+@mcp.tool(
+    name="get_certificate", description="Get detailed information about a specific certificate"
+)
 async def get_certificate(ctx: Context, cert_uuid: str) -> str:
     """Get detailed information about a specific certificate.
 
@@ -329,17 +344,15 @@ async def import_certificate(ctx: Context, descr: str, crt: str, prv: str = "") 
 
         # Basic PEM format validation
         if not crt.strip().startswith("-----BEGIN CERTIFICATE-----"):
-            raise ValueError("Certificate must be in PEM format starting with -----BEGIN CERTIFICATE-----")
+            raise ValueError(
+                "Certificate must be in PEM format starting with -----BEGIN CERTIFICATE-----"
+            )
 
         if prv and not prv.strip().startswith("-----BEGIN"):
             raise ValueError("Private key must be in PEM format")
 
         cert_data = {
-            "cert": {
-                "descr": descr,
-                "crt": crt.strip(),
-                "prv": prv.strip() if prv else ""
-            }
+            "cert": {"descr": descr, "crt": crt.strip(), "prv": prv.strip() if prv else ""}
         }
 
         response = await client.request("POST", API_CERTIFICATES_CERT_ADD, json=cert_data)
@@ -409,7 +422,11 @@ async def export_certificate(ctx: Context, cert_uuid: str) -> str:
 
 # ========== CERTIFICATE SIGNING REQUESTS (CSRs) ==========
 
-@mcp.tool(name="list_certificate_signing_requests", description="List all Certificate Signing Requests (CSRs)")
+
+@mcp.tool(
+    name="list_certificate_signing_requests",
+    description="List all Certificate Signing Requests (CSRs)",
+)
 async def list_certificate_signing_requests(ctx: Context) -> str:
     """List all Certificate Signing Requests configured in OPNsense.
 
@@ -428,7 +445,10 @@ async def list_certificate_signing_requests(ctx: Context) -> str:
         return await handle_tool_error(ctx, "list_certificate_signing_requests", e)
 
 
-@mcp.tool(name="get_certificate_signing_request", description="Get detailed information about a specific CSR")
+@mcp.tool(
+    name="get_certificate_signing_request",
+    description="Get detailed information about a specific CSR",
+)
 async def get_certificate_signing_request(ctx: Context, csr_uuid: str) -> str:
     """Get detailed information about a specific Certificate Signing Request.
 
@@ -452,11 +472,23 @@ async def get_certificate_signing_request(ctx: Context, csr_uuid: str) -> str:
         return await handle_tool_error(ctx, "get_certificate_signing_request", e)
 
 
-@mcp.tool(name="create_certificate_signing_request", description="Create a new Certificate Signing Request")
-async def create_certificate_signing_request(ctx: Context, descr: str, country: str, state: str, city: str,
-                                           organization: str, common_name: str, organizational_unit: str = "",
-                                           digest_alg: str = "sha256", key_length: int = 2048,
-                                           dn_email: str = "") -> str:
+@mcp.tool(
+    name="create_certificate_signing_request",
+    description="Create a new Certificate Signing Request",
+)
+async def create_certificate_signing_request(
+    ctx: Context,
+    descr: str,
+    country: str,
+    state: str,
+    city: str,
+    organization: str,
+    common_name: str,
+    organizational_unit: str = "",
+    digest_alg: str = "sha256",
+    key_length: int = 2048,
+    dn_email: str = "",
+) -> str:
     """Create a new Certificate Signing Request.
 
     Args:
@@ -506,10 +538,10 @@ async def create_certificate_signing_request(ctx: Context, descr: str, country: 
                     "organizationName": organization,
                     "organizationalUnitName": organizational_unit,
                     "commonName": common_name,
-                    "emailAddress": dn_email
+                    "emailAddress": dn_email,
                 },
                 "digest_alg": digest_alg,
-                "keylen": str(key_length)
+                "keylen": str(key_length),
             }
         }
 
@@ -520,7 +552,9 @@ async def create_certificate_signing_request(ctx: Context, descr: str, country: 
         return await handle_tool_error(ctx, "create_certificate_signing_request", e)
 
 
-@mcp.tool(name="delete_certificate_signing_request", description="Delete a Certificate Signing Request")
+@mcp.tool(
+    name="delete_certificate_signing_request", description="Delete a Certificate Signing Request"
+)
 async def delete_certificate_signing_request(ctx: Context, csr_uuid: str) -> str:
     """Delete a Certificate Signing Request.
 
@@ -546,6 +580,7 @@ async def delete_certificate_signing_request(ctx: Context, csr_uuid: str) -> str
 
 # ========== ACME ACCOUNTS ==========
 
+
 @mcp.tool(name="list_acme_accounts", description="List all ACME (Let's Encrypt) accounts")
 async def list_acme_accounts(ctx: Context) -> str:
     """List all ACME (Let's Encrypt) accounts configured in OPNsense.
@@ -565,7 +600,9 @@ async def list_acme_accounts(ctx: Context) -> str:
         return await handle_tool_error(ctx, "list_acme_accounts", e)
 
 
-@mcp.tool(name="get_acme_account", description="Get detailed information about a specific ACME account")
+@mcp.tool(
+    name="get_acme_account", description="Get detailed information about a specific ACME account"
+)
 async def get_acme_account(ctx: Context, account_uuid: str) -> str:
     """Get detailed information about a specific ACME account.
 
@@ -582,7 +619,9 @@ async def get_acme_account(ctx: Context, account_uuid: str) -> str:
         if not account_uuid:
             raise ValueError("ACME account UUID is required")
 
-        response = await client.request("GET", f"{API_CERTIFICATES_ACME_ACCOUNTS_GET}/{account_uuid}")
+        response = await client.request(
+            "GET", f"{API_CERTIFICATES_ACME_ACCOUNTS_GET}/{account_uuid}"
+        )
         return json.dumps(response, indent=2)
 
     except Exception as e:
@@ -590,9 +629,13 @@ async def get_acme_account(ctx: Context, account_uuid: str) -> str:
 
 
 @mcp.tool(name="create_acme_account", description="Create a new ACME (Let's Encrypt) account")
-async def create_acme_account(ctx: Context, name: str, email: str,
-                            ca_url: str = "https://acme-v02.api.letsencrypt.org/directory",
-                            key_length: int = 2048) -> str:
+async def create_acme_account(
+    ctx: Context,
+    name: str,
+    email: str,
+    ca_url: str = "https://acme-v02.api.letsencrypt.org/directory",
+    key_length: int = 2048,
+) -> str:
     """Create a new ACME (Let's Encrypt) account.
 
     Args:
@@ -627,11 +670,13 @@ async def create_acme_account(ctx: Context, name: str, email: str,
                 "name": name,
                 "email": email,
                 "ca_url": ca_url,
-                "key_length": str(key_length)
+                "key_length": str(key_length),
             }
         }
 
-        response = await client.request("POST", API_CERTIFICATES_ACME_ACCOUNTS_ADD, json=account_data)
+        response = await client.request(
+            "POST", API_CERTIFICATES_ACME_ACCOUNTS_ADD, json=account_data
+        )
         return json.dumps(response, indent=2)
 
     except Exception as e:
@@ -655,7 +700,9 @@ async def delete_acme_account(ctx: Context, account_uuid: str) -> str:
         if not account_uuid:
             raise ValueError("ACME account UUID is required")
 
-        response = await client.request("POST", f"{API_CERTIFICATES_ACME_ACCOUNTS_DEL}/{account_uuid}")
+        response = await client.request(
+            "POST", f"{API_CERTIFICATES_ACME_ACCOUNTS_DEL}/{account_uuid}"
+        )
         return json.dumps(response, indent=2)
 
     except Exception as e:
@@ -663,6 +710,7 @@ async def delete_acme_account(ctx: Context, account_uuid: str) -> str:
 
 
 # ========== ACME CERTIFICATES ==========
+
 
 @mcp.tool(name="list_acme_certificates", description="List all ACME (Let's Encrypt) certificates")
 async def list_acme_certificates(ctx: Context) -> str:
@@ -683,7 +731,10 @@ async def list_acme_certificates(ctx: Context) -> str:
         return await handle_tool_error(ctx, "list_acme_certificates", e)
 
 
-@mcp.tool(name="get_acme_certificate", description="Get detailed information about a specific ACME certificate")
+@mcp.tool(
+    name="get_acme_certificate",
+    description="Get detailed information about a specific ACME certificate",
+)
 async def get_acme_certificate(ctx: Context, cert_uuid: str) -> str:
     """Get detailed information about a specific ACME certificate.
 
@@ -707,10 +758,18 @@ async def get_acme_certificate(ctx: Context, cert_uuid: str) -> str:
         return await handle_tool_error(ctx, "get_acme_certificate", e)
 
 
-@mcp.tool(name="create_acme_certificate", description="Create a new ACME (Let's Encrypt) certificate")
-async def create_acme_certificate(ctx: Context, name: str, account_uuid: str, common_name: str,
-                                alternative_names: str = "", key_length: int = 2048,
-                                auto_renewal: bool = True) -> str:
+@mcp.tool(
+    name="create_acme_certificate", description="Create a new ACME (Let's Encrypt) certificate"
+)
+async def create_acme_certificate(
+    ctx: Context,
+    name: str,
+    account_uuid: str,
+    common_name: str,
+    alternative_names: str = "",
+    key_length: int = 2048,
+    auto_renewal: bool = True,
+) -> str:
     """Create a new ACME (Let's Encrypt) certificate.
 
     Args:
@@ -745,7 +804,7 @@ async def create_acme_certificate(ctx: Context, name: str, account_uuid: str, co
                 "common_name": common_name,
                 "alternative_names": alternative_names.strip(),
                 "key_length": str(key_length),
-                "auto_renewal": "1" if auto_renewal else "0"
+                "auto_renewal": "1" if auto_renewal else "0",
             }
         }
 
@@ -756,7 +815,9 @@ async def create_acme_certificate(ctx: Context, name: str, account_uuid: str, co
         return await handle_tool_error(ctx, "create_acme_certificate", e)
 
 
-@mcp.tool(name="sign_acme_certificate", description="Sign/issue an ACME (Let's Encrypt) certificate")
+@mcp.tool(
+    name="sign_acme_certificate", description="Sign/issue an ACME (Let's Encrypt) certificate"
+)
 async def sign_acme_certificate(ctx: Context, cert_uuid: str) -> str:
     """Sign/issue an ACME (Let's Encrypt) certificate.
 
@@ -840,7 +901,11 @@ async def delete_acme_certificate(ctx: Context, cert_uuid: str) -> str:
 
 # ========== CERTIFICATE VALIDATION & MONITORING ==========
 
-@mcp.tool(name="analyze_certificate_expiration", description="Analyze certificate expiration dates and provide alerts")
+
+@mcp.tool(
+    name="analyze_certificate_expiration",
+    description="Analyze certificate expiration dates and provide alerts",
+)
 async def analyze_certificate_expiration(ctx: Context, warning_days: int = 30) -> str:
     """Analyze certificate expiration dates and provide expiration alerts.
 
@@ -870,14 +935,14 @@ async def analyze_certificate_expiration(ctx: Context, warning_days: int = 30) -
                 "expired": [],
                 "expiring_soon": [],
                 "valid": [],
-                "errors": []
+                "errors": [],
             },
             "certificate_authorities": {
                 "total": 0,
                 "expired": [],
                 "expiring_soon": [],
                 "valid": [],
-                "errors": []
+                "errors": [],
             },
             "acme_certificates": {
                 "total": 0,
@@ -885,9 +950,9 @@ async def analyze_certificate_expiration(ctx: Context, warning_days: int = 30) -
                 "expiring_soon": [],
                 "valid": [],
                 "errors": [],
-                "auto_renewal_enabled": 0
+                "auto_renewal_enabled": 0,
             },
-            "recommendations": []
+            "recommendations": [],
         }
 
         # Analyze certificates
@@ -899,14 +964,13 @@ async def analyze_certificate_expiration(ctx: Context, warning_days: int = 30) -
                     "description": cert.get("descr", "Unknown"),
                     "common_name": cert.get("CN", "Unknown"),
                     "issuer": cert.get("issuer", "Unknown"),
-                    "not_after": cert.get("not_after", "Unknown")
+                    "not_after": cert.get("not_after", "Unknown"),
                 }
 
                 if cert.get("not_after") == "Unknown" or not cert.get("not_after"):
-                    analysis["certificates"]["errors"].append({
-                        **cert_info,
-                        "error": "Cannot determine expiration date"
-                    })
+                    analysis["certificates"]["errors"].append(
+                        {**cert_info, "error": "Cannot determine expiration date"}
+                    )
                 else:
                     analysis["certificates"]["valid"].append(cert_info)
 
@@ -918,14 +982,13 @@ async def analyze_certificate_expiration(ctx: Context, warning_days: int = 30) -
                     "uuid": ca.get("uuid"),
                     "description": ca.get("descr", "Unknown"),
                     "common_name": ca.get("CN", "Unknown"),
-                    "not_after": ca.get("not_after", "Unknown")
+                    "not_after": ca.get("not_after", "Unknown"),
                 }
 
                 if ca.get("not_after") == "Unknown" or not ca.get("not_after"):
-                    analysis["certificate_authorities"]["errors"].append({
-                        **ca_info,
-                        "error": "Cannot determine expiration date"
-                    })
+                    analysis["certificate_authorities"]["errors"].append(
+                        {**ca_info, "error": "Cannot determine expiration date"}
+                    )
                 else:
                     analysis["certificate_authorities"]["valid"].append(ca_info)
 
@@ -938,7 +1001,7 @@ async def analyze_certificate_expiration(ctx: Context, warning_days: int = 30) -
                     "name": acme.get("name", "Unknown"),
                     "common_name": acme.get("common_name", "Unknown"),
                     "status": acme.get("status", "Unknown"),
-                    "auto_renewal": acme.get("auto_renewal", "0")
+                    "auto_renewal": acme.get("auto_renewal", "0"),
                 }
 
                 if acme.get("auto_renewal") == "1":
@@ -950,18 +1013,29 @@ async def analyze_certificate_expiration(ctx: Context, warning_days: int = 30) -
         recommendations = []
 
         if analysis["certificates"]["errors"]:
-            recommendations.append("Some certificates have invalid expiration dates. Review certificate configurations.")
+            recommendations.append(
+                "Some certificates have invalid expiration dates. Review certificate configurations."
+            )
 
         if analysis["certificate_authorities"]["errors"]:
-            recommendations.append("Some Certificate Authorities have invalid expiration dates. Review CA configurations.")
+            recommendations.append(
+                "Some Certificate Authorities have invalid expiration dates. Review CA configurations."
+            )
 
         if analysis["acme_certificates"]["total"] > 0:
-            auto_renewal_ratio = analysis["acme_certificates"]["auto_renewal_enabled"] / analysis["acme_certificates"]["total"]
+            auto_renewal_ratio = (
+                analysis["acme_certificates"]["auto_renewal_enabled"]
+                / analysis["acme_certificates"]["total"]
+            )
             if auto_renewal_ratio < 1.0:
-                recommendations.append(f"Only {analysis['acme_certificates']['auto_renewal_enabled']}/{analysis['acme_certificates']['total']} ACME certificates have auto-renewal enabled. Consider enabling auto-renewal for all Let's Encrypt certificates.")
+                recommendations.append(
+                    f"Only {analysis['acme_certificates']['auto_renewal_enabled']}/{analysis['acme_certificates']['total']} ACME certificates have auto-renewal enabled. Consider enabling auto-renewal for all Let's Encrypt certificates."
+                )
 
         if not recommendations:
-            recommendations.append("Certificate configuration appears healthy. Continue monitoring expiration dates.")
+            recommendations.append(
+                "Certificate configuration appears healthy. Continue monitoring expiration dates."
+            )
 
         analysis["recommendations"] = recommendations
 
@@ -971,7 +1045,10 @@ async def analyze_certificate_expiration(ctx: Context, warning_days: int = 30) -
         return await handle_tool_error(ctx, "analyze_certificate_expiration", e)
 
 
-@mcp.tool(name="validate_certificate_chain", description="Validate certificate chain and trust relationships")
+@mcp.tool(
+    name="validate_certificate_chain",
+    description="Validate certificate chain and trust relationships",
+)
 async def validate_certificate_chain(ctx: Context, cert_uuid: str) -> str:
     """Validate certificate chain and trust relationships for a specific certificate.
 
@@ -1004,7 +1081,7 @@ async def validate_certificate_chain(ctx: Context, cert_uuid: str) -> str:
                 "issuer": cert_data.get("issuer", "Unknown"),
                 "not_before": cert_data.get("not_before", "Unknown"),
                 "not_after": cert_data.get("not_after", "Unknown"),
-                "serial": cert_data.get("serial", "Unknown")
+                "serial": cert_data.get("serial", "Unknown"),
             },
             "validation_checks": {
                 "has_private_key": bool(cert_data.get("prv")),
@@ -1013,10 +1090,10 @@ async def validate_certificate_chain(ctx: Context, cert_uuid: str) -> str:
                 "chain_complete": False,
                 "self_signed": False,
                 "expired": False,
-                "not_yet_valid": False
+                "not_yet_valid": False,
             },
             "issues": [],
-            "recommendations": []
+            "recommendations": [],
         }
 
         # Basic validation checks
@@ -1027,13 +1104,19 @@ async def validate_certificate_chain(ctx: Context, cert_uuid: str) -> str:
             issues.append("Certificate data is missing")
 
         if not cert_data.get("prv"):
-            issues.append("Private key is missing - certificate cannot be used for SSL/TLS services")
-            recommendations.append("Import the private key for this certificate to enable SSL/TLS usage")
+            issues.append(
+                "Private key is missing - certificate cannot be used for SSL/TLS services"
+            )
+            recommendations.append(
+                "Import the private key for this certificate to enable SSL/TLS usage"
+            )
 
         # Check if certificate appears to be self-signed
         if cert_data.get("issuer") == cert_data.get("CN"):
             validation_result["validation_checks"]["self_signed"] = True
-            recommendations.append("Self-signed certificate detected. Consider using CA-signed certificates for production")
+            recommendations.append(
+                "Self-signed certificate detected. Consider using CA-signed certificates for production"
+            )
 
         # Get all CAs to check chain
         ca_response = await client.request("POST", API_CERTIFICATES_CA_SEARCH)
@@ -1043,9 +1126,14 @@ async def validate_certificate_chain(ctx: Context, cert_uuid: str) -> str:
                     validation_result["validation_checks"]["chain_complete"] = True
                     break
 
-        if not validation_result["validation_checks"]["chain_complete"] and not validation_result["validation_checks"]["self_signed"]:
+        if (
+            not validation_result["validation_checks"]["chain_complete"]
+            and not validation_result["validation_checks"]["self_signed"]
+        ):
             issues.append("Certificate Authority for this certificate is not found in OPNsense")
-            recommendations.append("Import the issuing Certificate Authority to complete the certificate chain")
+            recommendations.append(
+                "Import the issuing Certificate Authority to complete the certificate chain"
+            )
 
         if not issues:
             recommendations.append("Certificate appears to be properly configured")
@@ -1059,7 +1147,10 @@ async def validate_certificate_chain(ctx: Context, cert_uuid: str) -> str:
         return await handle_tool_error(ctx, "validate_certificate_chain", e)
 
 
-@mcp.tool(name="get_certificate_usage", description="Get information about where certificates are used in OPNsense")
+@mcp.tool(
+    name="get_certificate_usage",
+    description="Get information about where certificates are used in OPNsense",
+)
 async def get_certificate_usage(ctx: Context) -> str:
     """Get information about where certificates are currently used in OPNsense configuration.
 
@@ -1083,9 +1174,9 @@ async def get_certificate_usage(ctx: Context) -> str:
                 "total_certificates": 0,
                 "total_cas": 0,
                 "potentially_unused_certs": 0,
-                "potentially_unused_cas": 0
+                "potentially_unused_cas": 0,
             },
-            "recommendations": []
+            "recommendations": [],
         }
 
         # Process certificates
@@ -1097,20 +1188,24 @@ async def get_certificate_usage(ctx: Context) -> str:
                     "description": cert.get("descr", "Unknown"),
                     "common_name": cert.get("CN", "Unknown"),
                     "has_private_key": bool(cert.get("prv")),
-                    "potential_uses": []
+                    "potential_uses": [],
                 }
 
                 # Determine potential uses based on certificate properties
                 if cert.get("prv"):
-                    cert_info["potential_uses"].extend([
-                        "Web GUI HTTPS",
-                        "OpenVPN Server",
-                        "IPsec VPN",
-                        "HAProxy SSL",
-                        "Captive Portal HTTPS"
-                    ])
+                    cert_info["potential_uses"].extend(
+                        [
+                            "Web GUI HTTPS",
+                            "OpenVPN Server",
+                            "IPsec VPN",
+                            "HAProxy SSL",
+                            "Captive Portal HTTPS",
+                        ]
+                    )
                 else:
-                    cert_info["potential_uses"].append("Client authentication only (no private key)")
+                    cert_info["potential_uses"].append(
+                        "Client authentication only (no private key)"
+                    )
 
                 # Simple heuristic for unused certificates
                 if not cert.get("prv"):
@@ -1130,8 +1225,8 @@ async def get_certificate_usage(ctx: Context) -> str:
                         "Certificate chain validation",
                         "Client certificate authority",
                         "OpenVPN CA",
-                        "IPsec Certificate Authority"
-                    ]
+                        "IPsec Certificate Authority",
+                    ],
                 }
                 usage_info["certificate_authorities"].append(ca_info)
 
@@ -1139,16 +1234,24 @@ async def get_certificate_usage(ctx: Context) -> str:
         recommendations = []
 
         if usage_info["usage_summary"]["potentially_unused_certs"] > 0:
-            recommendations.append(f"{usage_info['usage_summary']['potentially_unused_certs']} certificates lack private keys and may be unused. Consider cleaning up unused certificates.")
+            recommendations.append(
+                f"{usage_info['usage_summary']['potentially_unused_certs']} certificates lack private keys and may be unused. Consider cleaning up unused certificates."
+            )
 
         if usage_info["usage_summary"]["total_certificates"] == 0:
-            recommendations.append("No certificates configured. Consider setting up SSL/TLS certificates for secure services.")
+            recommendations.append(
+                "No certificates configured. Consider setting up SSL/TLS certificates for secure services."
+            )
 
         if usage_info["usage_summary"]["total_cas"] == 0:
-            recommendations.append("No Certificate Authorities configured. Consider setting up a CA for internal certificate management.")
+            recommendations.append(
+                "No Certificate Authorities configured. Consider setting up a CA for internal certificate management."
+            )
 
         if not recommendations:
-            recommendations.append("Certificate inventory appears reasonable. Review individual certificate usage as needed.")
+            recommendations.append(
+                "Certificate inventory appears reasonable. Review individual certificate usage as needed."
+            )
 
         usage_info["recommendations"] = recommendations
 

@@ -8,12 +8,12 @@ Tests to verify that credentials are never exposed in:
 - Configuration output
 """
 
-import pytest
-import logging
 import json
+import logging
 import os
-from pathlib import Path
-from unittest.mock import patch, Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 from mcp.server.fastmcp import Context
 
 from src.opnsense_mcp.core.config_loader import ConfigLoader
@@ -37,10 +37,10 @@ def secure_config_setup(tmp_path, monkeypatch):
             "url": "https://192.168.1.1",
             "api_key": "SENSITIVE_API_KEY_12345",
             "api_secret": "SENSITIVE_SECRET_67890",
-            "verify_ssl": True
+            "verify_ssl": True,
         }
     }
-    with open(config_file, 'w') as f:
+    with open(config_file, "w") as f:
         json.dump(config_data, f)
     os.chmod(config_file, 0o600)
 
@@ -57,7 +57,7 @@ class TestCredentialLeakagePrevention:
         mock_ctx.info = AsyncMock()
         mock_ctx.error = AsyncMock()
 
-        with patch('src.opnsense_mcp.domains.configuration.server_state') as mock_state:
+        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
             mock_state.initialize = AsyncMock()
 
             result = await configure_opnsense_connection(mock_ctx, profile="default")
@@ -73,7 +73,7 @@ class TestCredentialLeakagePrevention:
         mock_ctx.info = AsyncMock()
         mock_ctx.error = AsyncMock()
 
-        with patch('src.opnsense_mcp.domains.configuration.server_state') as mock_state:
+        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
             # Simulate authentication error
             mock_state.initialize = AsyncMock(side_effect=Exception("Auth failed"))
 
@@ -89,7 +89,7 @@ class TestCredentialLeakagePrevention:
             url="https://192.168.1.1",
             api_key="SENSITIVE_API_KEY_12345",
             api_secret="SENSITIVE_SECRET_67890",
-            verify_ssl=True
+            verify_ssl=True,
         )
 
         repr_output = repr(config)
@@ -127,7 +127,7 @@ class TestCredentialLeakagePrevention:
         mock_ctx.info = AsyncMock()
         mock_ctx.error = AsyncMock()
 
-        with patch('src.opnsense_mcp.domains.configuration.server_state') as mock_state:
+        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
             mock_state.initialize = AsyncMock()
 
             await configure_opnsense_connection(mock_ctx, profile="default")
@@ -142,7 +142,7 @@ class TestCredentialLeakagePrevention:
     def test_config_file_json_readable_but_protected(self, secure_config_setup):
         """Test that config file is readable JSON but has secure permissions."""
         # Should be able to read as JSON
-        with open(secure_config_setup, 'r') as f:
+        with open(secure_config_setup) as f:
             config_data = json.load(f)
 
         assert "default" in config_data
@@ -157,6 +157,7 @@ class TestCredentialLeakagePrevention:
     async def test_tool_signature_no_credential_parameters(self):
         """Test that tool signature doesn't accept credentials as parameters."""
         import inspect
+
         sig = inspect.signature(configure_opnsense_connection)
 
         # Should only have ctx and profile parameters

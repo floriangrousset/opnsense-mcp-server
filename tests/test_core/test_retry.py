@@ -5,18 +5,18 @@ This module tests the retry logic with exponential backoff for handling
 transient failures in API operations.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
-import asyncio
-from unittest.mock import AsyncMock, patch, Mock
-from src.opnsense_mcp.core.retry import RetryConfig, retry_with_backoff
+
 from src.opnsense_mcp.core.exceptions import (
-    NetworkError,
-    TimeoutError,
     APIError,
+    NetworkError,
     RateLimitError,
+    TimeoutError,
     ValidationError,
-    ConfigurationError,
 )
+from src.opnsense_mcp.core.retry import RetryConfig, retry_with_backoff
 
 
 class TestRetryConfig:
@@ -39,7 +39,7 @@ class TestRetryConfig:
             base_delay=2.0,
             max_delay=120.0,
             exponential_backoff=False,
-            retryable_errors=[NetworkError]
+            retryable_errors=[NetworkError],
         )
 
         assert config.max_attempts == 5
@@ -79,10 +79,7 @@ class TestRetryWithBackoff:
         mock_func = AsyncMock(return_value="result")
 
         result = await retry_with_backoff(
-            mock_func,
-            "arg1", "arg2",
-            kwarg1="value1",
-            kwarg2="value2"
+            mock_func, "arg1", "arg2", kwarg1="value1", kwarg2="value2"
         )
 
         assert result == "result"
@@ -90,15 +87,17 @@ class TestRetryWithBackoff:
 
     async def test_retry_on_network_error(self):
         """Test retry behavior on NetworkError."""
-        mock_func = AsyncMock(side_effect=[
-            NetworkError("Connection failed"),
-            NetworkError("Connection failed again"),
-            "success"
-        ])
+        mock_func = AsyncMock(
+            side_effect=[
+                NetworkError("Connection failed"),
+                NetworkError("Connection failed again"),
+                "success",
+            ]
+        )
 
         config = RetryConfig(max_attempts=3, base_delay=0.01)
 
-        with patch('src.opnsense_mcp.core.retry.logger') as mock_logger:
+        with patch("src.opnsense_mcp.core.retry.logger") as mock_logger:
             result = await retry_with_backoff(mock_func, retry_config=config)
 
         assert result == "success"
@@ -107,10 +106,7 @@ class TestRetryWithBackoff:
 
     async def test_retry_on_timeout_error(self):
         """Test retry behavior on TimeoutError."""
-        mock_func = AsyncMock(side_effect=[
-            TimeoutError("Request timed out"),
-            "success"
-        ])
+        mock_func = AsyncMock(side_effect=[TimeoutError("Request timed out"), "success"])
 
         config = RetryConfig(max_attempts=3, base_delay=0.01)
         result = await retry_with_backoff(mock_func, retry_config=config)
@@ -120,10 +116,7 @@ class TestRetryWithBackoff:
 
     async def test_retry_on_api_error(self):
         """Test retry behavior on APIError."""
-        mock_func = AsyncMock(side_effect=[
-            APIError("API error", status_code=500),
-            "success"
-        ])
+        mock_func = AsyncMock(side_effect=[APIError("API error", status_code=500), "success"])
 
         config = RetryConfig(max_attempts=3, base_delay=0.01)
         result = await retry_with_backoff(mock_func, retry_config=config)
@@ -133,10 +126,7 @@ class TestRetryWithBackoff:
 
     async def test_retry_on_rate_limit_error(self):
         """Test retry behavior on RateLimitError."""
-        mock_func = AsyncMock(side_effect=[
-            RateLimitError("Rate limit exceeded"),
-            "success"
-        ])
+        mock_func = AsyncMock(side_effect=[RateLimitError("Rate limit exceeded"), "success"])
 
         config = RetryConfig(max_attempts=3, base_delay=0.01)
         result = await retry_with_backoff(mock_func, retry_config=config)
@@ -170,20 +160,15 @@ class TestRetryWithBackoff:
 
     async def test_exponential_backoff_delays(self):
         """Test that exponential backoff calculates correct delays."""
-        mock_func = AsyncMock(side_effect=[
-            NetworkError("Fail 1"),
-            NetworkError("Fail 2"),
-            "success"
-        ])
-
-        config = RetryConfig(
-            max_attempts=3,
-            base_delay=1.0,
-            max_delay=10.0,
-            exponential_backoff=True
+        mock_func = AsyncMock(
+            side_effect=[NetworkError("Fail 1"), NetworkError("Fail 2"), "success"]
         )
 
-        with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+        config = RetryConfig(
+            max_attempts=3, base_delay=1.0, max_delay=10.0, exponential_backoff=True
+        )
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             result = await retry_with_backoff(mock_func, retry_config=config)
 
         assert result == "success"
@@ -195,21 +180,23 @@ class TestRetryWithBackoff:
 
     async def test_max_delay_cap(self):
         """Test that delays are capped at max_delay."""
-        mock_func = AsyncMock(side_effect=[
-            NetworkError("Fail 1"),
-            NetworkError("Fail 2"),
-            NetworkError("Fail 3"),
-            "success"
-        ])
+        mock_func = AsyncMock(
+            side_effect=[
+                NetworkError("Fail 1"),
+                NetworkError("Fail 2"),
+                NetworkError("Fail 3"),
+                "success",
+            ]
+        )
 
         config = RetryConfig(
             max_attempts=4,
             base_delay=10.0,
             max_delay=15.0,  # Cap at 15 seconds
-            exponential_backoff=True
+            exponential_backoff=True,
         )
 
-        with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             result = await retry_with_backoff(mock_func, retry_config=config)
 
         assert result == "success"
@@ -222,19 +209,13 @@ class TestRetryWithBackoff:
 
     async def test_linear_backoff(self):
         """Test linear backoff (exponential_backoff=False)."""
-        mock_func = AsyncMock(side_effect=[
-            NetworkError("Fail 1"),
-            NetworkError("Fail 2"),
-            "success"
-        ])
-
-        config = RetryConfig(
-            max_attempts=3,
-            base_delay=2.0,
-            exponential_backoff=False
+        mock_func = AsyncMock(
+            side_effect=[NetworkError("Fail 1"), NetworkError("Fail 2"), "success"]
         )
 
-        with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+        config = RetryConfig(max_attempts=3, base_delay=2.0, exponential_backoff=False)
+
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             result = await retry_with_backoff(mock_func, retry_config=config)
 
         assert result == "success"
@@ -246,17 +227,10 @@ class TestRetryWithBackoff:
 
     async def test_custom_retryable_errors(self):
         """Test retry with custom retryable error list."""
-        mock_func = AsyncMock(side_effect=[
-            NetworkError("Network error"),
-            "success"
-        ])
+        mock_func = AsyncMock(side_effect=[NetworkError("Network error"), "success"])
 
         # Only retry on NetworkError, not other errors
-        config = RetryConfig(
-            max_attempts=3,
-            base_delay=0.01,
-            retryable_errors=[NetworkError]
-        )
+        config = RetryConfig(max_attempts=3, base_delay=0.01, retryable_errors=[NetworkError])
 
         result = await retry_with_backoff(mock_func, retry_config=config)
 
@@ -268,11 +242,7 @@ class TestRetryWithBackoff:
         mock_func = AsyncMock(side_effect=APIError("API error"))
 
         # Only NetworkError is retryable
-        config = RetryConfig(
-            max_attempts=3,
-            base_delay=0.01,
-            retryable_errors=[NetworkError]
-        )
+        config = RetryConfig(max_attempts=3, base_delay=0.01, retryable_errors=[NetworkError])
 
         with pytest.raises(APIError):
             await retry_with_backoff(mock_func, retry_config=config)
@@ -281,10 +251,7 @@ class TestRetryWithBackoff:
 
     async def test_default_config_when_none_provided(self):
         """Test that default RetryConfig is used when none provided."""
-        mock_func = AsyncMock(side_effect=[
-            NetworkError("Fail"),
-            "success"
-        ])
+        mock_func = AsyncMock(side_effect=[NetworkError("Fail"), "success"])
 
         # Don't provide retry_config - should use defaults
         result = await retry_with_backoff(mock_func)
@@ -294,14 +261,11 @@ class TestRetryWithBackoff:
 
     async def test_zero_delay_immediate_retry(self):
         """Test immediate retry with zero delay."""
-        mock_func = AsyncMock(side_effect=[
-            NetworkError("Fail"),
-            "success"
-        ])
+        mock_func = AsyncMock(side_effect=[NetworkError("Fail"), "success"])
 
         config = RetryConfig(max_attempts=2, base_delay=0.0)
 
-        with patch('asyncio.sleep', new_callable=AsyncMock) as mock_sleep:
+        with patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             result = await retry_with_backoff(mock_func, retry_config=config)
 
         assert result == "success"
@@ -320,14 +284,11 @@ class TestRetryWithBackoff:
 
     async def test_logging_on_retry(self):
         """Test that retry attempts are logged."""
-        mock_func = AsyncMock(side_effect=[
-            NetworkError("Connection failed"),
-            "success"
-        ])
+        mock_func = AsyncMock(side_effect=[NetworkError("Connection failed"), "success"])
 
         config = RetryConfig(max_attempts=2, base_delay=0.01)
 
-        with patch('src.opnsense_mcp.core.retry.logger') as mock_logger:
+        with patch("src.opnsense_mcp.core.retry.logger") as mock_logger:
             await retry_with_backoff(mock_func, retry_config=config)
 
         # Should log the retry attempt
@@ -356,7 +317,9 @@ class TestRetryWithBackoff:
 
     async def test_exception_details_preserved(self):
         """Test that exception details are preserved through retries."""
-        original_error = APIError("Server error", status_code=503, response_text="Service unavailable")
+        original_error = APIError(
+            "Server error", status_code=503, response_text="Service unavailable"
+        )
         mock_func = AsyncMock(side_effect=original_error)
 
         config = RetryConfig(max_attempts=2, base_delay=0.01)

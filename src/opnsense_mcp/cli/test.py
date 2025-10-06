@@ -4,22 +4,18 @@ OPNsense MCP Server - Test Connection Command
 Test connection to OPNsense firewall.
 """
 
-import typer
-from typing import Optional
 import asyncio
 
-from ..core.config_loader import ConfigLoader
+import typer
+
 from ..core.client import OPNsenseClient
-from ..core.exceptions import ConfigurationError, AuthenticationError, NetworkError
+from ..core.config_loader import ConfigLoader
+from ..core.exceptions import AuthenticationError, ConfigurationError, NetworkError
 from ..shared.constants import API_CORE_FIRMWARE_STATUS
 
 
 def test_command(
-    profile: str = typer.Option(
-        "default",
-        "--profile", "-p",
-        help="Profile name to test"
-    )
+    profile: str = typer.Option("default", "--profile", "-p", help="Profile name to test")
 ):
     """
     Test connection to OPNsense firewall.
@@ -31,7 +27,7 @@ def test_command(
         # Test specific profile
         opnsense-mcp test-connection --profile production
     """
-    typer.echo(f"\n🔍 Testing OPNsense Connection\n")
+    typer.echo("\n🔍 Testing OPNsense Connection\n")
     typer.echo(f"Profile: {typer.style(profile, fg=typer.colors.CYAN, bold=True)}\n")
 
     try:
@@ -49,7 +45,9 @@ def test_command(
         result = asyncio.run(_test_connection_async(config))
 
         if result["success"]:
-            typer.echo(f"\n✅ {typer.style('Connection successful!', fg=typer.colors.GREEN, bold=True)}")
+            typer.echo(
+                f"\n✅ {typer.style('Connection successful!', fg=typer.colors.GREEN, bold=True)}"
+            )
 
             if result.get("firmware_status"):
                 typer.echo("\n📊 System Information:")
@@ -59,8 +57,8 @@ def test_command(
                 if "product_version" in status:
                     typer.echo(f"   Version: {status['product_version']}")
 
-            typer.echo(f"\n✓ Your OPNsense connection is properly configured")
-            typer.echo(f"✓ You can now use this profile in Claude Desktop")
+            typer.echo("\n✓ Your OPNsense connection is properly configured")
+            typer.echo("✓ You can now use this profile in Claude Desktop")
 
         else:
             typer.echo(f"\n❌ {typer.style('Connection failed', fg=typer.colors.RED, bold=True)}")
@@ -99,28 +97,16 @@ async def _test_connection_async(config):
         # Try to fetch firmware status (basic API call)
         response = await client.request("GET", API_CORE_FIRMWARE_STATUS)
 
-        return {
-            "success": True,
-            "firmware_status": response
-        }
+        return {"success": True, "firmware_status": response}
 
     except AuthenticationError as e:
-        return {
-            "success": False,
-            "error": f"Authentication failed: {str(e)}"
-        }
+        return {"success": False, "error": f"Authentication failed: {e!s}"}
 
     except NetworkError as e:
-        return {
-            "success": False,
-            "error": f"Network error: {str(e)}"
-        }
+        return {"success": False, "error": f"Network error: {e!s}"}
 
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e)
-        }
+        return {"success": False, "error": str(e)}
 
     finally:
         if client:

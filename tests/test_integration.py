@@ -5,9 +5,10 @@ This module contains integration tests that verify the interaction between
 different components of the system.
 """
 
-import pytest
 import sys
-from unittest.mock import AsyncMock, Mock, patch, MagicMock
+from unittest.mock import AsyncMock, MagicMock, Mock, patch
+
+import pytest
 from mcp.server.fastmcp import FastMCP
 
 # Mock the circular import with proper FastMCP instance
@@ -16,7 +17,7 @@ mock_server_state = MagicMock()
 mock_main = MagicMock()
 mock_main.mcp = mock_mcp
 mock_main.server_state = mock_server_state
-sys.modules['src.opnsense_mcp.main'] = mock_main
+sys.modules["src.opnsense_mcp.main"] = mock_main
 
 
 @pytest.mark.asyncio
@@ -29,9 +30,9 @@ class TestEndToEndWorkflows:
         from src.opnsense_mcp.domains.configuration import configure_opnsense_connection
         from src.opnsense_mcp.domains.system import get_system_status
 
-        with patch('src.opnsense_mcp.domains.configuration.server_state') as mock_state, \
-             patch('src.opnsense_mcp.domains.system.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
-
+        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state, patch(
+            "src.opnsense_mcp.domains.system.get_opnsense_client", new_callable=AsyncMock
+        ) as mock_get_client:
             # Configure connection
             mock_state.initialize = AsyncMock()
             config_result = await configure_opnsense_connection(
@@ -39,18 +40,20 @@ class TestEndToEndWorkflows:
                 url="https://192.168.1.1",
                 api_key="test_key",
                 api_secret="test_secret",
-                verify_ssl=False
+                verify_ssl=False,
             )
 
             assert "configured successfully" in config_result
 
             # Get system status
             mock_client = Mock()
-            mock_client.request = AsyncMock(side_effect=[
-                {"product_version": "24.1.1"},  # Firmware
-                {"hostname": "opnsense.local"},  # System
-                {"rows": [{"name": "sshd"}]}  # Services
-            ])
+            mock_client.request = AsyncMock(
+                side_effect=[
+                    {"product_version": "24.1.1"},  # Firmware
+                    {"hostname": "opnsense.local"},  # System
+                    {"rows": [{"name": "sshd"}]},  # Services
+                ]
+            )
             mock_get_client.return_value = mock_client
 
             status_result = await get_system_status(ctx=mock_mcp_context)
@@ -61,18 +64,19 @@ class TestEndToEndWorkflows:
         """Test firewall rule create, retrieve, delete workflow."""
         from src.opnsense_mcp.domains.firewall import (
             firewall_add_rule,
+            firewall_delete_rule,
             firewall_get_rules,
-            firewall_delete_rule
         )
 
-        with patch('src.opnsense_mcp.domains.firewall.get_opnsense_client', new_callable=AsyncMock) as mock_get_client:
+        with patch(
+            "src.opnsense_mcp.domains.firewall.get_opnsense_client", new_callable=AsyncMock
+        ) as mock_get_client:
             mock_client = Mock()
 
             # Add rule
-            mock_client.request = AsyncMock(return_value={
-                "result": "saved",
-                "uuid": "12345678-1234-1234-1234-123456789abc"
-            })
+            mock_client.request = AsyncMock(
+                return_value={"result": "saved", "uuid": "12345678-1234-1234-1234-123456789abc"}
+            )
             mock_get_client.return_value = mock_client
 
             add_result = await firewall_add_rule(
@@ -83,15 +87,19 @@ class TestEndToEndWorkflows:
                 direction="in",
                 protocol="tcp",
                 source_net="any",
-                destination_net="any"
+                destination_net="any",
             )
 
             assert "success" in add_result.lower() or "saved" in add_result.lower()
 
             # Get rules
-            mock_client.request = AsyncMock(return_value={
-                "rows": [{"uuid": "12345678-1234-1234-1234-123456789abc", "description": "Test rule"}]
-            })
+            mock_client.request = AsyncMock(
+                return_value={
+                    "rows": [
+                        {"uuid": "12345678-1234-1234-1234-123456789abc", "description": "Test rule"}
+                    ]
+                }
+            )
 
             get_result = await firewall_get_rules(ctx=mock_mcp_context)
             assert "12345678-1234-1234-1234-123456789abc" in get_result
@@ -100,8 +108,7 @@ class TestEndToEndWorkflows:
             mock_client.request = AsyncMock(return_value={"result": "deleted"})
 
             delete_result = await firewall_delete_rule(
-                ctx=mock_mcp_context,
-                uuid="12345678-1234-1234-1234-123456789abc"
+                ctx=mock_mcp_context, uuid="12345678-1234-1234-1234-123456789abc"
             )
 
             assert "success" in delete_result.lower() or "deleted" in delete_result.lower()
@@ -122,7 +129,7 @@ class TestComponentIntegration:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
         pool = ConnectionPool()
@@ -133,22 +140,21 @@ class TestComponentIntegration:
 
     async def test_server_state_client_integration(self):
         """Test integration between server state and client."""
-        from src.opnsense_mcp.core.state import ServerState
         from src.opnsense_mcp.core.models import OPNsenseConfig
+        from src.opnsense_mcp.core.state import ServerState
 
         config = OPNsenseConfig(
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
         state = ServerState()
 
-        with patch('src.opnsense_mcp.core.connection.ConnectionPool') as MockPool, \
-             patch('src.opnsense_mcp.core.state.keyring'), \
-             patch('src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS', '/api/test'):
-
+        with patch("src.opnsense_mcp.core.connection.ConnectionPool") as MockPool, patch(
+            "src.opnsense_mcp.core.state.keyring"
+        ), patch("src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS", "/api/test"):
             mock_pool = Mock()
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"status": "ok"})
@@ -162,16 +168,12 @@ class TestComponentIntegration:
 
     async def test_error_handler_with_tools(self, mock_mcp_context):
         """Test error handling integration with tools."""
-        from src.opnsense_mcp.shared.error_handlers import handle_tool_error
         from src.opnsense_mcp.core.exceptions import APIError
+        from src.opnsense_mcp.shared.error_handlers import handle_tool_error
 
         error = APIError("Test error", status_code=500)
 
-        result = await handle_tool_error(
-            mock_mcp_context,
-            "test_operation",
-            error
-        )
+        result = await handle_tool_error(mock_mcp_context, "test_operation", error)
 
         assert "Error:" in result
         mock_mcp_context.error.assert_called_once()
@@ -191,7 +193,7 @@ class TestDataFlow:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
         client = OPNsenseClient(config)
@@ -211,16 +213,17 @@ class TestDataFlow:
 
     async def test_retry_integration(self):
         """Test retry mechanism integration with client."""
+        import httpx
+
         from src.opnsense_mcp.core.client import OPNsenseClient
         from src.opnsense_mcp.core.models import OPNsenseConfig
         from src.opnsense_mcp.core.retry import RetryConfig
-        import httpx
 
         config = OPNsenseConfig(
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
         client = OPNsenseClient(config)
@@ -231,10 +234,9 @@ class TestDataFlow:
         mock_response.json.return_value = {"status": "ok"}
         mock_response.content = b'{"status": "ok"}'
 
-        client.client.get = AsyncMock(side_effect=[
-            httpx.TimeoutException("Timeout"),
-            mock_response
-        ])
+        client.client.get = AsyncMock(
+            side_effect=[httpx.TimeoutException("Timeout"), mock_response]
+        )
 
         retry_config = RetryConfig(max_attempts=2, base_delay=0.01)
 

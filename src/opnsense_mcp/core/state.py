@@ -8,15 +8,16 @@ import json
 import logging
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
+
 import keyring
 
-from .models import OPNsenseConfig
 from .exceptions import ConfigurationError
+from .models import OPNsenseConfig
 
 if TYPE_CHECKING:
-    from .connection import ConnectionPool
     from .client import OPNsenseClient
+    from .connection import ConnectionPool
 
 logger = logging.getLogger("opnsense-mcp")
 
@@ -25,11 +26,11 @@ logger = logging.getLogger("opnsense-mcp")
 class ServerState:
     """Managed server state with proper lifecycle."""
 
-    config: Optional[OPNsenseConfig] = None
-    pool: Optional['ConnectionPool'] = None
-    session_created: Optional[datetime] = None
+    config: OPNsenseConfig | None = None
+    pool: Optional["ConnectionPool"] = None
+    session_created: datetime | None = None
     session_ttl: timedelta = timedelta(hours=1)  # 1 hour session timeout
-    _current_profile: Optional[str] = None  # Track which profile is loaded
+    _current_profile: str | None = None  # Track which profile is loaded
 
     async def initialize(self, config: OPNsenseConfig):
         """Initialize server state with validation.
@@ -41,8 +42,8 @@ class ServerState:
             ConfigurationError: If initialization fails
         """
         # Import here to avoid circular dependency
-        from .connection import ConnectionPool
         from ..shared.constants import API_CORE_FIRMWARE_STATUS
+        from .connection import ConnectionPool
 
         await self.cleanup()
 
@@ -76,7 +77,7 @@ class ServerState:
             "url": config.url,
             "api_key": config.api_key,
             "api_secret": config.api_secret,
-            "verify_ssl": config.verify_ssl
+            "verify_ssl": config.verify_ssl,
         }
 
         keyring.set_password(service_name, username, json.dumps(credentials))
@@ -98,12 +99,12 @@ class ServerState:
             Changes to verify_ssl don't trigger reinitialization.
         """
         return (
-            new_config.url != old_config.url or
-            new_config.api_key != old_config.api_key or
-            new_config.api_secret != old_config.api_secret
+            new_config.url != old_config.url
+            or new_config.api_key != old_config.api_key
+            or new_config.api_secret != old_config.api_secret
         )
 
-    async def get_client(self) -> 'OPNsenseClient':
+    async def get_client(self) -> "OPNsenseClient":
         """Get OPNsense client with session validation and credential rotation detection.
 
         Returns:
@@ -119,7 +120,9 @@ class ServerState:
             - Profile changes
         """
         if not self.config or not self.pool:
-            raise ConfigurationError("OPNsense client not configured. Use configure_opnsense_connection first.")
+            raise ConfigurationError(
+                "OPNsense client not configured. Use configure_opnsense_connection first."
+            )
 
         # Check session expiry
         if self.session_created and datetime.now() - self.session_created > self.session_ttl:
@@ -130,6 +133,7 @@ class ServerState:
         if self._current_profile:
             try:
                 from .config_loader import ConfigLoader
+
                 current_config = ConfigLoader.load(self._current_profile)
 
                 if self._config_changed(current_config, self.config):

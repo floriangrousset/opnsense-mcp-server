@@ -5,27 +5,28 @@ This module tests the error handling helpers including error severity,
 error response formatting, and validation utilities.
 """
 
-import pytest
-from unittest.mock import AsyncMock, Mock
 from datetime import datetime
+from unittest.mock import AsyncMock, Mock
 
-from src.opnsense_mcp.shared.error_handlers import (
-    ErrorSeverity,
-    ErrorResponse,
-    handle_tool_error,
-    validate_uuid,
-    validate_firewall_parameters
-)
+import pytest
+
 from src.opnsense_mcp.core.exceptions import (
+    APIError,
     AuthenticationError,
     AuthorizationError,
-    NetworkError,
     ConfigurationError,
-    ValidationError,
-    APIError,
-    TimeoutError,
+    NetworkError,
+    RateLimitError,
     ResourceNotFoundError,
-    RateLimitError
+    TimeoutError,
+    ValidationError,
+)
+from src.opnsense_mcp.shared.error_handlers import (
+    ErrorResponse,
+    ErrorSeverity,
+    handle_tool_error,
+    validate_firewall_parameters,
+    validate_uuid,
 )
 
 
@@ -34,10 +35,10 @@ class TestErrorSeverity:
 
     def test_severity_levels_defined(self):
         """Test that all severity levels are defined."""
-        assert hasattr(ErrorSeverity, 'LOW')
-        assert hasattr(ErrorSeverity, 'MEDIUM')
-        assert hasattr(ErrorSeverity, 'HIGH')
-        assert hasattr(ErrorSeverity, 'CRITICAL')
+        assert hasattr(ErrorSeverity, "LOW")
+        assert hasattr(ErrorSeverity, "MEDIUM")
+        assert hasattr(ErrorSeverity, "HIGH")
+        assert hasattr(ErrorSeverity, "CRITICAL")
 
     def test_severity_values(self):
         """Test that severity levels have correct string values."""
@@ -364,11 +365,7 @@ class TestValidateFirewallParameters:
         """Test that valid firewall parameters pass validation."""
         # Should not raise any exception
         validate_firewall_parameters(
-            action="pass",
-            direction="in",
-            ipprotocol="inet",
-            protocol="tcp",
-            operation="test_op"
+            action="pass", direction="in", ipprotocol="inet", protocol="tcp", operation="test_op"
         )
 
     def test_all_valid_actions(self):
@@ -377,11 +374,7 @@ class TestValidateFirewallParameters:
 
         for action in valid_actions:
             validate_firewall_parameters(
-                action=action,
-                direction="in",
-                ipprotocol="inet",
-                protocol="tcp",
-                operation="test"
+                action=action, direction="in", ipprotocol="inet", protocol="tcp", operation="test"
             )
 
     def test_all_valid_directions(self):
@@ -394,7 +387,7 @@ class TestValidateFirewallParameters:
                 direction=direction,
                 ipprotocol="inet",
                 protocol="tcp",
-                operation="test"
+                operation="test",
             )
 
     def test_all_valid_ipprotocols(self):
@@ -407,7 +400,7 @@ class TestValidateFirewallParameters:
                 direction="in",
                 ipprotocol=ipprotocol,
                 protocol="tcp",
-                operation="test"
+                operation="test",
             )
 
     def test_all_valid_protocols(self):
@@ -420,7 +413,7 @@ class TestValidateFirewallParameters:
                 direction="in",
                 ipprotocol="inet",
                 protocol=protocol,
-                operation="test"
+                operation="test",
             )
 
     def test_invalid_action_raises_error(self):
@@ -431,7 +424,7 @@ class TestValidateFirewallParameters:
                 direction="in",
                 ipprotocol="inet",
                 protocol="tcp",
-                operation="test_op"
+                operation="test_op",
             )
 
         assert "Invalid action" in str(exc_info.value)
@@ -446,7 +439,7 @@ class TestValidateFirewallParameters:
                 direction="sideways",
                 ipprotocol="inet",
                 protocol="tcp",
-                operation="test_op"
+                operation="test_op",
             )
 
         assert "Invalid direction" in str(exc_info.value)
@@ -459,7 +452,7 @@ class TestValidateFirewallParameters:
                 direction="in",
                 ipprotocol="ipv4",
                 protocol="tcp",
-                operation="test_op"
+                operation="test_op",
             )
 
         assert "Invalid IP protocol" in str(exc_info.value)
@@ -472,7 +465,7 @@ class TestValidateFirewallParameters:
                 direction="in",
                 ipprotocol="inet",
                 protocol="http",
-                operation="test_op"
+                operation="test_op",
             )
 
         assert "Invalid protocol" in str(exc_info.value)
@@ -485,7 +478,7 @@ class TestValidateFirewallParameters:
                 direction="in",
                 ipprotocol="inet",
                 protocol="tcp",
-                operation="add_rule"
+                operation="add_rule",
             )
 
         assert exc_info.value.context["operation"] == "add_rule"

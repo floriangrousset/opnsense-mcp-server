@@ -5,20 +5,21 @@ This module provides command-line interface for managing OPNsense credentials
 and profiles securely without exposing them to the LLM.
 """
 
-import typer
-from typing import Optional
 import sys
+from typing import Optional
 
-from .setup import setup_command
-from .list import list_command
-from .test import test_command
+import typer
+
 from .delete import delete_command
+from .list import list_command
+from .setup import setup_command
+from .test import test_command
 
 # Create main CLI app
 app = typer.Typer(
     name="opnsense-mcp",
     help="OPNsense MCP Server - Secure credential management",
-    add_completion=False
+    add_completion=False,
 )
 
 # Register commands

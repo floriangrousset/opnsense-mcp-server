@@ -5,10 +5,12 @@ This module tests the basic OPNsense client functionality including initializati
 request/response logging, and client lifecycle management.
 """
 
-import pytest
 import json
 import logging
-from unittest.mock import Mock, patch, AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+
 from src.opnsense_mcp.core.client import OPNsenseClient, RequestResponseLogger
 from src.opnsense_mcp.core.models import OPNsenseConfig
 
@@ -29,9 +31,7 @@ class TestRequestResponseLogger:
         req_logger = RequestResponseLogger(mock_logger)
 
         req_logger.log_request(
-            method="GET",
-            url="https://192.168.1.1/api/core/system",
-            operation="get_system_status"
+            method="GET", url="https://192.168.1.1/api/core/system", operation="get_system_status"
         )
 
         mock_logger.info.assert_called_once()
@@ -46,16 +46,13 @@ class TestRequestResponseLogger:
         mock_logger = Mock(spec=logging.Logger)
         req_logger = RequestResponseLogger(mock_logger)
 
-        headers = {
-            "Authorization": "Basic dGVzdDp0ZXN0",
-            "Content-Type": "application/json"
-        }
+        headers = {"Authorization": "Basic dGVzdDp0ZXN0", "Content-Type": "application/json"}
 
         req_logger.log_request(
             method="POST",
             url="https://192.168.1.1/api/core/system",
             headers=headers,
-            operation="test_operation"
+            operation="test_operation",
         )
 
         log_message = mock_logger.info.call_args[0][0]
@@ -69,16 +66,9 @@ class TestRequestResponseLogger:
         mock_logger = Mock(spec=logging.Logger)
         req_logger = RequestResponseLogger(mock_logger)
 
-        headers = {
-            "X-Api-Key": "secret_api_key_12345",
-            "Accept": "application/json"
-        }
+        headers = {"X-Api-Key": "secret_api_key_12345", "Accept": "application/json"}
 
-        req_logger.log_request(
-            method="GET",
-            url="https://192.168.1.1/api/test",
-            headers=headers
-        )
+        req_logger.log_request(method="GET", url="https://192.168.1.1/api/test", headers=headers)
 
         log_message = mock_logger.info.call_args[0][0]
         log_data = json.loads(log_message.replace("API Request: ", ""))
@@ -93,11 +83,7 @@ class TestRequestResponseLogger:
 
         data = {"key": "value", "number": 123}
 
-        req_logger.log_request(
-            method="POST",
-            url="https://192.168.1.1/api/test",
-            data=data
-        )
+        req_logger.log_request(method="POST", url="https://192.168.1.1/api/test", data=data)
 
         log_message = mock_logger.info.call_args[0][0]
         log_data = json.loads(log_message.replace("API Request: ", ""))
@@ -109,10 +95,7 @@ class TestRequestResponseLogger:
         mock_logger = Mock(spec=logging.Logger)
         req_logger = RequestResponseLogger(mock_logger)
 
-        req_logger.log_request(
-            method="GET",
-            url="https://192.168.1.1/api/test"
-        )
+        req_logger.log_request(method="GET", url="https://192.168.1.1/api/test")
 
         log_message = mock_logger.info.call_args[0][0]
         log_data = json.loads(log_message.replace("API Request: ", ""))
@@ -125,10 +108,7 @@ class TestRequestResponseLogger:
         req_logger = RequestResponseLogger(mock_logger)
 
         req_logger.log_response(
-            status_code=200,
-            response_size=1024,
-            duration_ms=250.5,
-            operation="test_operation"
+            status_code=200, response_size=1024, duration_ms=250.5, operation="test_operation"
         )
 
         mock_logger.log.assert_called_once()
@@ -156,7 +136,7 @@ class TestRequestResponseLogger:
             response_size=512,
             duration_ms=100.0,
             operation="test_operation",
-            error=error
+            error=error,
         )
 
         mock_logger.log.assert_called_once()
@@ -177,10 +157,7 @@ class TestRequestResponseLogger:
         req_logger = RequestResponseLogger(mock_logger)
 
         req_logger.log_response(
-            status_code=204,
-            response_size=None,
-            duration_ms=None,
-            operation="test_operation"
+            status_code=204, response_size=None, duration_ms=None, operation="test_operation"
         )
 
         mock_logger.log.assert_called_once()
@@ -201,10 +178,10 @@ class TestOPNsenseClientBasic:
             url="https://192.168.1.1",
             api_key="test_key",
             api_secret="test_secret",
-            verify_ssl=False
+            verify_ssl=False,
         )
 
-        with patch('src.opnsense_mcp.core.client.logger') as mock_logger:
+        with patch("src.opnsense_mcp.core.client.logger") as mock_logger:
             client = OPNsenseClient(config)
 
             assert client.base_url == "https://192.168.1.1"
@@ -220,9 +197,7 @@ class TestOPNsenseClientBasic:
     def test_client_initialization_with_trailing_slash(self):
         """Test that trailing slash is removed from base URL."""
         config = OPNsenseConfig(
-            url="https://192.168.1.1/",
-            api_key="test_key",
-            api_secret="test_secret"
+            url="https://192.168.1.1/", api_key="test_key", api_secret="test_secret"
         )
 
         client = OPNsenseClient(config)
@@ -233,9 +208,7 @@ class TestOPNsenseClientBasic:
     def test_client_initialization_with_pool(self):
         """Test initializing client with connection pool."""
         config = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="test_key",
-            api_secret="test_secret"
+            url="https://192.168.1.1", api_key="test_key", api_secret="test_secret"
         )
         mock_pool = Mock()
 
@@ -246,9 +219,7 @@ class TestOPNsenseClientBasic:
     def test_client_auth_header_generation(self):
         """Test that authentication header is properly generated."""
         config = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="test_key",
-            api_secret="test_secret"
+            url="https://192.168.1.1", api_key="test_key", api_secret="test_secret"
         )
 
         client = OPNsenseClient(config)
@@ -258,16 +229,14 @@ class TestOPNsenseClientBasic:
 
         # Verify it's base64 encoded
         import base64
+
         decoded = base64.b64decode(client.auth_header).decode()
         assert decoded == "test_key:test_secret"
 
     def test_client_httpx_configuration(self):
         """Test that httpx client is properly configured."""
         config = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="test_key",
-            api_secret="test_secret",
-            verify_ssl=True
+            url="https://192.168.1.1", api_key="test_key", api_secret="test_secret", verify_ssl=True
         )
 
         client = OPNsenseClient(config)
@@ -280,9 +249,7 @@ class TestOPNsenseClientBasic:
     async def test_client_close(self):
         """Test closing the client."""
         config = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="test_key",
-            api_secret="test_secret"
+            url="https://192.168.1.1", api_key="test_key", api_secret="test_secret"
         )
 
         client = OPNsenseClient(config)
@@ -297,10 +264,7 @@ class TestOPNsenseClientBasic:
     def test_client_with_different_ssl_settings(self):
         """Test client with SSL verification enabled."""
         config = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="test_key",
-            api_secret="test_secret",
-            verify_ssl=True
+            url="https://192.168.1.1", api_key="test_key", api_secret="test_secret", verify_ssl=True
         )
 
         client = OPNsenseClient(config)
@@ -310,9 +274,7 @@ class TestOPNsenseClientBasic:
     def test_client_with_http_url(self):
         """Test client with HTTP (non-SSL) URL."""
         config = OPNsenseConfig(
-            url="http://192.168.1.1",
-            api_key="test_key",
-            api_secret="test_secret"
+            url="http://192.168.1.1", api_key="test_key", api_secret="test_secret"
         )
 
         client = OPNsenseClient(config)
@@ -322,9 +284,7 @@ class TestOPNsenseClientBasic:
     def test_client_with_port_number(self):
         """Test client with custom port number in URL."""
         config = OPNsenseConfig(
-            url="https://192.168.1.1:8443",
-            api_key="test_key",
-            api_secret="test_secret"
+            url="https://192.168.1.1:8443", api_key="test_key", api_secret="test_secret"
         )
 
         client = OPNsenseClient(config)
@@ -334,9 +294,7 @@ class TestOPNsenseClientBasic:
     def test_client_with_domain_name(self):
         """Test client with domain name instead of IP."""
         config = OPNsenseConfig(
-            url="https://opnsense.example.com",
-            api_key="test_key",
-            api_secret="test_secret"
+            url="https://opnsense.example.com", api_key="test_key", api_secret="test_secret"
         )
 
         client = OPNsenseClient(config)
@@ -345,16 +303,8 @@ class TestOPNsenseClientBasic:
 
     def test_multiple_clients_with_different_configs(self):
         """Test creating multiple clients with different configurations."""
-        config1 = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="key1",
-            api_secret="secret1"
-        )
-        config2 = OPNsenseConfig(
-            url="https://192.168.1.2",
-            api_key="key2",
-            api_secret="secret2"
-        )
+        config1 = OPNsenseConfig(url="https://192.168.1.1", api_key="key1", api_secret="secret1")
+        config2 = OPNsenseConfig(url="https://192.168.1.2", api_key="key2", api_secret="secret2")
 
         client1 = OPNsenseClient(config1)
         client2 = OPNsenseClient(config2)
@@ -366,9 +316,7 @@ class TestOPNsenseClientBasic:
     async def test_client_lifecycle(self):
         """Test complete client lifecycle (create, use, close)."""
         config = OPNsenseConfig(
-            url="https://192.168.1.1",
-            api_key="test_key",
-            api_secret="test_secret"
+            url="https://192.168.1.1", api_key="test_key", api_secret="test_secret"
         )
 
         client = OPNsenseClient(config)

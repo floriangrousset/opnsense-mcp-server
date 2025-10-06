@@ -17,57 +17,56 @@ All configuration changes trigger automatic reconfiguration to apply settings im
 import json
 import logging
 import re
-from typing import Optional
 
 from mcp.server.fastmcp import Context
 
 from ..main import mcp
-from ..core import OPNsenseClient, ValidationError
 from ..shared.constants import (
-    # Interface Overview
-    API_INTERFACES_OVERVIEW_INFO,
-    API_INTERFACES_OVERVIEW_GET_INTERFACE,
-    API_INTERFACES_OVERVIEW_RELOAD_INTERFACE,
-    API_INTERFACES_OVERVIEW_EXPORT,
     # DHCP Leases
     API_DHCP_LEASES_SEARCH,
-    # VLAN Management
-    API_INTERFACES_VLAN_SEARCH,
-    API_INTERFACES_VLAN_GET,
-    API_INTERFACES_VLAN_ADD,
-    API_INTERFACES_VLAN_SET,
-    API_INTERFACES_VLAN_DEL,
-    API_INTERFACES_VLAN_RECONFIGURE,
+    API_INTERFACES_BRIDGE_ADD,
+    API_INTERFACES_BRIDGE_DEL,
+    API_INTERFACES_BRIDGE_GET,
+    API_INTERFACES_BRIDGE_RECONFIGURE,
     # Bridge Management
     API_INTERFACES_BRIDGE_SEARCH,
-    API_INTERFACES_BRIDGE_GET,
-    API_INTERFACES_BRIDGE_ADD,
     API_INTERFACES_BRIDGE_SET,
-    API_INTERFACES_BRIDGE_DEL,
-    API_INTERFACES_BRIDGE_RECONFIGURE,
+    API_INTERFACES_LAGG_ADD,
+    API_INTERFACES_LAGG_DEL,
+    API_INTERFACES_LAGG_GET,
+    API_INTERFACES_LAGG_RECONFIGURE,
     # LAGG Management
     API_INTERFACES_LAGG_SEARCH,
-    API_INTERFACES_LAGG_GET,
-    API_INTERFACES_LAGG_ADD,
     API_INTERFACES_LAGG_SET,
-    API_INTERFACES_LAGG_DEL,
-    API_INTERFACES_LAGG_RECONFIGURE,
-    # Virtual IP Management
-    API_INTERFACES_VIP_SEARCH,
-    API_INTERFACES_VIP_GET,
+    API_INTERFACES_OVERVIEW_EXPORT,
+    API_INTERFACES_OVERVIEW_GET_INTERFACE,
+    # Interface Overview
+    API_INTERFACES_OVERVIEW_INFO,
+    API_INTERFACES_OVERVIEW_RELOAD_INTERFACE,
     API_INTERFACES_VIP_ADD,
-    API_INTERFACES_VIP_SET,
     API_INTERFACES_VIP_DEL,
+    API_INTERFACES_VIP_GET,
     API_INTERFACES_VIP_GET_UNUSED_VHID,
     API_INTERFACES_VIP_RECONFIGURE,
+    # Virtual IP Management
+    API_INTERFACES_VIP_SEARCH,
+    API_INTERFACES_VIP_SET,
+    API_INTERFACES_VLAN_ADD,
+    API_INTERFACES_VLAN_DEL,
+    API_INTERFACES_VLAN_GET,
+    API_INTERFACES_VLAN_RECONFIGURE,
+    # VLAN Management
+    API_INTERFACES_VLAN_SEARCH,
+    API_INTERFACES_VLAN_SET,
 )
-from ..shared.error_handlers import handle_tool_error, validate_uuid
+from ..shared.error_handlers import handle_tool_error
 from .configuration import get_opnsense_client
 
 logger = logging.getLogger("opnsense-mcp")
 
 
 # ========== HELPER FUNCTIONS ==========
+
 
 def is_valid_uuid(uuid: str) -> bool:
     """Validate UUID format.
@@ -79,13 +78,13 @@ def is_valid_uuid(uuid: str) -> bool:
         True if valid UUID format, False otherwise
     """
     uuid_pattern = re.compile(
-        r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$',
-        re.IGNORECASE
+        r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE
     )
     return bool(uuid_pattern.match(uuid))
 
 
 # ========== INTERFACE MANAGEMENT ==========
+
 
 @mcp.tool(name="get_interfaces", description="Get network interfaces")
 async def get_interfaces(ctx: Context) -> str:
@@ -123,11 +122,10 @@ async def get_dhcp_leases(ctx: Context) -> str:
         return await handle_tool_error(ctx, "get_dhcp_leases", e)
 
 
-@mcp.tool(name="get_interface_details", description="Get detailed information for a specific interface")
-async def get_interface_details(
-    ctx: Context,
-    interface: str
-) -> str:
+@mcp.tool(
+    name="get_interface_details", description="Get detailed information for a specific interface"
+)
+async def get_interface_details(ctx: Context, interface: str) -> str:
     """Get detailed information for a specific interface.
 
     Args:
@@ -145,7 +143,7 @@ async def get_interface_details(
         response = await client.request(
             "GET",
             f"{API_INTERFACES_OVERVIEW_GET_INTERFACE}/{interface}",
-            operation=f"get_interface_details_{interface}"
+            operation=f"get_interface_details_{interface}",
         )
 
         return json.dumps(response, indent=2)
@@ -155,10 +153,7 @@ async def get_interface_details(
 
 
 @mcp.tool(name="reload_interface", description="Reload configuration for a specific interface")
-async def reload_interface(
-    ctx: Context,
-    interface: str
-) -> str:
+async def reload_interface(ctx: Context, interface: str) -> str:
     """Reload configuration for a specific interface.
 
     Args:
@@ -176,7 +171,7 @@ async def reload_interface(
         response = await client.request(
             "GET",
             f"{API_INTERFACES_OVERVIEW_RELOAD_INTERFACE}/{interface}",
-            operation=f"reload_interface_{interface}"
+            operation=f"reload_interface_{interface}",
         )
 
         return json.dumps(response, indent=2)
@@ -195,9 +190,7 @@ async def export_interface_config(ctx: Context) -> str:
     try:
         client = await get_opnsense_client()
         response = await client.request(
-            "GET",
-            API_INTERFACES_OVERVIEW_EXPORT,
-            operation="export_interface_config"
+            "GET", API_INTERFACES_OVERVIEW_EXPORT, operation="export_interface_config"
         )
 
         return json.dumps(response, indent=2)
@@ -208,11 +201,9 @@ async def export_interface_config(ctx: Context) -> str:
 
 # ========== VLAN MANAGEMENT ==========
 
+
 @mcp.tool(name="list_vlan_interfaces", description="List all VLAN interfaces")
-async def list_vlan_interfaces(
-    ctx: Context,
-    search_phrase: str = ""
-) -> str:
+async def list_vlan_interfaces(ctx: Context, search_phrase: str = "") -> str:
     """List all VLAN interfaces with optional search filtering.
 
     Args:
@@ -229,10 +220,7 @@ async def list_vlan_interfaces(
             params["searchPhrase"] = search_phrase
 
         response = await client.request(
-            "POST",
-            API_INTERFACES_VLAN_SEARCH,
-            data=params,
-            operation="list_vlan_interfaces"
+            "POST", API_INTERFACES_VLAN_SEARCH, data=params, operation="list_vlan_interfaces"
         )
 
         return json.dumps(response, indent=2)
@@ -242,10 +230,7 @@ async def list_vlan_interfaces(
 
 
 @mcp.tool(name="get_vlan_interface", description="Get VLAN interface configuration")
-async def get_vlan_interface(
-    ctx: Context,
-    uuid: str
-) -> str:
+async def get_vlan_interface(ctx: Context, uuid: str) -> str:
     """Get specific VLAN interface configuration by UUID.
 
     Args:
@@ -261,9 +246,7 @@ async def get_vlan_interface(
     try:
         client = await get_opnsense_client()
         response = await client.request(
-            "GET",
-            f"{API_INTERFACES_VLAN_GET}/{uuid}",
-            operation=f"get_vlan_interface_{uuid[:8]}"
+            "GET", f"{API_INTERFACES_VLAN_GET}/{uuid}", operation=f"get_vlan_interface_{uuid[:8]}"
         )
 
         return json.dumps(response, indent=2)
@@ -274,10 +257,7 @@ async def get_vlan_interface(
 
 @mcp.tool(name="create_vlan_interface", description="Create a new VLAN interface")
 async def create_vlan_interface(
-    ctx: Context,
-    parent_interface: str,
-    vlan_tag: int,
-    description: str = ""
+    ctx: Context, parent_interface: str, vlan_tag: int, description: str = ""
 ) -> str:
     """Create a new VLAN interface.
 
@@ -291,37 +271,27 @@ async def create_vlan_interface(
         JSON string of operation result
     """
     if not all([parent_interface, vlan_tag]):
-        return json.dumps({
-            "error": "Parent interface and VLAN tag are required"
-        }, indent=2)
+        return json.dumps({"error": "Parent interface and VLAN tag are required"}, indent=2)
 
     # Validate VLAN tag range
     if not (1 <= vlan_tag <= 4094):
-        return json.dumps({
-            "error": "VLAN tag must be between 1 and 4094"
-        }, indent=2)
+        return json.dumps({"error": "VLAN tag must be between 1 and 4094"}, indent=2)
 
     try:
         client = await get_opnsense_client()
-        vlan_data = {
-            "if": parent_interface,
-            "tag": str(vlan_tag),
-            "descr": description
-        }
+        vlan_data = {"if": parent_interface, "tag": str(vlan_tag), "descr": description}
 
         response = await client.request(
             "POST",
             API_INTERFACES_VLAN_ADD,
             data={"vlan": vlan_data},
-            operation="create_vlan_interface"
+            operation="create_vlan_interface",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await client.request(
-                "POST",
-                API_INTERFACES_VLAN_RECONFIGURE,
-                operation="apply_vlan_config"
+                "POST", API_INTERFACES_VLAN_RECONFIGURE, operation="apply_vlan_config"
             )
 
         return json.dumps(response, indent=2)
@@ -332,11 +302,7 @@ async def create_vlan_interface(
 
 @mcp.tool(name="update_vlan_interface", description="Update VLAN interface configuration")
 async def update_vlan_interface(
-    ctx: Context,
-    uuid: str,
-    parent_interface: str = "",
-    vlan_tag: int = 0,
-    description: str = ""
+    ctx: Context, uuid: str, parent_interface: str = "", vlan_tag: int = 0, description: str = ""
 ) -> str:
     """Update existing VLAN interface configuration.
 
@@ -355,17 +321,13 @@ async def update_vlan_interface(
 
     # Validate VLAN tag if provided
     if vlan_tag > 0 and not (1 <= vlan_tag <= 4094):
-        return json.dumps({
-            "error": "VLAN tag must be between 1 and 4094"
-        }, indent=2)
+        return json.dumps({"error": "VLAN tag must be between 1 and 4094"}, indent=2)
 
     try:
         client = await get_opnsense_client()
         # Get current VLAN configuration
         current = await client.request(
-            "GET",
-            f"{API_INTERFACES_VLAN_GET}/{uuid}",
-            operation=f"get_current_vlan_{uuid[:8]}"
+            "GET", f"{API_INTERFACES_VLAN_GET}/{uuid}", operation=f"get_current_vlan_{uuid[:8]}"
         )
 
         if not current or "vlan" not in current:
@@ -384,15 +346,13 @@ async def update_vlan_interface(
             "POST",
             f"{API_INTERFACES_VLAN_SET}/{uuid}",
             data={"vlan": vlan_data},
-            operation=f"update_vlan_interface_{uuid[:8]}"
+            operation=f"update_vlan_interface_{uuid[:8]}",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await client.request(
-                "POST",
-                API_INTERFACES_VLAN_RECONFIGURE,
-                operation="apply_vlan_config"
+                "POST", API_INTERFACES_VLAN_RECONFIGURE, operation="apply_vlan_config"
             )
 
         return json.dumps(response, indent=2)
@@ -402,10 +362,7 @@ async def update_vlan_interface(
 
 
 @mcp.tool(name="delete_vlan_interface", description="Delete a VLAN interface")
-async def delete_vlan_interface(
-    ctx: Context,
-    uuid: str
-) -> str:
+async def delete_vlan_interface(ctx: Context, uuid: str) -> str:
     """Delete a VLAN interface by UUID.
 
     Args:
@@ -423,15 +380,13 @@ async def delete_vlan_interface(
         response = await client.request(
             "POST",
             f"{API_INTERFACES_VLAN_DEL}/{uuid}",
-            operation=f"delete_vlan_interface_{uuid[:8]}"
+            operation=f"delete_vlan_interface_{uuid[:8]}",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await client.request(
-                "POST",
-                API_INTERFACES_VLAN_RECONFIGURE,
-                operation="apply_vlan_config"
+                "POST", API_INTERFACES_VLAN_RECONFIGURE, operation="apply_vlan_config"
             )
 
         return json.dumps(response, indent=2)
@@ -442,11 +397,9 @@ async def delete_vlan_interface(
 
 # ========== BRIDGE MANAGEMENT ==========
 
+
 @mcp.tool(name="list_bridge_interfaces", description="List all bridge interfaces")
-async def list_bridge_interfaces(
-    ctx: Context,
-    search_phrase: str = ""
-) -> str:
+async def list_bridge_interfaces(ctx: Context, search_phrase: str = "") -> str:
     """List all bridge interfaces with optional search filtering.
 
     Args:
@@ -463,10 +416,7 @@ async def list_bridge_interfaces(
             params["searchPhrase"] = search_phrase
 
         response = await client.request(
-            "POST",
-            API_INTERFACES_BRIDGE_SEARCH,
-            data=params,
-            operation="list_bridge_interfaces"
+            "POST", API_INTERFACES_BRIDGE_SEARCH, data=params, operation="list_bridge_interfaces"
         )
 
         return json.dumps(response, indent=2)
@@ -476,10 +426,7 @@ async def list_bridge_interfaces(
 
 
 @mcp.tool(name="get_bridge_interface", description="Get bridge interface configuration")
-async def get_bridge_interface(
-    ctx: Context,
-    uuid: str
-) -> str:
+async def get_bridge_interface(ctx: Context, uuid: str) -> str:
     """Get specific bridge interface configuration by UUID.
 
     Args:
@@ -497,7 +444,7 @@ async def get_bridge_interface(
         response = await client.request(
             "GET",
             f"{API_INTERFACES_BRIDGE_GET}/{uuid}",
-            operation=f"get_bridge_interface_{uuid[:8]}"
+            operation=f"get_bridge_interface_{uuid[:8]}",
         )
 
         return json.dumps(response, indent=2)
@@ -508,10 +455,7 @@ async def get_bridge_interface(
 
 @mcp.tool(name="create_bridge_interface", description="Create a new bridge interface")
 async def create_bridge_interface(
-    ctx: Context,
-    description: str,
-    member_interfaces: str = "",
-    stp_enabled: bool = False
+    ctx: Context, description: str, member_interfaces: str = "", stp_enabled: bool = False
 ) -> str:
     """Create a new bridge interface.
 
@@ -525,16 +469,11 @@ async def create_bridge_interface(
         JSON string of operation result
     """
     if not description:
-        return json.dumps({
-            "error": "Description is required"
-        }, indent=2)
+        return json.dumps({"error": "Description is required"}, indent=2)
 
     try:
         client = await get_opnsense_client()
-        bridge_data = {
-            "descr": description,
-            "stp": "1" if stp_enabled else "0"
-        }
+        bridge_data = {"descr": description, "stp": "1" if stp_enabled else "0"}
 
         if member_interfaces:
             bridge_data["members"] = member_interfaces
@@ -543,15 +482,13 @@ async def create_bridge_interface(
             "POST",
             API_INTERFACES_BRIDGE_ADD,
             data={"bridge": bridge_data},
-            operation="create_bridge_interface"
+            operation="create_bridge_interface",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await client.request(
-                "POST",
-                API_INTERFACES_BRIDGE_RECONFIGURE,
-                operation="apply_bridge_config"
+                "POST", API_INTERFACES_BRIDGE_RECONFIGURE, operation="apply_bridge_config"
             )
 
         return json.dumps(response, indent=2)
@@ -566,7 +503,7 @@ async def update_bridge_interface(
     uuid: str,
     description: str = "",
     member_interfaces: str = "",
-    stp_enabled: bool = None
+    stp_enabled: bool = None,
 ) -> str:
     """Update existing bridge interface configuration.
 
@@ -587,9 +524,7 @@ async def update_bridge_interface(
         client = await get_opnsense_client()
         # Get current bridge configuration
         current = await client.request(
-            "GET",
-            f"{API_INTERFACES_BRIDGE_GET}/{uuid}",
-            operation=f"get_current_bridge_{uuid[:8]}"
+            "GET", f"{API_INTERFACES_BRIDGE_GET}/{uuid}", operation=f"get_current_bridge_{uuid[:8]}"
         )
 
         if not current or "bridge" not in current:
@@ -608,15 +543,13 @@ async def update_bridge_interface(
             "POST",
             f"{API_INTERFACES_BRIDGE_SET}/{uuid}",
             data={"bridge": bridge_data},
-            operation=f"update_bridge_interface_{uuid[:8]}"
+            operation=f"update_bridge_interface_{uuid[:8]}",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await client.request(
-                "POST",
-                API_INTERFACES_BRIDGE_RECONFIGURE,
-                operation="apply_bridge_config"
+                "POST", API_INTERFACES_BRIDGE_RECONFIGURE, operation="apply_bridge_config"
             )
 
         return json.dumps(response, indent=2)
@@ -626,10 +559,7 @@ async def update_bridge_interface(
 
 
 @mcp.tool(name="delete_bridge_interface", description="Delete a bridge interface")
-async def delete_bridge_interface(
-    ctx: Context,
-    uuid: str
-) -> str:
+async def delete_bridge_interface(ctx: Context, uuid: str) -> str:
     """Delete a bridge interface by UUID.
 
     Args:
@@ -647,15 +577,13 @@ async def delete_bridge_interface(
         response = await client.request(
             "POST",
             f"{API_INTERFACES_BRIDGE_DEL}/{uuid}",
-            operation=f"delete_bridge_interface_{uuid[:8]}"
+            operation=f"delete_bridge_interface_{uuid[:8]}",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await client.request(
-                "POST",
-                API_INTERFACES_BRIDGE_RECONFIGURE,
-                operation="apply_bridge_config"
+                "POST", API_INTERFACES_BRIDGE_RECONFIGURE, operation="apply_bridge_config"
             )
 
         return json.dumps(response, indent=2)
@@ -666,11 +594,9 @@ async def delete_bridge_interface(
 
 # ========== LAGG (LINK AGGREGATION) MANAGEMENT ==========
 
+
 @mcp.tool(name="list_lagg_interfaces", description="List all LAGG (Link Aggregation) interfaces")
-async def list_lagg_interfaces(
-    ctx: Context,
-    search_phrase: str = ""
-) -> str:
+async def list_lagg_interfaces(ctx: Context, search_phrase: str = "") -> str:
     """List all LAGG interfaces with optional search filtering.
 
     Args:
@@ -687,10 +613,7 @@ async def list_lagg_interfaces(
             params["searchPhrase"] = search_phrase
 
         response = await client.request(
-            "POST",
-            API_INTERFACES_LAGG_SEARCH,
-            data=params,
-            operation="list_lagg_interfaces"
+            "POST", API_INTERFACES_LAGG_SEARCH, data=params, operation="list_lagg_interfaces"
         )
 
         return json.dumps(response, indent=2)
@@ -700,10 +623,7 @@ async def list_lagg_interfaces(
 
 
 @mcp.tool(name="get_lagg_interface", description="Get LAGG interface configuration")
-async def get_lagg_interface(
-    ctx: Context,
-    uuid: str
-) -> str:
+async def get_lagg_interface(ctx: Context, uuid: str) -> str:
     """Get specific LAGG interface configuration by UUID.
 
     Args:
@@ -719,9 +639,7 @@ async def get_lagg_interface(
     try:
         client = await get_opnsense_client()
         response = await client.request(
-            "GET",
-            f"{API_INTERFACES_LAGG_GET}/{uuid}",
-            operation=f"get_lagg_interface_{uuid[:8]}"
+            "GET", f"{API_INTERFACES_LAGG_GET}/{uuid}", operation=f"get_lagg_interface_{uuid[:8]}"
         )
 
         return json.dumps(response, indent=2)
@@ -730,12 +648,11 @@ async def get_lagg_interface(
         return await handle_tool_error(ctx, "get_lagg_interface", e)
 
 
-@mcp.tool(name="create_lagg_interface", description="Create a new LAGG (Link Aggregation) interface")
+@mcp.tool(
+    name="create_lagg_interface", description="Create a new LAGG (Link Aggregation) interface"
+)
 async def create_lagg_interface(
-    ctx: Context,
-    description: str,
-    parent_interfaces: str,
-    protocol: str = "lacp"
+    ctx: Context, description: str, parent_interfaces: str, protocol: str = "lacp"
 ) -> str:
     """Create a new LAGG interface.
 
@@ -749,38 +666,30 @@ async def create_lagg_interface(
         JSON string of operation result
     """
     if not all([description, parent_interfaces]):
-        return json.dumps({
-            "error": "Description and parent interfaces are required"
-        }, indent=2)
+        return json.dumps({"error": "Description and parent interfaces are required"}, indent=2)
 
     # Validate protocol
     valid_protocols = ["lacp", "failover", "loadbalance", "roundrobin"]
     if protocol not in valid_protocols:
-        return json.dumps({
-            "error": f"Protocol must be one of: {', '.join(valid_protocols)}"
-        }, indent=2)
+        return json.dumps(
+            {"error": f"Protocol must be one of: {', '.join(valid_protocols)}"}, indent=2
+        )
 
     try:
         client = await get_opnsense_client()
-        lagg_data = {
-            "descr": description,
-            "members": parent_interfaces,
-            "proto": protocol
-        }
+        lagg_data = {"descr": description, "members": parent_interfaces, "proto": protocol}
 
         response = await client.request(
             "POST",
             API_INTERFACES_LAGG_ADD,
             data={"lagg": lagg_data},
-            operation="create_lagg_interface"
+            operation="create_lagg_interface",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await client.request(
-                "POST",
-                API_INTERFACES_LAGG_RECONFIGURE,
-                operation="apply_lagg_config"
+                "POST", API_INTERFACES_LAGG_RECONFIGURE, operation="apply_lagg_config"
             )
 
         return json.dumps(response, indent=2)
@@ -791,11 +700,7 @@ async def create_lagg_interface(
 
 @mcp.tool(name="update_lagg_interface", description="Update LAGG interface configuration")
 async def update_lagg_interface(
-    ctx: Context,
-    uuid: str,
-    description: str = "",
-    parent_interfaces: str = "",
-    protocol: str = ""
+    ctx: Context, uuid: str, description: str = "", parent_interfaces: str = "", protocol: str = ""
 ) -> str:
     """Update existing LAGG interface configuration.
 
@@ -816,17 +721,15 @@ async def update_lagg_interface(
     if protocol:
         valid_protocols = ["lacp", "failover", "loadbalance", "roundrobin"]
         if protocol not in valid_protocols:
-            return json.dumps({
-                "error": f"Protocol must be one of: {', '.join(valid_protocols)}"
-            }, indent=2)
+            return json.dumps(
+                {"error": f"Protocol must be one of: {', '.join(valid_protocols)}"}, indent=2
+            )
 
     try:
         client = await get_opnsense_client()
         # Get current LAGG configuration
         current = await client.request(
-            "GET",
-            f"{API_INTERFACES_LAGG_GET}/{uuid}",
-            operation=f"get_current_lagg_{uuid[:8]}"
+            "GET", f"{API_INTERFACES_LAGG_GET}/{uuid}", operation=f"get_current_lagg_{uuid[:8]}"
         )
 
         if not current or "lagg" not in current:
@@ -845,15 +748,13 @@ async def update_lagg_interface(
             "POST",
             f"{API_INTERFACES_LAGG_SET}/{uuid}",
             data={"lagg": lagg_data},
-            operation=f"update_lagg_interface_{uuid[:8]}"
+            operation=f"update_lagg_interface_{uuid[:8]}",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await client.request(
-                "POST",
-                API_INTERFACES_LAGG_RECONFIGURE,
-                operation="apply_lagg_config"
+                "POST", API_INTERFACES_LAGG_RECONFIGURE, operation="apply_lagg_config"
             )
 
         return json.dumps(response, indent=2)
@@ -863,10 +764,7 @@ async def update_lagg_interface(
 
 
 @mcp.tool(name="delete_lagg_interface", description="Delete a LAGG interface")
-async def delete_lagg_interface(
-    ctx: Context,
-    uuid: str
-) -> str:
+async def delete_lagg_interface(ctx: Context, uuid: str) -> str:
     """Delete a LAGG interface by UUID.
 
     Args:
@@ -884,15 +782,13 @@ async def delete_lagg_interface(
         response = await client.request(
             "POST",
             f"{API_INTERFACES_LAGG_DEL}/{uuid}",
-            operation=f"delete_lagg_interface_{uuid[:8]}"
+            operation=f"delete_lagg_interface_{uuid[:8]}",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await client.request(
-                "POST",
-                API_INTERFACES_LAGG_RECONFIGURE,
-                operation="apply_lagg_config"
+                "POST", API_INTERFACES_LAGG_RECONFIGURE, operation="apply_lagg_config"
             )
 
         return json.dumps(response, indent=2)
@@ -903,11 +799,9 @@ async def delete_lagg_interface(
 
 # ========== VIRTUAL IP MANAGEMENT ==========
 
+
 @mcp.tool(name="list_virtual_ips", description="List all virtual IP addresses")
-async def list_virtual_ips(
-    ctx: Context,
-    search_phrase: str = ""
-) -> str:
+async def list_virtual_ips(ctx: Context, search_phrase: str = "") -> str:
     """List all virtual IP addresses with optional search filtering.
 
     Args:
@@ -924,10 +818,7 @@ async def list_virtual_ips(
             params["searchPhrase"] = search_phrase
 
         response = await client.request(
-            "POST",
-            API_INTERFACES_VIP_SEARCH,
-            data=params,
-            operation="list_virtual_ips"
+            "POST", API_INTERFACES_VIP_SEARCH, data=params, operation="list_virtual_ips"
         )
 
         return json.dumps(response, indent=2)
@@ -937,10 +828,7 @@ async def list_virtual_ips(
 
 
 @mcp.tool(name="get_virtual_ip", description="Get virtual IP configuration")
-async def get_virtual_ip(
-    ctx: Context,
-    uuid: str
-) -> str:
+async def get_virtual_ip(ctx: Context, uuid: str) -> str:
     """Get specific virtual IP configuration by UUID.
 
     Args:
@@ -956,9 +844,7 @@ async def get_virtual_ip(
     try:
         client = await get_opnsense_client()
         response = await client.request(
-            "GET",
-            f"{API_INTERFACES_VIP_GET}/{uuid}",
-            operation=f"get_virtual_ip_{uuid[:8]}"
+            "GET", f"{API_INTERFACES_VIP_GET}/{uuid}", operation=f"get_virtual_ip_{uuid[:8]}"
         )
 
         return json.dumps(response, indent=2)
@@ -974,7 +860,7 @@ async def create_virtual_ip(
     subnet: str,
     vip_type: str = "single",
     description: str = "",
-    vhid: int = 0
+    vhid: int = 0,
 ) -> str:
     """Create a new virtual IP address.
 
@@ -990,16 +876,12 @@ async def create_virtual_ip(
         JSON string of operation result
     """
     if not all([interface, subnet]):
-        return json.dumps({
-            "error": "Interface and subnet are required"
-        }, indent=2)
+        return json.dumps({"error": "Interface and subnet are required"}, indent=2)
 
     # Validate VIP type
     valid_types = ["single", "carp", "proxyarp", "other"]
     if vip_type not in valid_types:
-        return json.dumps({
-            "error": f"VIP type must be one of: {', '.join(valid_types)}"
-        }, indent=2)
+        return json.dumps({"error": f"VIP type must be one of: {', '.join(valid_types)}"}, indent=2)
 
     try:
         client = await get_opnsense_client()
@@ -1007,7 +889,7 @@ async def create_virtual_ip(
             "interface": interface,
             "subnet": subnet,
             "type": vip_type,
-            "descr": description
+            "descr": description,
         }
 
         # Add VHID for CARP type
@@ -1016,9 +898,7 @@ async def create_virtual_ip(
                 # Get an unused VHID automatically
                 try:
                     vhid_response = await client.request(
-                        "GET",
-                        API_INTERFACES_VIP_GET_UNUSED_VHID,
-                        operation="get_unused_vhid"
+                        "GET", API_INTERFACES_VIP_GET_UNUSED_VHID, operation="get_unused_vhid"
                     )
                     if vhid_response and "vhid" in vhid_response:
                         vhid = vhid_response["vhid"]
@@ -1030,18 +910,13 @@ async def create_virtual_ip(
             vip_data["vhid"] = str(vhid)
 
         response = await client.request(
-            "POST",
-            API_INTERFACES_VIP_ADD,
-            data={"vip": vip_data},
-            operation="create_virtual_ip"
+            "POST", API_INTERFACES_VIP_ADD, data={"vip": vip_data}, operation="create_virtual_ip"
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await client.request(
-                "POST",
-                API_INTERFACES_VIP_RECONFIGURE,
-                operation="apply_vip_config"
+                "POST", API_INTERFACES_VIP_RECONFIGURE, operation="apply_vip_config"
             )
 
         return json.dumps(response, indent=2)
@@ -1058,7 +933,7 @@ async def update_virtual_ip(
     subnet: str = "",
     vip_type: str = "",
     description: str = "",
-    vhid: int = 0
+    vhid: int = 0,
 ) -> str:
     """Update existing virtual IP configuration.
 
@@ -1081,17 +956,15 @@ async def update_virtual_ip(
     if vip_type:
         valid_types = ["single", "carp", "proxyarp", "other"]
         if vip_type not in valid_types:
-            return json.dumps({
-                "error": f"VIP type must be one of: {', '.join(valid_types)}"
-            }, indent=2)
+            return json.dumps(
+                {"error": f"VIP type must be one of: {', '.join(valid_types)}"}, indent=2
+            )
 
     try:
         client = await get_opnsense_client()
         # Get current virtual IP configuration
         current = await client.request(
-            "GET",
-            f"{API_INTERFACES_VIP_GET}/{uuid}",
-            operation=f"get_current_vip_{uuid[:8]}"
+            "GET", f"{API_INTERFACES_VIP_GET}/{uuid}", operation=f"get_current_vip_{uuid[:8]}"
         )
 
         if not current or "vip" not in current:
@@ -1114,15 +987,13 @@ async def update_virtual_ip(
             "POST",
             f"{API_INTERFACES_VIP_SET}/{uuid}",
             data={"vip": vip_data},
-            operation=f"update_virtual_ip_{uuid[:8]}"
+            operation=f"update_virtual_ip_{uuid[:8]}",
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await client.request(
-                "POST",
-                API_INTERFACES_VIP_RECONFIGURE,
-                operation="apply_vip_config"
+                "POST", API_INTERFACES_VIP_RECONFIGURE, operation="apply_vip_config"
             )
 
         return json.dumps(response, indent=2)
@@ -1132,10 +1003,7 @@ async def update_virtual_ip(
 
 
 @mcp.tool(name="delete_virtual_ip", description="Delete a virtual IP address")
-async def delete_virtual_ip(
-    ctx: Context,
-    uuid: str
-) -> str:
+async def delete_virtual_ip(ctx: Context, uuid: str) -> str:
     """Delete a virtual IP address by UUID.
 
     Args:
@@ -1151,17 +1019,13 @@ async def delete_virtual_ip(
     try:
         client = await get_opnsense_client()
         response = await client.request(
-            "POST",
-            f"{API_INTERFACES_VIP_DEL}/{uuid}",
-            operation=f"delete_virtual_ip_{uuid[:8]}"
+            "POST", f"{API_INTERFACES_VIP_DEL}/{uuid}", operation=f"delete_virtual_ip_{uuid[:8]}"
         )
 
         # Apply configuration if successful
         if response and not response.get("error"):
             await client.request(
-                "POST",
-                API_INTERFACES_VIP_RECONFIGURE,
-                operation="apply_vip_config"
+                "POST", API_INTERFACES_VIP_RECONFIGURE, operation="apply_vip_config"
             )
 
         return json.dumps(response, indent=2)
@@ -1180,9 +1044,7 @@ async def get_unused_vhid(ctx: Context) -> str:
     try:
         client = await get_opnsense_client()
         response = await client.request(
-            "GET",
-            API_INTERFACES_VIP_GET_UNUSED_VHID,
-            operation="get_unused_vhid"
+            "GET", API_INTERFACES_VIP_GET_UNUSED_VHID, operation="get_unused_vhid"
         )
 
         return json.dumps(response, indent=2)

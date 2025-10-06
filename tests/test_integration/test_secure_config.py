@@ -5,15 +5,14 @@ Tests the complete flow from configuration loading to tool execution
 without exposing credentials to the LLM.
 """
 
-import pytest
 import json
 import os
-from pathlib import Path
-from unittest.mock import patch, Mock, AsyncMock
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
 from mcp.server.fastmcp import Context
 
 from src.opnsense_mcp.core.config_loader import ConfigLoader
-from src.opnsense_mcp.core.models import OPNsenseConfig
 from src.opnsense_mcp.domains.configuration import configure_opnsense_connection
 
 
@@ -33,10 +32,10 @@ def temp_config_setup(tmp_path, monkeypatch):
             "url": "https://192.168.1.1",
             "api_key": "integration_test_key",
             "api_secret": "integration_test_secret",
-            "verify_ssl": True
+            "verify_ssl": True,
         }
     }
-    with open(config_file, 'w') as f:
+    with open(config_file, "w") as f:
         json.dump(config_data, f)
     os.chmod(config_file, 0o600)
 
@@ -54,7 +53,7 @@ class TestSecureCredentialFlow:
         mock_ctx.info = AsyncMock()
         mock_ctx.error = AsyncMock()
 
-        with patch('src.opnsense_mcp.domains.configuration.server_state') as mock_state:
+        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
             mock_state.initialize = AsyncMock()
 
             # Execute tool
@@ -86,7 +85,7 @@ class TestSecureCredentialFlow:
         mock_ctx.info = AsyncMock()
         mock_ctx.error = AsyncMock()
 
-        with patch('src.opnsense_mcp.domains.configuration.server_state') as mock_state:
+        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
             mock_state.initialize = AsyncMock()
 
             result = await configure_opnsense_connection(mock_ctx, profile="default")

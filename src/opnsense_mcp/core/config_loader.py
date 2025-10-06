@@ -10,11 +10,12 @@ import json
 import logging
 import os
 from pathlib import Path
-from typing import Optional, Dict, Any, List
+from typing import Any
+
 import keyring
 
-from .models import OPNsenseConfig
 from .exceptions import ConfigurationError
+from .models import OPNsenseConfig
 
 logger = logging.getLogger("opnsense-mcp")
 
@@ -58,7 +59,7 @@ class ConfigLoader:
         # Priority 1: Environment variables
         config = cls._load_from_env()
         if config:
-            logger.info(f"Loaded configuration from environment variables")
+            logger.info("Loaded configuration from environment variables")
             return config
 
         # Priority 2: Config file
@@ -71,7 +72,9 @@ class ConfigLoader:
         config = cls._load_from_keyring(profile)
         if config:
             logger.info(f"Loaded configuration for profile '{profile}' from keyring (legacy)")
-            logger.warning("Keyring storage is deprecated. Please migrate to config file using 'opnsense-mcp setup'")
+            logger.warning(
+                "Keyring storage is deprecated. Please migrate to config file using 'opnsense-mcp setup'"
+            )
             return config
 
         # No credentials found
@@ -82,7 +85,7 @@ class ConfigLoader:
         )
 
     @classmethod
-    def _load_from_env(cls) -> Optional[OPNsenseConfig]:
+    def _load_from_env(cls) -> OPNsenseConfig | None:
         """Load configuration from environment variables."""
         url = os.getenv("OPNSENSE_URL")
         api_key = os.getenv("OPNSENSE_API_KEY")
@@ -94,17 +97,14 @@ class ConfigLoader:
 
         try:
             return OPNsenseConfig(
-                url=url,
-                api_key=api_key,
-                api_secret=api_secret,
-                verify_ssl=verify_ssl
+                url=url, api_key=api_key, api_secret=api_secret, verify_ssl=verify_ssl
             )
         except Exception as e:
             logger.error(f"Invalid credentials in environment variables: {e}")
             raise ConfigurationError(f"Invalid credentials in environment variables: {e}")
 
     @classmethod
-    def _load_from_config_file(cls, profile: str) -> Optional[OPNsenseConfig]:
+    def _load_from_config_file(cls, profile: str) -> OPNsenseConfig | None:
         """Load configuration from config file."""
         config_file = cls.DEFAULT_CONFIG_FILE
 
@@ -116,7 +116,7 @@ class ConfigLoader:
         cls._verify_file_permissions(config_file)
 
         try:
-            with open(config_file, 'r') as f:
+            with open(config_file) as f:
                 config_data = json.load(f)
 
             if profile not in config_data:
@@ -128,7 +128,7 @@ class ConfigLoader:
                 url=profile_config["url"],
                 api_key=profile_config["api_key"],
                 api_secret=profile_config["api_secret"],
-                verify_ssl=profile_config.get("verify_ssl", True)
+                verify_ssl=profile_config.get("verify_ssl", True),
             )
         except json.JSONDecodeError as e:
             logger.error(f"Invalid JSON in config file: {e}")
@@ -141,7 +141,7 @@ class ConfigLoader:
             raise ConfigurationError(f"Error loading config file: {e}")
 
     @classmethod
-    def _load_from_keyring(cls, profile: str) -> Optional[OPNsenseConfig]:
+    def _load_from_keyring(cls, profile: str) -> OPNsenseConfig | None:
         """Load configuration from keyring (backward compatibility)."""
         try:
             # Try to find credentials in keyring
@@ -157,7 +157,7 @@ class ConfigLoader:
                 url=cred_data["url"],
                 api_key=cred_data["api_key"],
                 api_secret=cred_data["api_secret"],
-                verify_ssl=cred_data.get("verify_ssl", True)
+                verify_ssl=cred_data.get("verify_ssl", True),
             )
         except Exception as e:
             logger.debug(f"Could not load from keyring: {e}")
@@ -183,7 +183,7 @@ class ConfigLoader:
         # Load existing profiles or create new structure
         if config_file.exists():
             cls._verify_file_permissions(config_file)
-            with open(config_file, 'r') as f:
+            with open(config_file) as f:
                 config_data = json.load(f)
         else:
             config_data = {}
@@ -193,11 +193,11 @@ class ConfigLoader:
             "url": config.url,
             "api_key": config.api_key,
             "api_secret": config.api_secret,
-            "verify_ssl": config.verify_ssl
+            "verify_ssl": config.verify_ssl,
         }
 
         # Write config file
-        with open(config_file, 'w') as f:
+        with open(config_file, "w") as f:
             json.dump(config_data, f, indent=2)
 
         # Set secure permissions
@@ -223,7 +223,7 @@ class ConfigLoader:
 
         cls._verify_file_permissions(config_file)
 
-        with open(config_file, 'r') as f:
+        with open(config_file) as f:
             config_data = json.load(f)
 
         if profile not in config_data:
@@ -232,7 +232,7 @@ class ConfigLoader:
         del config_data[profile]
 
         # Write updated config
-        with open(config_file, 'w') as f:
+        with open(config_file, "w") as f:
             json.dump(config_data, f, indent=2)
 
         cls._set_secure_permissions(config_file)
@@ -240,7 +240,7 @@ class ConfigLoader:
         logger.info(f"Deleted profile '{profile}' from config file")
 
     @classmethod
-    def list_profiles(cls) -> List[str]:
+    def list_profiles(cls) -> list[str]:
         """
         List all configured profiles.
 
@@ -254,13 +254,13 @@ class ConfigLoader:
 
         cls._verify_file_permissions(config_file)
 
-        with open(config_file, 'r') as f:
+        with open(config_file) as f:
             config_data = json.load(f)
 
         return list(config_data.keys())
 
     @classmethod
-    def get_profile_info(cls, profile: str) -> Dict[str, Any]:
+    def get_profile_info(cls, profile: str) -> dict[str, Any]:
         """
         Get non-sensitive information about a profile.
 
@@ -280,7 +280,7 @@ class ConfigLoader:
 
         cls._verify_file_permissions(config_file)
 
-        with open(config_file, 'r') as f:
+        with open(config_file) as f:
             config_data = json.load(f)
 
         if profile not in config_data:
@@ -290,7 +290,7 @@ class ConfigLoader:
         return {
             "url": profile_config["url"],
             "verify_ssl": profile_config.get("verify_ssl", True),
-            "api_key_preview": f"{profile_config['api_key'][:4]}...{profile_config['api_key'][-4:]}"
+            "api_key_preview": f"{profile_config['api_key'][:4]}...{profile_config['api_key'][-4:]}",
         }
 
     @classmethod

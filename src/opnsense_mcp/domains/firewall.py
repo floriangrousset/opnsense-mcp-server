@@ -9,31 +9,30 @@ for IP address grouping and simplified rule management.
 import json
 import logging
 import urllib.parse
-from typing import Optional
 
 from mcp.server.fastmcp import Context
 
+from ..core import ValidationError
+from ..core.retry import RetryConfig
 from ..main import mcp
-from ..core import OPNsenseClient, ValidationError
 from ..shared.constants import (
-    API_FIREWALL_FILTER_SEARCH_RULE,
-    API_FIREWALL_FILTER_ADD_RULE,
-    API_FIREWALL_FILTER_DEL_RULE,
-    API_FIREWALL_FILTER_TOGGLE_RULE,
-    API_FIREWALL_FILTER_APPLY,
+    API_DIAGNOSTICS_LOG_FIREWALL,
+    API_FIREWALL_ALIAS_RECONFIGURE,
     API_FIREWALL_ALIAS_SEARCH_ITEM,
     API_FIREWALL_ALIAS_UTIL_ADD,
     API_FIREWALL_ALIAS_UTIL_DELETE,
-    API_FIREWALL_ALIAS_RECONFIGURE,
-    API_DIAGNOSTICS_LOG_FIREWALL,
+    API_FIREWALL_FILTER_ADD_RULE,
+    API_FIREWALL_FILTER_APPLY,
+    API_FIREWALL_FILTER_DEL_RULE,
+    API_FIREWALL_FILTER_SEARCH_RULE,
+    API_FIREWALL_FILTER_TOGGLE_RULE,
 )
 from ..shared.error_handlers import (
-    handle_tool_error,
-    validate_uuid,
-    validate_firewall_parameters,
     ErrorSeverity,
+    handle_tool_error,
+    validate_firewall_parameters,
+    validate_uuid,
 )
-from ..core.retry import RetryConfig
 from .configuration import get_opnsense_client
 
 logger = logging.getLogger("opnsense-mcp")
@@ -66,15 +65,16 @@ def validate_port_specification(port_spec: str, operation: str) -> None:
         return  # Empty is valid for "any"
 
     import re
+
     # Pattern: single port, range, or comma-separated list
     # Allows digits, hyphens (for ranges), and commas (for lists)
-    port_pattern = re.compile(r'^[\d,\-\s]+$')
+    port_pattern = re.compile(r"^[\d,\-\s]+$")
 
     if not port_pattern.match(port_spec):
         raise ValidationError(
             f"Invalid port format: {port_spec}. Use single port (80), "
             f"range (80-443), or comma-separated list (80,443,8080)",
-            context={"operation": operation, "port_spec": port_spec}
+            context={"operation": operation, "port_spec": port_spec},
         )
 
     # Validate each port/range component
@@ -95,18 +95,18 @@ def validate_port_specification(port_spec: str, operation: str) -> None:
                 if start < 1 or end > 65535:
                     raise ValidationError(
                         f"Invalid port range: {part}. Ports must be 1-65535",
-                        context={"operation": operation, "range": part, "start": start, "end": end}
+                        context={"operation": operation, "range": part, "start": start, "end": end},
                     )
 
                 if start >= end:
                     raise ValidationError(
                         f"Invalid port range: {part}. Start port must be less than end port",
-                        context={"operation": operation, "range": part, "start": start, "end": end}
+                        context={"operation": operation, "range": part, "start": start, "end": end},
                     )
             except ValueError as e:
                 raise ValidationError(
                     f"Invalid port range format: {part}. Must be START-END with valid numbers",
-                    context={"operation": operation, "range": part, "error": str(e)}
+                    context={"operation": operation, "range": part, "error": str(e)},
                 )
         else:
             # Validate single port
@@ -115,23 +115,21 @@ def validate_port_specification(port_spec: str, operation: str) -> None:
                 if port < 1 or port > 65535:
                     raise ValidationError(
                         f"Invalid port number: {port}. Must be 1-65535",
-                        context={"operation": operation, "port": port}
+                        context={"operation": operation, "port": port},
                     )
             except ValueError:
                 raise ValidationError(
                     f"Invalid port number: {part}. Must be a valid integer",
-                    context={"operation": operation, "port": part}
+                    context={"operation": operation, "port": part},
                 )
 
 
 # ========== FIREWALL RULE TOOLS ==========
 
+
 @mcp.tool(name="firewall_get_rules", description="Get OPNsense firewall rules")
 async def firewall_get_rules(
-    ctx: Context,
-    search_phrase: str = "",
-    page: int = 1,
-    rows_per_page: int = 20
+    ctx: Context, search_phrase: str = "", page: int = 1, rows_per_page: int = 20
 ) -> str:
     """Get OPNsense firewall rules.
 
@@ -150,18 +148,14 @@ async def firewall_get_rules(
         response = await client.request(
             "POST",
             API_FIREWALL_FILTER_SEARCH_RULE,
-            data={
-                "current": page,
-                "rowCount": rows_per_page,
-                "searchPhrase": search_phrase
-            }
+            data={"current": page, "rowCount": rows_per_page, "searchPhrase": search_phrase},
         )
 
         return json.dumps(response, indent=2)
     except Exception as e:
-        logger.error(f"Error in firewall_get_rules: {str(e)}", exc_info=True)
-        await ctx.error(f"Error fetching firewall rules: {str(e)}")
-        return f"Error: {str(e)}"
+        logger.error(f"Error in firewall_get_rules: {e!s}", exc_info=True)
+        await ctx.error(f"Error fetching firewall rules: {e!s}")
+        return f"Error: {e!s}"
 
 
 @mcp.tool(name="firewall_add_rule", description="Add a new firewall rule")
@@ -176,7 +170,7 @@ async def firewall_add_rule(
     source_net: str = "any",
     destination_net: str = "any",
     destination_port: str = "",
-    enabled: bool = True
+    enabled: bool = True,
 ) -> str:
     """Add a new firewall rule with comprehensive validation and error handling.
 
@@ -204,8 +198,10 @@ async def firewall_add_rule(
 
         # Validate description
         if not description or len(description.strip()) == 0:
-            raise ValidationError("Rule description is required",
-                                context={"operation": "firewall_add_rule", "parameter": "description"})
+            raise ValidationError(
+                "Rule description is required",
+                context={"operation": "firewall_add_rule", "parameter": "description"},
+            )
 
         # Validate port specification if provided
         if protocol in ["tcp", "udp"] and destination_port:
@@ -222,28 +218,18 @@ async def firewall_add_rule(
                 "source_net": source_net,
                 "destination_net": destination_net,
                 "destination_port": destination_port,
-                "enabled": "1" if enabled else "0"
+                "enabled": "1" if enabled else "0",
             }
         }
 
         # Add the rule
-        add_result = await client.request(
-            "POST",
-            API_FIREWALL_FILTER_ADD_RULE,
-            data=rule_data
-        )
+        add_result = await client.request("POST", API_FIREWALL_FILTER_ADD_RULE, data=rule_data)
 
         # Apply changes
         await ctx.info("Rule added, applying changes...")
-        apply_result = await client.request(
-            "POST",
-            API_FIREWALL_FILTER_APPLY
-        )
+        apply_result = await client.request("POST", API_FIREWALL_FILTER_APPLY)
 
-        return json.dumps({
-            "add_result": add_result,
-            "apply_result": apply_result
-        }, indent=2)
+        return json.dumps({"add_result": add_result, "apply_result": apply_result}, indent=2)
     except Exception as e:
         return await handle_tool_error(ctx, "firewall_add_rule", e, ErrorSeverity.HIGH)
 
@@ -266,9 +252,7 @@ async def firewall_delete_rule(ctx: Context, uuid: str) -> str:
         validate_uuid(uuid, "firewall_delete_rule")
         # Delete the rule
         delete_result = await client.request(
-            "POST",
-            f"{API_FIREWALL_FILTER_DEL_RULE}/{uuid}",
-            operation="delete_firewall_rule"
+            "POST", f"{API_FIREWALL_FILTER_DEL_RULE}/{uuid}", operation="delete_firewall_rule"
         )
 
         # Apply changes with retry for reliability
@@ -278,13 +262,10 @@ async def firewall_delete_rule(ctx: Context, uuid: str) -> str:
             "POST",
             API_FIREWALL_FILTER_APPLY,
             operation="apply_firewall_changes",
-            retry_config=retry_config
+            retry_config=retry_config,
         )
 
-        return json.dumps({
-            "delete_result": delete_result,
-            "apply_result": apply_result
-        }, indent=2)
+        return json.dumps({"delete_result": delete_result, "apply_result": apply_result}, indent=2)
     except Exception as e:
         return await handle_tool_error(ctx, "firewall_delete_rule", e, ErrorSeverity.HIGH)
 
@@ -306,35 +287,29 @@ async def firewall_toggle_rule(ctx: Context, uuid: str, enabled: bool) -> str:
 
         # Toggle the rule
         toggle_result = await client.request(
-            "POST",
-            f"{API_FIREWALL_FILTER_TOGGLE_RULE}/{uuid}/{1 if enabled else 0}"
+            "POST", f"{API_FIREWALL_FILTER_TOGGLE_RULE}/{uuid}/{1 if enabled else 0}"
         )
 
         # Apply changes
         await ctx.info(f"Rule {'enabled' if enabled else 'disabled'}, applying changes...")
-        apply_result = await client.request(
-            "POST",
-            API_FIREWALL_FILTER_APPLY
-        )
+        apply_result = await client.request("POST", API_FIREWALL_FILTER_APPLY)
 
-        return json.dumps({
-            "toggle_result": toggle_result,
-            "apply_result": apply_result
-        }, indent=2)
+        return json.dumps({"toggle_result": toggle_result, "apply_result": apply_result}, indent=2)
     except Exception as e:
-        logger.error(f"Error in firewall_toggle_rule (uuid: {uuid}, enabled: {enabled}): {str(e)}", exc_info=True)
-        await ctx.error(f"Error toggling firewall rule: {str(e)}")
-        return f"Error: {str(e)}"
+        logger.error(
+            f"Error in firewall_toggle_rule (uuid: {uuid}, enabled: {enabled}): {e!s}",
+            exc_info=True,
+        )
+        await ctx.error(f"Error toggling firewall rule: {e!s}")
+        return f"Error: {e!s}"
 
 
 # ========== FIREWALL ALIAS TOOLS ==========
 
+
 @mcp.tool(name="get_firewall_aliases", description="Get firewall aliases")
 async def get_firewall_aliases(
-    ctx: Context,
-    search_phrase: str = "",
-    page: int = 1,
-    rows_per_page: int = 20
+    ctx: Context, search_phrase: str = "", page: int = 1, rows_per_page: int = 20
 ) -> str:
     """Get firewall aliases.
 
@@ -353,18 +328,14 @@ async def get_firewall_aliases(
         response = await client.request(
             "POST",
             API_FIREWALL_ALIAS_SEARCH_ITEM,
-            data={
-                "current": page,
-                "rowCount": rows_per_page,
-                "searchPhrase": search_phrase
-            }
+            data={"current": page, "rowCount": rows_per_page, "searchPhrase": search_phrase},
         )
 
         return json.dumps(response, indent=2)
     except Exception as e:
-        logger.error(f"Error in get_firewall_aliases: {str(e)}", exc_info=True)
-        await ctx.error(f"Error fetching firewall aliases: {str(e)}")
-        return f"Error: {str(e)}"
+        logger.error(f"Error in get_firewall_aliases: {e!s}", exc_info=True)
+        await ctx.error(f"Error fetching firewall aliases: {e!s}")
+        return f"Error: {e!s}"
 
 
 @mcp.tool(name="add_to_alias", description="Add an entry to a firewall alias")
@@ -384,25 +355,23 @@ async def add_to_alias(ctx: Context, alias_name: str, address: str) -> str:
 
         # Add to alias
         add_result = await client.request(
-            "POST",
-            f"{API_FIREWALL_ALIAS_UTIL_ADD}/{alias_name}/{urllib.parse.quote_plus(address)}"
+            "POST", f"{API_FIREWALL_ALIAS_UTIL_ADD}/{alias_name}/{urllib.parse.quote_plus(address)}"
         )
 
         # Reconfigure aliases
         await ctx.info("Entry added, applying changes...")
-        reconfigure_result = await client.request(
-            "POST",
-            API_FIREWALL_ALIAS_RECONFIGURE
-        )
+        reconfigure_result = await client.request("POST", API_FIREWALL_ALIAS_RECONFIGURE)
 
-        return json.dumps({
-            "add_result": add_result,
-            "reconfigure_result": reconfigure_result
-        }, indent=2)
+        return json.dumps(
+            {"add_result": add_result, "reconfigure_result": reconfigure_result}, indent=2
+        )
     except Exception as e:
-        logger.error(f"Error in add_to_alias (alias: {alias_name}, address: {address}): {str(e)}", exc_info=True)
-        await ctx.error(f"Error adding to alias: {str(e)}")
-        return f"Error: {str(e)}"
+        logger.error(
+            f"Error in add_to_alias (alias: {alias_name}, address: {address}): {e!s}",
+            exc_info=True,
+        )
+        await ctx.error(f"Error adding to alias: {e!s}")
+        return f"Error: {e!s}"
 
 
 @mcp.tool(name="delete_from_alias", description="Delete an entry from a firewall alias")
@@ -423,34 +392,30 @@ async def delete_from_alias(ctx: Context, alias_name: str, address: str) -> str:
         # Delete from alias
         delete_result = await client.request(
             "POST",
-            f"{API_FIREWALL_ALIAS_UTIL_DELETE}/{alias_name}/{urllib.parse.quote_plus(address)}"
+            f"{API_FIREWALL_ALIAS_UTIL_DELETE}/{alias_name}/{urllib.parse.quote_plus(address)}",
         )
 
         # Reconfigure aliases
         await ctx.info("Entry deleted, applying changes...")
-        reconfigure_result = await client.request(
-            "POST",
-            API_FIREWALL_ALIAS_RECONFIGURE
-        )
+        reconfigure_result = await client.request("POST", API_FIREWALL_ALIAS_RECONFIGURE)
 
-        return json.dumps({
-            "delete_result": delete_result,
-            "reconfigure_result": reconfigure_result
-        }, indent=2)
+        return json.dumps(
+            {"delete_result": delete_result, "reconfigure_result": reconfigure_result}, indent=2
+        )
     except Exception as e:
-        logger.error(f"Error in delete_from_alias (alias: {alias_name}, address: {address}): {str(e)}", exc_info=True)
-        await ctx.error(f"Error deleting from alias: {str(e)}")
-        return f"Error: {str(e)}"
+        logger.error(
+            f"Error in delete_from_alias (alias: {alias_name}, address: {address}): {e!s}",
+            exc_info=True,
+        )
+        await ctx.error(f"Error deleting from alias: {e!s}")
+        return f"Error: {e!s}"
 
 
 # ========== FIREWALL LOG TOOLS ==========
 
+
 @mcp.tool(name="get_firewall_logs", description="Get firewall log entries")
-async def get_firewall_logs(
-    ctx: Context,
-    count: int = 100,
-    filter_text: str = ""
-) -> str:
+async def get_firewall_logs(ctx: Context, count: int = 100, filter_text: str = "") -> str:
     """Get firewall log entries.
 
     Args:
@@ -465,13 +430,11 @@ async def get_firewall_logs(
         client = await get_opnsense_client()
 
         response = await client.request(
-            "GET",
-            API_DIAGNOSTICS_LOG_FIREWALL,
-            params={"limit": count, "filter": filter_text}
+            "GET", API_DIAGNOSTICS_LOG_FIREWALL, params={"limit": count, "filter": filter_text}
         )
 
         return json.dumps(response, indent=2)
     except Exception as e:
-        logger.error(f"Error in get_firewall_logs: {str(e)}", exc_info=True)
-        await ctx.error(f"Error fetching firewall logs: {str(e)}")
-        return f"Error: {str(e)}"
+        logger.error(f"Error in get_firewall_logs: {e!s}", exc_info=True)
+        await ctx.error(f"Error fetching firewall logs: {e!s}")
+        return f"Error: {e!s}"

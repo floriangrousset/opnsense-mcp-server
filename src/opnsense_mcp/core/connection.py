@@ -6,12 +6,12 @@ This module handles connection pooling and rate limiting for OPNsense API connec
 
 import asyncio
 import hashlib
-from typing import Dict, Tuple
 from datetime import datetime, timedelta
+
 from aiolimiter import AsyncLimiter
 
-from .models import OPNsenseConfig
 from .exceptions import RateLimitError
+from .models import OPNsenseConfig
 
 
 class ConnectionPool:
@@ -20,7 +20,7 @@ class ConnectionPool:
     def __init__(self, max_connections: int = 5, ttl_seconds: int = 300):
         self.max_connections = max_connections
         self.ttl = timedelta(seconds=ttl_seconds)
-        self.connections: Dict[str, Tuple['OPNsenseClient', datetime]] = {}
+        self.connections: dict[str, tuple[OPNsenseClient, datetime]] = {}
         self.lock = asyncio.Lock()
         # Rate limiting: 10 requests per second with burst of 20
         self.rate_limiter = AsyncLimiter(max_rate=10, time_period=1.0)
@@ -31,7 +31,7 @@ class ConnectionPool:
         config_str = f"{config.url}:{config.api_key}"
         return hashlib.sha256(config_str.encode()).hexdigest()[:16]
 
-    async def get_client(self, config: OPNsenseConfig) -> 'OPNsenseClient':
+    async def get_client(self, config: OPNsenseConfig) -> "OPNsenseClient":
         """Get or create client from pool."""
         # Import here to avoid circular dependency
         from .client import OPNsenseClient
@@ -44,10 +44,9 @@ class ConnectionPool:
                 client, created_at = self.connections[config_hash]
                 if datetime.now() - created_at < self.ttl:
                     return client
-                else:
-                    # Client expired, close and remove
-                    await client.close()
-                    del self.connections[config_hash]
+                # Client expired, close and remove
+                await client.close()
+                del self.connections[config_hash]
 
             # Create new client
             client = OPNsenseClient(config, self)
@@ -64,10 +63,7 @@ class ConnectionPool:
         if not self.connections:
             return
 
-        oldest_key = min(
-            self.connections.keys(),
-            key=lambda k: self.connections[k][1]
-        )
+        oldest_key = min(self.connections.keys(), key=lambda k: self.connections[k][1])
         client, _ = self.connections[oldest_key]
         await client.close()
         del self.connections[oldest_key]

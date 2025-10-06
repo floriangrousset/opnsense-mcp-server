@@ -8,21 +8,22 @@ This module provides common fixtures used across all test modules including:
 - Test data factories
 """
 
+from typing import Any
+from unittest.mock import AsyncMock, Mock
+
+import httpx
 import pytest
 import pytest_asyncio
-from typing import Dict, Any
-from unittest.mock import AsyncMock, Mock, patch
-import httpx
 
 from src.opnsense_mcp.core import (
+    ConnectionPool,
     OPNsenseClient,
     OPNsenseConfig,
     ServerState,
-    ConnectionPool,
 )
 
-
 # ========== Configuration Fixtures ==========
+
 
 @pytest.fixture
 def mock_opnsense_config() -> OPNsenseConfig:
@@ -31,54 +32,48 @@ def mock_opnsense_config() -> OPNsenseConfig:
         url="https://192.168.1.1",
         api_key="test_api_key_1234567890",
         api_secret="test_api_secret_abcdefghij",
-        verify_ssl=False  # Disable SSL verification for tests
+        verify_ssl=False,  # Disable SSL verification for tests
     )
 
 
 @pytest.fixture
-def mock_opnsense_config_dict() -> Dict[str, Any]:
+def mock_opnsense_config_dict() -> dict[str, Any]:
     """Provide a dictionary version of OPNsense configuration."""
     return {
         "url": "https://192.168.1.1",
         "api_key": "test_api_key_1234567890",
         "api_secret": "test_api_secret_abcdefghij",
-        "verify_ssl": False
+        "verify_ssl": False,
     }
 
 
 # ========== Mock HTTP Response Fixtures ==========
 
+
 @pytest.fixture
-def mock_http_success_response() -> Dict[str, Any]:
+def mock_http_success_response() -> dict[str, Any]:
     """Provide a standard successful API response."""
-    return {
-        "status": "ok",
-        "result": "success",
-        "message": "Operation completed successfully"
-    }
+    return {"status": "ok", "result": "success", "message": "Operation completed successfully"}
 
 
 @pytest.fixture
-def mock_http_error_response() -> Dict[str, Any]:
+def mock_http_error_response() -> dict[str, Any]:
     """Provide a standard error API response."""
-    return {
-        "status": "error",
-        "message": "Operation failed",
-        "details": "Test error details"
-    }
+    return {"status": "error", "message": "Operation failed", "details": "Test error details"}
 
 
 @pytest.fixture
-def mock_firmware_status_response() -> Dict[str, Any]:
+def mock_firmware_status_response() -> dict[str, Any]:
     """Provide a mock firmware status response."""
     return {
         "product_name": "OPNsense",
         "product_version": "24.1.1",
-        "last_check": "2024-10-04 12:00:00"
+        "last_check": "2024-10-04 12:00:00",
     }
 
 
 # ========== Mock Client Fixtures ==========
+
 
 @pytest_asyncio.fixture
 async def mock_opnsense_client(mock_opnsense_config):
@@ -112,10 +107,11 @@ async def mock_server_state(mock_opnsense_config):
 
 # ========== HTTP Mock Transport ==========
 
+
 class MockTransport(httpx.MockTransport):
     """Custom mock transport for httpx client with configurable responses."""
 
-    def __init__(self, responses: Dict[str, Any] = None):
+    def __init__(self, responses: dict[str, Any] = None):
         """Initialize mock transport with optional response mapping.
 
         Args:
@@ -127,11 +123,13 @@ class MockTransport(httpx.MockTransport):
 
     def _handle_request(self, request: httpx.Request) -> httpx.Response:
         """Handle mock HTTP requests and return configured responses."""
-        self.requests_made.append({
-            "method": request.method,
-            "url": str(request.url),
-            "headers": dict(request.headers),
-        })
+        self.requests_made.append(
+            {
+                "method": request.method,
+                "url": str(request.url),
+                "headers": dict(request.headers),
+            }
+        )
 
         # Default successful response
         response_data = {"status": "ok", "result": "success"}
@@ -148,7 +146,7 @@ class MockTransport(httpx.MockTransport):
                     response_data = data
                 break
 
-        import json
+
         return httpx.Response(
             status_code=status_code,
             json=response_data,
@@ -164,6 +162,7 @@ def mock_http_transport():
 
 # ========== MCP Context Mocks ==========
 
+
 @pytest.fixture
 def mock_mcp_context():
     """Provide a mock MCP context for tool testing."""
@@ -177,41 +176,37 @@ def mock_mcp_context():
 
 # ========== Pytest Configuration ==========
 
+
 def pytest_configure(config):
     """Configure pytest with custom markers and settings."""
-    config.addinivalue_line(
-        "markers", "asyncio: mark test as an asyncio test"
-    )
-    config.addinivalue_line(
-        "markers", "unit: mark test as a unit test"
-    )
-    config.addinivalue_line(
-        "markers", "integration: mark test as an integration test"
-    )
-    config.addinivalue_line(
-        "markers", "slow: mark test as slow running"
-    )
+    config.addinivalue_line("markers", "asyncio: mark test as an asyncio test")
+    config.addinivalue_line("markers", "unit: mark test as a unit test")
+    config.addinivalue_line("markers", "integration: mark test as an integration test")
+    config.addinivalue_line("markers", "slow: mark test as slow running")
 
 
 @pytest.fixture(autouse=True)
 def reset_server_state():
     """Automatically reset server state between tests."""
-    yield
+    return
     # Cleanup code here if needed
 
 
 # ========== Async Test Configuration ==========
 
+
 @pytest.fixture(scope="session")
 def event_loop_policy():
     """Provide event loop policy for async tests."""
     import asyncio
+
     return asyncio.get_event_loop_policy()
 
 
 # ========== Helper Functions for Tests ==========
 
-def create_mock_response(status: str = "ok", **kwargs) -> Dict[str, Any]:
+
+def create_mock_response(status: str = "ok", **kwargs) -> dict[str, Any]:
     """Create a mock API response with custom fields.
 
     Args:
