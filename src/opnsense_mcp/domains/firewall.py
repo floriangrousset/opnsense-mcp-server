@@ -39,6 +39,91 @@ from .configuration import get_opnsense_client
 logger = logging.getLogger("opnsense-mcp")
 
 
+def validate_port_specification(port_spec: str, operation: str) -> None:
+    """
+    Validate port specification (single, range, or comma-separated list).
+
+    Validates that:
+    - Port numbers are between 1-65535
+    - Ranges have start < end
+    - Format is correct (single, range, or comma-separated)
+
+    Args:
+        port_spec: Port specification string (e.g., "80", "80-443", "80,443,8080")
+        operation: Operation name for error context
+
+    Raises:
+        ValidationError: If port specification is invalid
+
+    Examples:
+        validate_port_specification("80", "firewall_add_rule")  # Single port - OK
+        validate_port_specification("80-443", "firewall_add_rule")  # Range - OK
+        validate_port_specification("80,443,8080", "firewall_add_rule")  # List - OK
+        validate_port_specification("70000", "firewall_add_rule")  # Invalid - raises
+        validate_port_specification("443-80", "firewall_add_rule")  # Invalid range - raises
+    """
+    if not port_spec or not port_spec.strip():
+        return  # Empty is valid for "any"
+
+    import re
+    # Pattern: single port, range, or comma-separated list
+    # Allows digits, hyphens (for ranges), and commas (for lists)
+    port_pattern = re.compile(r'^[\d,\-\s]+$')
+
+    if not port_pattern.match(port_spec):
+        raise ValidationError(
+            f"Invalid port format: {port_spec}. Use single port (80), "
+            f"range (80-443), or comma-separated list (80,443,8080)",
+            context={"operation": operation, "port_spec": port_spec}
+        )
+
+    # Validate each port/range component
+    for part in port_spec.split(","):
+        part = part.strip()
+        if not part:
+            continue
+
+        if "-" in part:
+            # Validate port range
+            try:
+                range_parts = part.split("-")
+                if len(range_parts) != 2:
+                    raise ValueError("Range must have exactly two parts")
+
+                start, end = map(int, range_parts)
+
+                if start < 1 or end > 65535:
+                    raise ValidationError(
+                        f"Invalid port range: {part}. Ports must be 1-65535",
+                        context={"operation": operation, "range": part, "start": start, "end": end}
+                    )
+
+                if start >= end:
+                    raise ValidationError(
+                        f"Invalid port range: {part}. Start port must be less than end port",
+                        context={"operation": operation, "range": part, "start": start, "end": end}
+                    )
+            except ValueError as e:
+                raise ValidationError(
+                    f"Invalid port range format: {part}. Must be START-END with valid numbers",
+                    context={"operation": operation, "range": part, "error": str(e)}
+                )
+        else:
+            # Validate single port
+            try:
+                port = int(part)
+                if port < 1 or port > 65535:
+                    raise ValidationError(
+                        f"Invalid port number: {port}. Must be 1-65535",
+                        context={"operation": operation, "port": port}
+                    )
+            except ValueError:
+                raise ValidationError(
+                    f"Invalid port number: {part}. Must be a valid integer",
+                    context={"operation": operation, "port": part}
+                )
+
+
 # ========== FIREWALL RULE TOOLS ==========
 
 @mcp.tool(name="firewall_get_rules", description="Get OPNsense firewall rules")
@@ -122,12 +207,9 @@ async def firewall_add_rule(
             raise ValidationError("Rule description is required",
                                 context={"operation": "firewall_add_rule", "parameter": "description"})
 
-        # Additional validation for specific protocols and ports
-        if protocol in ["tcp", "udp"] and destination_port and not destination_port.replace("-", "").replace(",", "").replace(" ", "").isdigit():
-            # Simple port validation - could be enhanced
-            if not all(part.strip().isdigit() or "-" in part for part in destination_port.split(",")):
-                raise ValidationError(f"Invalid port format: {destination_port}",
-                                    context={"operation": "firewall_add_rule", "parameter": "destination_port", "value": destination_port})
+        # Validate port specification if provided
+        if protocol in ["tcp", "udp"] and destination_port:
+            validate_port_specification(destination_port, "firewall_add_rule")
         # Prepare rule data
         rule_data = {
             "rule": {
