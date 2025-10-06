@@ -146,7 +146,6 @@ class MockTransport(httpx.MockTransport):
                     response_data = data
                 break
 
-
         return httpx.Response(
             status_code=status_code,
             json=response_data,

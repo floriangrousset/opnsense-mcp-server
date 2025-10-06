@@ -40,10 +40,8 @@ class ConfigurationError(OPNsenseError):
     """Client not configured or invalid configuration."""
 
 
-
 class AuthenticationError(OPNsenseError):
     """Authentication failed."""
-
 
 
 class APIError(OPNsenseError):
@@ -61,27 +59,21 @@ class NetworkError(OPNsenseError):
     """Network communication error."""
 
 
-
 class RateLimitError(OPNsenseError):
     """Rate limit exceeded."""
-
 
 
 class ValidationError(OPNsenseError):
     """Input parameter validation failed."""
 
 
-
 class TimeoutError(OPNsenseError):
     """Request timed out."""
-
 
 
 class ResourceNotFoundError(OPNsenseError):
     """Requested resource not found."""
 
 
-
 class AuthorizationError(OPNsenseError):
     """User doesn't have permission for the requested operation."""
-

@@ -4,7 +4,6 @@ OPNsense MCP Server - List Profiles Command
 List all configured credential profiles.
 """
 
-
 import typer
 
 from ..core.config_loader import ConfigLoader

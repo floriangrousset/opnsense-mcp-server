@@ -22,13 +22,17 @@ class TestTestCommand:
             url="https://192.168.1.1", api_key="test_key", api_secret="test_secret", verify_ssl=True
         )
 
-        with patch.object(ConfigLoader, "load", return_value=mock_config), patch.object(
-            ConfigLoader,
-            "get_profile_info",
-            return_value={"url": "https://192.168.1.1", "verify_ssl": True},
-        ), patch(
-            "src.opnsense_mcp.cli.test._test_connection_async",
-            return_value={"success": True, "firmware_status": {"product_name": "OPNsense"}},
+        with (
+            patch.object(ConfigLoader, "load", return_value=mock_config),
+            patch.object(
+                ConfigLoader,
+                "get_profile_info",
+                return_value={"url": "https://192.168.1.1", "verify_ssl": True},
+            ),
+            patch(
+                "src.opnsense_mcp.cli.test._test_connection_async",
+                return_value={"success": True, "firmware_status": {"product_name": "OPNsense"}},
+            ),
         ):
             result = runner.invoke(app, ["test-connection"])
 
@@ -41,13 +45,17 @@ class TestTestCommand:
             url="https://192.168.1.1", api_key="test_key", api_secret="test_secret", verify_ssl=True
         )
 
-        with patch.object(ConfigLoader, "load", return_value=mock_config), patch.object(
-            ConfigLoader,
-            "get_profile_info",
-            return_value={"url": "https://192.168.1.1", "verify_ssl": True},
-        ), patch(
-            "src.opnsense_mcp.cli.test._test_connection_async",
-            return_value={"success": False, "error": "Connection refused"},
+        with (
+            patch.object(ConfigLoader, "load", return_value=mock_config),
+            patch.object(
+                ConfigLoader,
+                "get_profile_info",
+                return_value={"url": "https://192.168.1.1", "verify_ssl": True},
+            ),
+            patch(
+                "src.opnsense_mcp.cli.test._test_connection_async",
+                return_value={"success": False, "error": "Connection refused"},
+            ),
         ):
             result = runner.invoke(app, ["test-connection"])
 

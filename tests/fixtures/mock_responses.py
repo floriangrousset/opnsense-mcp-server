@@ -5,8 +5,6 @@ This module contains realistic mock responses for various OPNsense API endpoints
 used throughout the test suite.
 """
 
-
-
 # ========== System Responses ==========
 
 MOCK_SYSTEM_STATUS = {

@@ -35,14 +35,17 @@ class TestListCommand:
 
     def test_list_verbose(self):
         """Test listing with verbose output."""
-        with patch.object(ConfigLoader, "list_profiles", return_value=["default"]), patch.object(
-            ConfigLoader,
-            "get_profile_info",
-            return_value={
-                "url": "https://192.168.1.1",
-                "api_key_preview": "test...ault",
-                "verify_ssl": True,
-            },
+        with (
+            patch.object(ConfigLoader, "list_profiles", return_value=["default"]),
+            patch.object(
+                ConfigLoader,
+                "get_profile_info",
+                return_value={
+                    "url": "https://192.168.1.1",
+                    "api_key_preview": "test...ault",
+                    "verify_ssl": True,
+                },
+            ),
         ):
             result = runner.invoke(app, ["list-profiles", "--verbose"])
 

@@ -16,9 +16,7 @@ def setup_command(
     profile: str | None = typer.Option(
         "default", "--profile", "-p", help="Profile name (default, production, staging, etc.)"
     ),
-    url: str | None = typer.Option(
-        None, "--url", help="OPNsense URL (e.g., https://192.168.1.1)"
-    ),
+    url: str | None = typer.Option(None, "--url", help="OPNsense URL (e.g., https://192.168.1.1)"),
     api_key: str | None = typer.Option(None, "--api-key", help="OPNsense API key"),
     api_secret: str | None = typer.Option(None, "--api-secret", help="OPNsense API secret"),
     verify_ssl: bool = typer.Option(

@@ -30,9 +30,12 @@ class TestEndToEndWorkflows:
         from src.opnsense_mcp.domains.configuration import configure_opnsense_connection
         from src.opnsense_mcp.domains.system import get_system_status
 
-        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state, patch(
-            "src.opnsense_mcp.domains.system.get_opnsense_client", new_callable=AsyncMock
-        ) as mock_get_client:
+        with (
+            patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state,
+            patch(
+                "src.opnsense_mcp.domains.system.get_opnsense_client", new_callable=AsyncMock
+            ) as mock_get_client,
+        ):
             # Configure connection
             mock_state.initialize = AsyncMock()
             config_result = await configure_opnsense_connection(
@@ -152,9 +155,11 @@ class TestComponentIntegration:
 
         state = ServerState()
 
-        with patch("src.opnsense_mcp.core.connection.ConnectionPool") as MockPool, patch(
-            "src.opnsense_mcp.core.state.keyring"
-        ), patch("src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS", "/api/test"):
+        with (
+            patch("src.opnsense_mcp.core.connection.ConnectionPool") as MockPool,
+            patch("src.opnsense_mcp.core.state.keyring"),
+            patch("src.opnsense_mcp.shared.constants.API_CORE_FIRMWARE_STATUS", "/api/test"),
+        ):
             mock_pool = Mock()
             mock_client = Mock()
             mock_client.request = AsyncMock(return_value={"status": "ok"})

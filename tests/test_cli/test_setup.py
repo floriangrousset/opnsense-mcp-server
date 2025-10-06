@@ -62,7 +62,7 @@ class TestSetupCommand:
                 "setup",
                 "--non-interactive",
                 "--url",
-                "https://192.168.1.1"
+                "https://192.168.1.1",
                 # Missing api-key and api-secret
             ],
         )
@@ -122,10 +122,10 @@ class TestSetupCommand:
     def test_setup_interactive_cancelled(self, temp_config_dir):
         """Test interactive setup cancelled by user."""
         # Simulate user cancelling during connection test confirmation
-        with patch("src.opnsense_mcp.cli.setup._test_connection", return_value=False), patch(
-            "typer.prompt", side_effect=["https://192.168.1.1", "key", "secret"]
-        ), patch(
-            "typer.confirm", side_effect=[True, False]
+        with (
+            patch("src.opnsense_mcp.cli.setup._test_connection", return_value=False),
+            patch("typer.prompt", side_effect=["https://192.168.1.1", "key", "secret"]),
+            patch("typer.confirm", side_effect=[True, False]),
         ):  # SSL yes, save no
             result = runner.invoke(app, ["setup"])
 
@@ -134,10 +134,10 @@ class TestSetupCommand:
 
     def test_setup_connection_test_failure_continue(self, temp_config_dir):
         """Test setup continues after connection test failure if user confirms."""
-        with patch("src.opnsense_mcp.cli.setup._test_connection", return_value=False), patch(
-            "typer.prompt", side_effect=["https://192.168.1.1", "key", "secret"]
-        ), patch(
-            "typer.confirm", side_effect=[True, True]
+        with (
+            patch("src.opnsense_mcp.cli.setup._test_connection", return_value=False),
+            patch("typer.prompt", side_effect=["https://192.168.1.1", "key", "secret"]),
+            patch("typer.confirm", side_effect=[True, True]),
         ):  # SSL yes, save yes
             result = runner.invoke(app, ["setup"])
 

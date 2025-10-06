@@ -90,7 +90,9 @@ async def _get_wan_interfaces(client: OPNsenseClient) -> list[str]:
             # Heuristic: Interface is likely WAN if it has a gateway and isn't loopback/internal
             # OPNsense often names the default WAN 'wan' but users can rename it.
             # Checking for a non-empty gateway field is a common indicator.
-            if (if_data.get("gateway") and if_data.get("gateway") != "none") or (if_name.lower() == "wan" and not wan_interfaces):
+            if (if_data.get("gateway") and if_data.get("gateway") != "none") or (
+                if_name.lower() == "wan" and not wan_interfaces
+            ):
                 wan_interfaces.append(if_name)
     except Exception as e:
         logger.error(f"Error fetching interfaces info for audit: {e}", exc_info=True)

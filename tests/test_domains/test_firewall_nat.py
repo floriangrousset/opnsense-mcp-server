@@ -20,7 +20,6 @@ mock_main.server_state = mock_server_state
 sys.modules["src.opnsense_mcp.main"] = mock_main
 
 
-
 @pytest.mark.asyncio
 class TestFirewallDomain:
     """Test firewall domain tools."""

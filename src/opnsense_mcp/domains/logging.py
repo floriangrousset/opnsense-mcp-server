@@ -515,9 +515,9 @@ async def get_log_statistics(ctx: Context, log_type: str = "all", time_period: s
                     statistics[check_type] = {
                         "total_entries": len(entries),
                         "sample_period": time_period,
-                        "entries_per_hour": round(len(entries) / 24, 2)
-                        if time_period == "24h"
-                        else "N/A",
+                        "entries_per_hour": (
+                            round(len(entries) / 24, 2) if time_period == "24h" else "N/A"
+                        ),
                     }
 
                 except Exception as type_error:
@@ -662,9 +662,11 @@ async def analyze_security_events(
                 "total_log_entries": total_events,
                 "high_risk_indicators": high_risk_indicators,
                 "detailed_analysis": analysis_results,
-                "recommendation": "Review high-count security events and consider implementing additional security measures"
-                if high_risk_indicators
-                else "No significant security events detected",
+                "recommendation": (
+                    "Review high-count security events and consider implementing additional security measures"
+                    if high_risk_indicators
+                    else "No significant security events detected"
+                ),
             },
             indent=2,
         )

@@ -202,7 +202,7 @@ class TestConfigLoaderConfigFile:
         config_data = {
             "default": {
                 "url": "https://192.168.1.1",
-                "api_key": "test_key"
+                "api_key": "test_key",
                 # Missing api_secret
             }
         }
@@ -283,8 +283,9 @@ class TestConfigLoaderPriority:
             }
         )
 
-        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file), patch(
-            "keyring.get_credential", return_value=mock_credential
+        with (
+            patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file),
+            patch("keyring.get_credential", return_value=mock_credential),
         ):
             config = ConfigLoader.load("default")
 
@@ -305,8 +306,9 @@ class TestConfigLoaderPriority:
         )
 
         missing_file = temp_config_dir / "nonexistent.json"
-        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", missing_file), patch(
-            "keyring.get_credential", return_value=mock_credential
+        with (
+            patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", missing_file),
+            patch("keyring.get_credential", return_value=mock_credential),
         ):
             config = ConfigLoader.load("default")
 
@@ -317,9 +319,11 @@ class TestConfigLoaderPriority:
     def test_no_credentials_found(self, temp_config_dir):
         """Test error raised when no credentials found in any source."""
         missing_file = temp_config_dir / "nonexistent.json"
-        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", missing_file), patch(
-            "keyring.get_credential", return_value=None
-        ), pytest.raises(ConfigurationError, match="No credentials found"):
+        with (
+            patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", missing_file),
+            patch("keyring.get_credential", return_value=None),
+            pytest.raises(ConfigurationError, match="No credentials found"),
+        ):
             ConfigLoader.load("default")
 
 
@@ -471,9 +475,10 @@ class TestConfigLoaderSecurity:
         # Set insecure permissions
         os.chmod(mock_config_file, 0o644)
 
-        with patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file), patch.object(
-            ConfigLoader, "_set_secure_permissions"
-        ) as mock_fix:
+        with (
+            patch.object(ConfigLoader, "DEFAULT_CONFIG_FILE", mock_config_file),
+            patch.object(ConfigLoader, "_set_secure_permissions") as mock_fix,
+        ):
             ConfigLoader._load_from_config_file("default")
 
             # Should attempt to fix permissions

@@ -4,7 +4,6 @@ OPNsense MCP Server - Delete Profile Command
 Delete a credential profile.
 """
 
-
 import typer
 
 from ..core.config_loader import ConfigLoader
