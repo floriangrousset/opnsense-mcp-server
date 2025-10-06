@@ -6,7 +6,6 @@ and profiles securely without exposing them to the LLM.
 """
 
 import sys
-from typing import Optional
 
 import typer
 

@@ -28,20 +28,18 @@ from .core.models import OPNsenseConfig
 from .core.state import ServerState
 
 __all__ = [
-    # Exceptions
-    "OPNsenseError",
-    "ConfigurationError",
-    "AuthenticationError",
     "APIError",
-    "NetworkError",
-    "RateLimitError",
-    "ValidationError",
-    "TimeoutError",
-    "ResourceNotFoundError",
+    "AuthenticationError",
     "AuthorizationError",
-    # Core classes
-    "OPNsenseConfig",
-    "OPNsenseClient",
+    "ConfigurationError",
     "ConnectionPool",
+    "NetworkError",
+    "OPNsenseClient",
+    "OPNsenseConfig",
+    "OPNsenseError",
+    "RateLimitError",
+    "ResourceNotFoundError",
     "ServerState",
+    "TimeoutError",
+    "ValidationError",
 ]

@@ -23,27 +23,21 @@ from .retry import RetryConfig, retry_with_backoff
 from .state import ServerState
 
 __all__ = [
-    # Exceptions
-    "OPNsenseError",
-    "ConfigurationError",
-    "AuthenticationError",
     "APIError",
-    "NetworkError",
-    "RateLimitError",
-    "ValidationError",
-    "TimeoutError",
-    "ResourceNotFoundError",
+    "AuthenticationError",
     "AuthorizationError",
-    # Models
-    "OPNsenseConfig",
-    # Client
-    "OPNsenseClient",
-    "RequestResponseLogger",
-    # Connection
+    "ConfigurationError",
     "ConnectionPool",
-    # State
-    "ServerState",
-    # Retry
+    "NetworkError",
+    "OPNsenseClient",
+    "OPNsenseConfig",
+    "OPNsenseError",
+    "RateLimitError",
+    "RequestResponseLogger",
+    "ResourceNotFoundError",
     "RetryConfig",
+    "ServerState",
+    "TimeoutError",
+    "ValidationError",
     "retry_with_backoff",
 ]
