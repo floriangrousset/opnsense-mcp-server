@@ -62,6 +62,10 @@ def delete_command(
             typer.echo("\n📋 No profiles remaining")
             typer.echo("💡 Run 'opnsense-mcp setup' to configure a new profile")
 
+    except typer.Exit:
+        # Re-raise typer.Exit to preserve exit code
+        raise
+
     except ConfigurationError as e:
         typer.echo(f"❌ Error: {e}", err=True)
         raise typer.Exit(1)
