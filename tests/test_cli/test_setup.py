@@ -68,7 +68,7 @@ class TestSetupCommand:
         )
 
         assert result.exit_code == 1
-        assert "all parameters" in result.stdout.lower()
+        assert "all parameters" in result.output.lower()
 
     def test_setup_custom_profile(self, temp_config_dir):
         """Test setup with custom profile name."""
@@ -124,25 +124,27 @@ class TestSetupCommand:
         # Simulate user cancelling during connection test confirmation
         with (
             patch("src.opnsense_mcp.cli.setup._test_connection", return_value=False),
-            patch("typer.prompt", side_effect=["https://192.168.1.1", "key", "secret"]),
+            patch("typer.prompt", side_effect=["https://192.168.1.1", "key"]),
+            patch("getpass.getpass", return_value="secret"),
             patch("typer.confirm", side_effect=[True, False]),
         ):  # SSL yes, save no
             result = runner.invoke(app, ["setup"])
 
         assert result.exit_code == 0
-        assert "Setup cancelled" in result.stdout
+        assert "Setup cancelled" in result.output
 
     def test_setup_connection_test_failure_continue(self, temp_config_dir):
         """Test setup continues after connection test failure if user confirms."""
         with (
             patch("src.opnsense_mcp.cli.setup._test_connection", return_value=False),
-            patch("typer.prompt", side_effect=["https://192.168.1.1", "key", "secret"]),
+            patch("typer.prompt", side_effect=["https://192.168.1.1", "key"]),
+            patch("getpass.getpass", return_value="secret"),
             patch("typer.confirm", side_effect=[True, True]),
         ):  # SSL yes, save yes
             result = runner.invoke(app, ["setup"])
 
         assert result.exit_code == 0
-        assert "saved successfully" in result.stdout
+        assert "saved successfully" in result.output
 
     def test_setup_invalid_url(self, temp_config_dir):
         """Test setup fails with invalid URL."""
@@ -161,4 +163,4 @@ class TestSetupCommand:
         )
 
         assert result.exit_code == 1
-        assert "Invalid configuration" in result.stdout
+        assert "Invalid configuration" in result.output

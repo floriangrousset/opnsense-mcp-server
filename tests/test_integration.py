@@ -27,23 +27,34 @@ class TestEndToEndWorkflows:
 
     async def test_configure_and_get_status_workflow(self, mock_mcp_context):
         """Test complete workflow: configure connection then get system status."""
+        from src.opnsense_mcp.core.models import OPNsenseConfig
         from src.opnsense_mcp.domains.configuration import configure_opnsense_connection
         from src.opnsense_mcp.domains.system import get_system_status
 
+        mock_config = OPNsenseConfig(
+            url="https://192.168.1.1",
+            api_key="test_key",
+            api_secret="test_secret",
+            verify_ssl=False,
+        )
+
         with (
+            patch("src.opnsense_mcp.domains.configuration.ConfigLoader") as MockConfigLoader,
             patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state,
             patch(
                 "src.opnsense_mcp.domains.system.get_opnsense_client", new_callable=AsyncMock
             ) as mock_get_client,
         ):
             # Configure connection
+            MockConfigLoader.load.return_value = mock_config
+            MockConfigLoader.get_profile_info.return_value = {
+                "url": "https://192.168.1.1",
+                "api_key_preview": "test...ault",
+                "verify_ssl": False,
+            }
             mock_state.initialize = AsyncMock()
             config_result = await configure_opnsense_connection(
-                ctx=mock_mcp_context,
-                url="https://192.168.1.1",
-                api_key="test_key",
-                api_secret="test_secret",
-                verify_ssl=False,
+                ctx=mock_mcp_context, profile="default"
             )
 
             assert "configured successfully" in config_result
