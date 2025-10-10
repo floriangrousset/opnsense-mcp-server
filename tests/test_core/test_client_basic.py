@@ -9,8 +9,6 @@ import json
 import logging
 from unittest.mock import AsyncMock, Mock, patch
 
-import pytest
-
 from src.opnsense_mcp.core.client import OPNsenseClient, RequestResponseLogger
 from src.opnsense_mcp.core.models import OPNsenseConfig
 
@@ -168,7 +166,6 @@ class TestRequestResponseLogger:
         assert log_data["response"]["duration_ms"] is None
 
 
-@pytest.mark.asyncio
 class TestOPNsenseClientBasic:
     """Test basic OPNsense client functionality."""
 

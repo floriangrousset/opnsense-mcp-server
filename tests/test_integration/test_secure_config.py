@@ -121,5 +121,5 @@ class TestSecureCredentialFlow:
         assert "api_key_preview" in info
         assert "api_secret" not in info  # Secret must never be exposed
 
-        # Preview should only show partial key
-        assert info["api_key_preview"] == "inte...cret"  # First 4 + last 4
+        # Preview should only show partial key (first 4 + last 4 of api_key)
+        assert info["api_key_preview"] == "inte..._key"  # integration_test_key

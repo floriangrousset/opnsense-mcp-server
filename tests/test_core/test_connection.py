@@ -16,7 +16,6 @@ from src.opnsense_mcp.core.exceptions import RateLimitError
 from src.opnsense_mcp.core.models import OPNsenseConfig
 
 
-@pytest.mark.asyncio
 class TestConnectionPool:
     """Test ConnectionPool class."""
 
@@ -74,6 +73,7 @@ class TestConnectionPool:
 
         assert hash1 != hash2
 
+    @pytest.mark.asyncio
     async def test_get_client_creates_new_client(self):
         """Test that get_client creates a new client when pool is empty."""
         pool = ConnectionPool()
@@ -94,6 +94,7 @@ class TestConnectionPool:
             MockClient.assert_called_once_with(config, pool)
             assert len(pool.connections) == 1
 
+    @pytest.mark.asyncio
     async def test_get_client_reuses_existing_client(self):
         """Test that get_client reuses existing client from pool."""
         pool = ConnectionPool()
@@ -117,6 +118,7 @@ class TestConnectionPool:
             assert MockClient.call_count == 1  # Only created once
             assert len(pool.connections) == 1
 
+    @pytest.mark.asyncio
     async def test_get_client_expires_old_client(self):
         """Test that expired clients are removed and new ones created."""
         pool = ConnectionPool(ttl_seconds=1)  # 1 second TTL
@@ -152,6 +154,7 @@ class TestConnectionPool:
             # Old client should have been closed
             mock_client1.close.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_get_client_cleanup_oldest_when_pool_full(self):
         """Test that oldest connection is removed when pool is full."""
         pool = ConnectionPool(max_connections=2)
@@ -190,6 +193,7 @@ class TestConnectionPool:
             # First (oldest) client should have been closed
             mock_clients[0].close.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_cleanup_oldest(self):
         """Test _cleanup_oldest removes the oldest connection."""
         pool = ConnectionPool()
@@ -214,6 +218,7 @@ class TestConnectionPool:
             assert len(pool.connections) == 0
             mock_client.close.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_cleanup_oldest_with_empty_pool(self):
         """Test that _cleanup_oldest handles empty pool gracefully."""
         pool = ConnectionPool()
@@ -222,6 +227,7 @@ class TestConnectionPool:
         await pool._cleanup_oldest()
         assert len(pool.connections) == 0
 
+    @pytest.mark.asyncio
     async def test_check_rate_limit_normal_operation(self):
         """Test rate limiting under normal operation."""
         pool = ConnectionPool()
@@ -229,6 +235,7 @@ class TestConnectionPool:
         # Should succeed without raising
         await pool.check_rate_limit()
 
+    @pytest.mark.asyncio
     async def test_check_rate_limit_burst_exceeded(self):
         """Test rate limiting when burst limit is exceeded."""
         pool = ConnectionPool()
@@ -241,6 +248,7 @@ class TestConnectionPool:
 
         assert "Burst rate limit exceeded" in str(exc_info.value)
 
+    @pytest.mark.asyncio
     async def test_close_all_connections(self):
         """Test closing all connections in the pool."""
         pool = ConnectionPool()
@@ -279,6 +287,7 @@ class TestConnectionPool:
             # Pool should be empty
             assert len(pool.connections) == 0
 
+    @pytest.mark.asyncio
     async def test_close_all_with_empty_pool(self):
         """Test closing all connections when pool is empty."""
         pool = ConnectionPool()
@@ -287,6 +296,7 @@ class TestConnectionPool:
         await pool.close_all()
         assert len(pool.connections) == 0
 
+    @pytest.mark.asyncio
     async def test_concurrent_get_client_requests(self):
         """Test thread safety with concurrent get_client requests."""
         pool = ConnectionPool()
@@ -310,6 +320,7 @@ class TestConnectionPool:
             # Client should only be created once
             assert MockClient.call_count == 1
 
+    @pytest.mark.asyncio
     async def test_rate_limiter_acquisition(self):
         """Test that rate limiters are properly acquired."""
         pool = ConnectionPool()
@@ -325,6 +336,7 @@ class TestConnectionPool:
         pool.rate_limiter.acquire.assert_called_once()
         pool.burst_limiter.acquire.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_different_configs_create_different_clients(self):
         """Test that different configs result in different clients in pool."""
         pool = ConnectionPool()
@@ -348,6 +360,7 @@ class TestConnectionPool:
             assert len(pool.connections) == 2
             assert MockClient.call_count == 2
 
+    @pytest.mark.asyncio
     async def test_ttl_calculation(self):
         """Test TTL calculation for connection expiration."""
         pool = ConnectionPool(ttl_seconds=100)
@@ -355,6 +368,7 @@ class TestConnectionPool:
         assert pool.ttl == timedelta(seconds=100)
         assert pool.ttl.total_seconds() == 100
 
+    @pytest.mark.asyncio
     async def test_lock_prevents_race_conditions(self):
         """Test that lock prevents race conditions in connection management."""
         pool = ConnectionPool()

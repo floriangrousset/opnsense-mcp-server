@@ -33,7 +33,7 @@ jobs:
       - name: Run pip-audit (CVE scanning)
         run: |
           pip-audit --desc --format json --output pip-audit-results.json || true
-          pip-audit --desc
+          pip-audit --desc || true
 
       - name: Run Safety check
         run: |

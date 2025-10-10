@@ -59,7 +59,6 @@ def mock_config_file(temp_config_dir):
     return config_file
 
 
-@pytest.mark.asyncio
 class TestConfigLoaderEnvironmentVariables:
     """Test loading credentials from environment variables (Priority 1)."""
 
@@ -137,7 +136,6 @@ class TestConfigLoaderEnvironmentVariables:
             ConfigLoader._load_from_env()
 
 
-@pytest.mark.asyncio
 class TestConfigLoaderConfigFile:
     """Test loading credentials from config file (Priority 2)."""
 
@@ -214,7 +212,6 @@ class TestConfigLoaderConfigFile:
                 ConfigLoader._load_from_config_file("default")
 
 
-@pytest.mark.asyncio
 class TestConfigLoaderKeyring:
     """Test loading credentials from keyring (Priority 3 - backward compatibility)."""
 
@@ -253,7 +250,6 @@ class TestConfigLoaderKeyring:
         assert config is None
 
 
-@pytest.mark.asyncio
 class TestConfigLoaderPriority:
     """Test priority resolution between credential sources."""
 
@@ -327,7 +323,6 @@ class TestConfigLoaderPriority:
             ConfigLoader.load("default")
 
 
-@pytest.mark.asyncio
 class TestConfigLoaderProfileManagement:
     """Test profile management operations."""
 
@@ -452,7 +447,6 @@ class TestConfigLoaderProfileManagement:
                 ConfigLoader.get_profile_info("nonexistent")
 
 
-@pytest.mark.asyncio
 class TestConfigLoaderSecurity:
     """Test security controls."""
 

@@ -34,6 +34,7 @@ class TestServerState:
 
         assert state.session_ttl == timedelta(hours=2)
 
+    @pytest.mark.asyncio
     async def test_initialize_success(self, mock_opnsense_config):
         """Test successful state initialization."""
         state = ServerState()
@@ -62,6 +63,7 @@ class TestServerState:
             # Verify validation request was made
             mock_client.request.assert_called_once_with("GET", "/api/core/firmware/status")
 
+    @pytest.mark.asyncio
     async def test_initialize_stores_credentials(self, mock_opnsense_config):
         """Test that initialize stores credentials securely."""
         state = ServerState()
@@ -95,6 +97,7 @@ class TestServerState:
             assert stored_creds["api_key"] == mock_opnsense_config.api_key
             assert stored_creds["api_secret"] == mock_opnsense_config.api_secret
 
+    @pytest.mark.asyncio
     async def test_initialize_handles_keyring_failure(self, mock_opnsense_config):
         """Test that initialize handles keyring failure gracefully."""
         state = ServerState()
@@ -122,6 +125,7 @@ class TestServerState:
             assert state.config == mock_opnsense_config
             mock_logger.warning.assert_called()
 
+    @pytest.mark.asyncio
     async def test_initialize_cleans_up_previous_state(self, mock_opnsense_config):
         """Test that initialize cleans up previous state."""
         state = ServerState()
@@ -150,6 +154,7 @@ class TestServerState:
             # Cleanup should have been called on first pool
             first_pool.close_all.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_get_client_when_configured(self, mock_opnsense_config):
         """Test get_client returns client when properly configured."""
         state = ServerState()
@@ -175,6 +180,7 @@ class TestServerState:
             assert client == mock_client
             mock_pool.get_client.assert_called_with(mock_opnsense_config)
 
+    @pytest.mark.asyncio
     async def test_get_client_raises_when_not_configured(self):
         """Test get_client raises ConfigurationError when not configured."""
         state = ServerState()
@@ -185,6 +191,7 @@ class TestServerState:
         assert "not configured" in str(exc_info.value)
         assert "configure_opnsense_connection" in str(exc_info.value)
 
+    @pytest.mark.asyncio
     async def test_get_client_with_no_pool(self, mock_opnsense_config):
         """Test get_client raises ConfigurationError when pool is None."""
         state = ServerState()
@@ -196,6 +203,7 @@ class TestServerState:
 
         assert "not configured" in str(exc_info.value)
 
+    @pytest.mark.asyncio
     async def test_get_client_reinitializes_on_session_expiry(self, mock_opnsense_config):
         """Test get_client reinitializes when session has expired."""
         state = ServerState(session_ttl=timedelta(seconds=1))
@@ -228,6 +236,7 @@ class TestServerState:
             # Check that reinitialization was logged
             mock_logger.info.assert_any_call("Session expired, reinitializing...")
 
+    @pytest.mark.asyncio
     async def test_cleanup(self, mock_opnsense_config):
         """Test cleanup properly cleans up resources."""
         state = ServerState()
@@ -261,6 +270,7 @@ class TestServerState:
             assert state.session_created is None
             mock_pool.close_all.assert_called_once()
 
+    @pytest.mark.asyncio
     async def test_cleanup_with_no_pool(self):
         """Test cleanup handles state with no pool gracefully."""
         state = ServerState()
@@ -272,6 +282,7 @@ class TestServerState:
         assert state.pool is None
         assert state.session_created is None
 
+    @pytest.mark.asyncio
     async def test_store_credentials_format(self, mock_opnsense_config):
         """Test _store_credentials creates correct credential format."""
         state = ServerState()
@@ -294,6 +305,7 @@ class TestServerState:
             assert credentials["api_secret"] == mock_opnsense_config.api_secret
             assert credentials["verify_ssl"] == mock_opnsense_config.verify_ssl
 
+    @pytest.mark.asyncio
     async def test_session_ttl_respected(self, mock_opnsense_config):
         """Test that session TTL is properly respected."""
         state = ServerState(session_ttl=timedelta(minutes=30))
@@ -321,6 +333,7 @@ class TestServerState:
             # Only one initialization should have occurred
             assert MockPool.call_count == 1
 
+    @pytest.mark.asyncio
     async def test_session_created_timestamp(self, mock_opnsense_config):
         """Test that session_created timestamp is properly set."""
         state = ServerState()
@@ -346,6 +359,7 @@ class TestServerState:
             assert state.session_created is not None
             assert before <= state.session_created <= after
 
+    @pytest.mark.asyncio
     async def test_initialize_logs_success(self, mock_opnsense_config):
         """Test that successful initialization is logged."""
         state = ServerState()
@@ -370,6 +384,7 @@ class TestServerState:
             # Verify success was logged
             mock_logger.info.assert_any_call("OPNsense connection initialized successfully")
 
+    @pytest.mark.asyncio
     async def test_multiple_get_client_calls(self, mock_opnsense_config):
         """Test multiple get_client calls return clients correctly."""
         state = ServerState()

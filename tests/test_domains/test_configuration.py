@@ -25,8 +25,8 @@ from src.opnsense_mcp.core.exceptions import (
     AuthenticationError,
     ConfigurationError,
     NetworkError,
-    ValidationError,
 )
+from src.opnsense_mcp.core.models import OPNsenseConfig
 from src.opnsense_mcp.domains.configuration import (
     configure_opnsense_connection,
     get_api_endpoints,
@@ -40,16 +40,26 @@ class TestConfigureOPNsenseConnection:
 
     async def test_successful_configuration(self, mock_mcp_context):
         """Test successful OPNsense connection configuration."""
-        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
+        mock_config = OPNsenseConfig(
+            url="https://192.168.1.1",
+            api_key="test_key",
+            api_secret="test_secret",
+            verify_ssl=False,
+        )
+
+        with (
+            patch("src.opnsense_mcp.domains.configuration.ConfigLoader") as MockConfigLoader,
+            patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state,
+        ):
+            MockConfigLoader.load.return_value = mock_config
+            MockConfigLoader.get_profile_info.return_value = {
+                "url": "https://192.168.1.1",
+                "api_key_preview": "test...ault",
+                "verify_ssl": False,
+            }
             mock_state.initialize = AsyncMock()
 
-            result = await configure_opnsense_connection(
-                ctx=mock_mcp_context,
-                url="https://192.168.1.1",
-                api_key="test_key",
-                api_secret="test_secret",
-                verify_ssl=False,
-            )
+            result = await configure_opnsense_connection(ctx=mock_mcp_context, profile="default")
 
             assert "configured successfully" in result
             mock_state.initialize.assert_called_once()
@@ -57,33 +67,53 @@ class TestConfigureOPNsenseConnection:
 
     async def test_configuration_with_ssl_verification(self, mock_mcp_context):
         """Test configuration with SSL verification enabled."""
-        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
+        mock_config = OPNsenseConfig(
+            url="https://opnsense.example.com",
+            api_key="key",
+            api_secret="secret",
+            verify_ssl=True,
+        )
+
+        with (
+            patch("src.opnsense_mcp.domains.configuration.ConfigLoader") as MockConfigLoader,
+            patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state,
+        ):
+            MockConfigLoader.load.return_value = mock_config
+            MockConfigLoader.get_profile_info.return_value = {
+                "url": "https://opnsense.example.com",
+                "api_key_preview": "key...ault",
+                "verify_ssl": True,
+            }
             mock_state.initialize = AsyncMock()
 
-            result = await configure_opnsense_connection(
-                ctx=mock_mcp_context,
-                url="https://opnsense.example.com",
-                api_key="key",
-                api_secret="secret",
-                verify_ssl=True,
-            )
+            result = await configure_opnsense_connection(ctx=mock_mcp_context, profile="default")
 
             assert "configured successfully" in result
 
     async def test_authentication_error_handling(self, mock_mcp_context):
         """Test handling of authentication errors."""
-        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
+        mock_config = OPNsenseConfig(
+            url="https://192.168.1.1",
+            api_key="wrong_key",
+            api_secret="wrong_secret",
+            verify_ssl=False,
+        )
+
+        with (
+            patch("src.opnsense_mcp.domains.configuration.ConfigLoader") as MockConfigLoader,
+            patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state,
+        ):
+            MockConfigLoader.load.return_value = mock_config
+            MockConfigLoader.get_profile_info.return_value = {
+                "url": "https://192.168.1.1",
+                "api_key_preview": "wrong...ault",
+                "verify_ssl": False,
+            }
             mock_state.initialize = AsyncMock(
                 side_effect=AuthenticationError("Invalid credentials")
             )
 
-            result = await configure_opnsense_connection(
-                ctx=mock_mcp_context,
-                url="https://192.168.1.1",
-                api_key="wrong_key",
-                api_secret="wrong_secret",
-                verify_ssl=False,
-            )
+            result = await configure_opnsense_connection(ctx=mock_mcp_context, profile="default")
 
             assert "Authentication Error" in result
             assert "Invalid credentials" in result
@@ -91,35 +121,55 @@ class TestConfigureOPNsenseConnection:
 
     async def test_network_error_handling(self, mock_mcp_context):
         """Test handling of network errors."""
-        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
+        mock_config = OPNsenseConfig(
+            url="https://192.168.1.1", api_key="key", api_secret="secret", verify_ssl=True
+        )
+
+        with (
+            patch("src.opnsense_mcp.domains.configuration.ConfigLoader") as MockConfigLoader,
+            patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state,
+        ):
+            MockConfigLoader.load.return_value = mock_config
+            MockConfigLoader.get_profile_info.return_value = {
+                "url": "https://192.168.1.1",
+                "api_key_preview": "key...ault",
+                "verify_ssl": True,
+            }
             mock_state.initialize = AsyncMock(side_effect=NetworkError("Cannot connect"))
 
-            result = await configure_opnsense_connection(
-                ctx=mock_mcp_context, url="https://192.168.1.1", api_key="key", api_secret="secret"
-            )
+            result = await configure_opnsense_connection(ctx=mock_mcp_context, profile="default")
 
             assert "Network Error" in result
             assert "Cannot connect" in result
 
     async def test_validation_error_handling(self, mock_mcp_context):
         """Test handling of validation errors."""
-        with patch("src.opnsense_mcp.domains.configuration.OPNsenseConfig") as MockConfig:
-            MockConfig.side_effect = ValidationError("Invalid URL format")
+        with patch("src.opnsense_mcp.domains.configuration.ConfigLoader") as MockConfigLoader:
+            MockConfigLoader.load.side_effect = ConfigurationError("Invalid URL format")
 
-            result = await configure_opnsense_connection(
-                ctx=mock_mcp_context, url="invalid-url", api_key="key", api_secret="secret"
-            )
+            result = await configure_opnsense_connection(ctx=mock_mcp_context, profile="default")
 
             assert "Configuration Error" in result
 
     async def test_generic_error_handling(self, mock_mcp_context):
         """Test handling of unexpected errors."""
-        with patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state:
+        mock_config = OPNsenseConfig(
+            url="https://192.168.1.1", api_key="key", api_secret="secret", verify_ssl=True
+        )
+
+        with (
+            patch("src.opnsense_mcp.domains.configuration.ConfigLoader") as MockConfigLoader,
+            patch("src.opnsense_mcp.domains.configuration.server_state") as mock_state,
+        ):
+            MockConfigLoader.load.return_value = mock_config
+            MockConfigLoader.get_profile_info.return_value = {
+                "url": "https://192.168.1.1",
+                "api_key_preview": "key...ault",
+                "verify_ssl": True,
+            }
             mock_state.initialize = AsyncMock(side_effect=Exception("Unexpected error"))
 
-            result = await configure_opnsense_connection(
-                ctx=mock_mcp_context, url="https://192.168.1.1", api_key="key", api_secret="secret"
-            )
+            result = await configure_opnsense_connection(ctx=mock_mcp_context, profile="default")
 
             assert "Error:" in result
 
