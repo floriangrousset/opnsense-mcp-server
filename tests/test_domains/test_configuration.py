@@ -148,9 +148,7 @@ class TestConfigureOPNsenseConnection:
         with patch("src.opnsense_mcp.domains.configuration.ConfigLoader") as MockConfigLoader:
             MockConfigLoader.load.side_effect = ConfigurationError("Invalid URL format")
 
-            result = await configure_opnsense_connection(
-                ctx=mock_mcp_context, profile="default"
-            )
+            result = await configure_opnsense_connection(ctx=mock_mcp_context, profile="default")
 
             assert "Configuration Error" in result
 
