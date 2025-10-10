@@ -25,7 +25,6 @@ from src.opnsense_mcp.core.exceptions import (
     AuthenticationError,
     ConfigurationError,
     NetworkError,
-    ValidationError,
 )
 from src.opnsense_mcp.core.models import OPNsenseConfig
 from src.opnsense_mcp.domains.configuration import (

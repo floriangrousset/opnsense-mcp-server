@@ -10,7 +10,6 @@ import logging
 from unittest.mock import Mock
 
 import httpx
-import pytest
 
 from src.opnsense_mcp.core.exceptions import (
     APIError,

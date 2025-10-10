@@ -4,8 +4,6 @@ Tests for OPNsense MCP Server delete profile CLI command.
 This module tests the delete profile command functionality.
 """
 
-import os
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest

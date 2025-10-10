@@ -9,8 +9,6 @@ import json
 import logging
 from unittest.mock import AsyncMock, Mock, patch
 
-import pytest
-
 from src.opnsense_mcp.core.client import OPNsenseClient, RequestResponseLogger
 from src.opnsense_mcp.core.models import OPNsenseConfig
 
